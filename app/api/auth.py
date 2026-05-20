@@ -1,4 +1,7 @@
+import logging
+
 from fastapi import APIRouter, Depends, HTTPException
+from sqlalchemy.exc import IntegrityError, OperationalError, SQLAlchemyError
 from sqlalchemy.orm import Session
 
 from app.core.db import get_db
@@ -7,6 +10,7 @@ from app.models.user import User
 from app.utils.schemas import BootstrapAdminRequest, BootstrapStatusResponse, LoginRequest, LoginResponse
 
 router = APIRouter(prefix="/api/auth", tags=["auth"])
+logger = logging.getLogger(__name__)
 
 
 @router.get("/bootstrap-status", response_model=BootstrapStatusResponse)
@@ -17,20 +21,47 @@ def bootstrap_status(db: Session = Depends(get_db)) -> BootstrapStatusResponse:
 
 @router.post("/bootstrap-admin", response_model=LoginResponse)
 def bootstrap_admin(payload: BootstrapAdminRequest, db: Session = Depends(get_db)) -> LoginResponse:
-    if db.query(User.id).first() is not None:
-        raise HTTPException(status_code=409, detail="Initial admin has already been created")
+    try:
+        if db.query(User.id).first() is not None:
+            raise HTTPException(status_code=409, detail="Initial admin has already been created")
 
-    admin_user = User(
-        username=payload.username,
-        email=payload.email,
-        password_hash=hash_password(payload.password),
-        is_admin=True,
-        is_active=True,
-    )
-    db.add(admin_user)
-    db.commit()
-    token = create_access_token(admin_user.username)
-    return LoginResponse(access_token=token)
+        admin_user = User(
+            username=payload.username,
+            email=payload.email,
+            password_hash=hash_password(payload.password),
+            is_admin=True,
+            is_active=True,
+        )
+        db.add(admin_user)
+        db.commit()
+        db.refresh(admin_user)
+        token = create_access_token(admin_user.username)
+        return LoginResponse(access_token=token)
+    except HTTPException:
+        raise
+    except IntegrityError as exc:
+        db.rollback()
+        logger.exception("Integrity error while bootstrapping admin user")
+        raise HTTPException(status_code=409, detail="Username or email already exists") from exc
+    except OperationalError as exc:
+        db.rollback()
+        logger.exception("Operational database error while bootstrapping admin user")
+        message = str(exc).lower()
+        if "readonly" in message:
+            detail = "Database is read-only. Ensure ./data is writable by the backend container and retry."
+        elif "no such table" in message or "has no column" in message:
+            detail = "Database schema is missing or outdated. Recreate the database or run migrations, then retry."
+        else:
+            detail = "Database operational error while creating initial admin. Check backend logs and retry."
+        raise HTTPException(status_code=500, detail=detail) from exc
+    except SQLAlchemyError as exc:
+        db.rollback()
+        logger.exception("Database error while bootstrapping admin user")
+        raise HTTPException(status_code=500, detail="Database error while creating initial admin") from exc
+    except Exception as exc:
+        db.rollback()
+        logger.exception("Unexpected error while bootstrapping admin user")
+        raise HTTPException(status_code=500, detail="Unexpected server error while creating initial admin") from exc
 
 
 @router.post("/login", response_model=LoginResponse)
