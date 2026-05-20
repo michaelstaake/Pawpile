@@ -198,7 +198,12 @@ export default function AdminPage() {
       setBootstrapPassword("");
       setSuccessMessage("Initial admin account created.");
     } catch (error) {
-      setErrorMessage(error instanceof Error ? error.message : "Initial admin creation failed");
+      const message = error instanceof Error ? error.message : "Initial admin creation failed";
+      if (message.includes("Request failed: 500")) {
+        setErrorMessage("Initial admin creation failed with a server error. On Linux hosts, check backend logs and ensure the ./data directory is writable by Docker before retrying.");
+      } else {
+        setErrorMessage(message);
+      }
     } finally {
       setIsSubmittingBootstrap(false);
     }
@@ -492,6 +497,7 @@ export default function AdminPage() {
             <div>
               <h3 className="font-display text-base">Create Initial Admin</h3>
               <p className="mt-1 text-sm text-black/65">This account is written to the database and becomes the first administrator for the instance.</p>
+              <p className="mt-1 text-xs text-black/50">If this fails on Linux with a 500 error, run docker compose logs backend and verify write access to the data folder.</p>
             </div>
             <label className="grid gap-1 text-sm text-black/70">
               Username

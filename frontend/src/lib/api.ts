@@ -1,15 +1,30 @@
 const BASE_URL = import.meta.env.VITE_API_BASE_URL ?? "";
 
 async function parseError(response: Response): Promise<Error> {
+  const bodyText = await response.text();
+
   try {
-    const payload = (await response.json()) as { detail?: string };
-    if (payload.detail) {
+    const payload = JSON.parse(bodyText) as { detail?: string | { msg?: string } | Array<{ msg?: string }> };
+    if (typeof payload.detail === "string" && payload.detail) {
       return new Error(payload.detail);
     }
+    if (Array.isArray(payload.detail) && payload.detail.length > 0 && payload.detail[0]?.msg) {
+      return new Error(payload.detail[0].msg);
+    }
+    if (payload.detail && typeof payload.detail === "object" && "msg" in payload.detail && typeof payload.detail.msg === "string") {
+      return new Error(payload.detail.msg);
+    }
   } catch {
-    // Fall through to the generic message when the response is not JSON.
+    // Fall through to status/body based error handling when the response is not JSON.
   }
-  return new Error(`Request failed: ${response.status}`);
+
+  const text = bodyText.trim();
+  if (text && !text.startsWith("<!DOCTYPE") && !text.startsWith("<html")) {
+    return new Error(`Request failed: ${response.status} (${text.slice(0, 220)})`);
+  }
+
+  const statusText = response.statusText ? ` ${response.statusText}` : "";
+  return new Error(`Request failed: ${response.status}${statusText}`);
 }
 
 export async function apiGet<T>(path: string, token?: string): Promise<T> {

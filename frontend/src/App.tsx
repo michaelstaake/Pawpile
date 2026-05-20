@@ -9,7 +9,7 @@ export default function App() {
         <header className="mb-6 flex flex-wrap items-center justify-between gap-4 rounded-2xl border border-black/10 bg-white/80 p-4 shadow-sm backdrop-blur">
           <div>
             <h1 className="font-display text-2xl font-semibold tracking-tight">Pawpile</h1>
-            <p className="text-sm text-black/60">Self-hosted AI runtime with strict per-device scheduling</p>
+            <p className="text-sm text-black/60">Pawcrafted by Pup Sierra</p>
           </div>
           <nav className="flex gap-2">
             <NavLink to="/" className={({ isActive }) => `rounded-lg px-3 py-2 text-sm ${isActive ? "bg-ink text-white" : "bg-black/5"}`}>

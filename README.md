@@ -1,9 +1,6 @@
 # Pawpile
 
-Pawpile is a mostly vibe-coded self-hosted AI platform designed to run completely in Docker on Windows and Ubuntu.
-It provides a ChatGPT-style web UI, OpenAI-compatible API endpoints, model management from a local models folder, and strict one-model-per-device scheduling.
-
-The application runs completely in Docker: frontend, backend, and inference run as separate services.
+Pawpile is a mostly vibe-coded self-hosted AI platform designed to run completely in Docker on Windows and Ubuntu. It runs in Docker and gives you a web UI where you can manege users, models, and devices to get a web chat or expose an OpenAI-compatible API to your local network.
 
 ## The Problem Pawpile Solves
 
@@ -115,6 +112,7 @@ curl -X POST http://localhost:8000/api/auth/bootstrap-admin \
   -H "Content-Type: application/json" \
   -d '{
     "username": "admin",
+    "email": "admin@localhost",
     "password": "your-secure-password"
   }'
 ```
