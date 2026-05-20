@@ -497,7 +497,6 @@ export default function AdminPage() {
             <div>
               <h3 className="font-display text-base">Create Initial Admin</h3>
               <p className="mt-1 text-sm text-black/65">This account is written to the database and becomes the first administrator for the instance.</p>
-              <p className="mt-1 text-xs text-black/50">If this fails on Linux with a 500 error, run docker compose logs backend and verify write access to the data folder.</p>
             </div>
             <label className="grid gap-1 text-sm text-black/70">
               Username
