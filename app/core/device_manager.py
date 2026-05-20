@@ -3,7 +3,6 @@ import logging
 import re
 import shlex
 import subprocess
-import sys
 from dataclasses import dataclass
 
 import psutil
@@ -21,8 +20,6 @@ def get_supported_vendors() -> set[str]:
     if configured:
         return set(configured)
 
-    if sys.platform == "win32":
-        return {"cpu", "nvidia"}
     return {"cpu", "nvidia", "amd", "intel"}
 
 
@@ -48,16 +45,11 @@ class DeviceManager:
             return configured
 
         devices: list[DetectedDevice] = []
-        if sys.platform == "win32":
-            # On Windows, only support NVIDIA and CPU
-            devices.extend(self._detect_nvidia())
-            devices.extend(self._detect_cpu())
-        else:
-            # On Ubuntu/Linux, support NVIDIA, AMD, Intel, and CPU
-            devices.extend(self._detect_nvidia())
-            devices.extend(self._detect_amd())
-            devices.extend(self._detect_intel())
-            devices.extend(self._detect_cpu())
+        # On Ubuntu, support NVIDIA, AMD, Intel, and CPU
+        devices.extend(self._detect_nvidia())
+        devices.extend(self._detect_amd())
+        devices.extend(self._detect_intel())
+        devices.extend(self._detect_cpu())
         return devices
 
     def sync_detected_devices(self, db: Session) -> list[Device]:

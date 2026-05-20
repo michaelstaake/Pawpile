@@ -1,25 +1,24 @@
 # Pawpile
 
-Pawpile is a mostly vibe-coded self-hosted AI platform designed to run completely in Docker on Windows and Ubuntu. It runs in Docker and gives you a web UI where you can manege users, models, and devices to get a web chat or expose an OpenAI-compatible API to your local network.
+Pawpile is a mostly vibe-coded self-hosted AI platform designed to run completely in Docker on Ubuntu. It gives you a web UI where you can manege auth, models, and devices to get a web chat or expose an OpenAI-compatible API to your local network.
 
 ## The Problem Pawpile Solves
 
-Hardware to run AI locally is expensive, but cloud AI solution pricing keeps going up and transparency and accountability keeps going down. Pawpile lets you run models of your choice on the hardware of your choice. You can combine multiple GPUs and select which models run on which device. On Windows, you can use the CPU/RAM as well as NVIDIA GPUs/VRAM. On Ubuntu, you can use CPU/RAM as well as NVIDIA, AMD, and Intel Arc GPUs.
+Hardware to run AI locally is expensive, but cloud AI solution pricing keeps going up and transparency and accountability keeps going down. Pawpile lets you run models of your choice on the hardware of your choice. It can run models on CPU/system RAM or using NVIDIA, AMD, or Intel Arc GPUs.
 
 ## System Requirements
 
-### Recommended Operating Systems
+### Recommended Operating System
 
-- **Windows 11** NVIDIA ONLY
-- **Ubuntu 26.04** NVIDIA, AMD, INTEL ARC
+- **Ubuntu 26.04**
 
-These are the tested and supported environments. If it works on other operating systems, awesome, but supporting that is outside the scope of this project.
+If it works on other operating systems, awesome, but supporting that is outside the scope of this project.
 
 ### Hardware Acceleration (Optional)
 
-- **NVIDIA**: CUDA 11.8+ and cuDNN, available on both Windows and Linux
-- **AMD ROCm**: Linux Ubuntu 26.04 only; requires `/dev/kfd` and `/dev/dri` access
-- **Intel Arc**: Linux Ubuntu 26.04 only; requires Intel GPU drivers
+- **NVIDIA**: CUDA 11.8+ and cuDNN, available on Linux
+- **AMD ROCm**: Rrequires `/dev/kfd` and `/dev/dri` access
+- **Intel Arc**: Requires Intel GPU drivers
 
 ## Features
 
@@ -29,7 +28,6 @@ These are the tested and supported environments. If it works on other operating 
   - /v1/models
   - /v1/chat/completions
 - Device auto-detection on startup:
-  - Windows: NVIDIA (nvidia-smi), CPU
   - Ubuntu 26.04: NVIDIA (nvidia-smi), AMD ROCm (rocm-smi), Intel SYCL (sycl-ls), CPU
 - Devices are detected automatically and disabled by default when first discovered.
 - One model per compute device. No tensor parallelism or layer splitting.
@@ -61,13 +59,12 @@ pawpile/
 
 ## Quick Start (Docker)
 
-The default Compose stack is CPU-only and is intended to run on both Windows Docker Desktop and Linux Docker hosts.
+The default Compose stack is CPU-only and runs on Ubuntu.
 
 ### Prerequisites
 
 - Docker installed (20.10+ recommended)
-- On Windows: Docker Desktop configured to use WSL2 or Hyper-V backend
-- On Linux: Docker daemon running, and user added to the docker group
+- Docker daemon running, and user added to the docker group
 - At least 8 GB RAM available for containers
 - 20+ GB free disk space
 
@@ -125,10 +122,9 @@ CPU mode is the base stack. Layer a vendor override on top when the host runtime
 - AMD (ROCm, Linux host): `docker compose -f docker-compose.yml -f docker-compose.amd.yml up -d --build`
 - Intel (oneAPI / Level Zero, Linux host): `docker compose -f docker-compose.yml -f docker-compose.intel.yml up -d --build`
 
-AMD and Intel overrides require a Linux host with the corresponding kernel modules
+AMD and Intel overrides require the corresponding kernel modules
 loaded (`amdgpu` and `i915` respectively) and pass `/dev/kfd` / `/dev/dri` into the
-inference container. Docker Desktop on Windows does not currently expose those
-device nodes, so AMD and Intel acceleration in Docker is Linux-only.
+inference container.
 
 To target a specific AMD GPU architecture and shrink build time, override the
 `AMDGPU_TARGETS` build arg, e.g. `--build-arg AMDGPU_TARGETS=gfx1100` for an
@@ -138,8 +134,7 @@ RX 7900 series card.
 
 | Platform | CPU | NVIDIA | AMD | Intel Arc |
 | --- | --- | --- | --- | --- |
-| Docker on Linux host | Supported | Supported | Supported | Supported |
-| Docker on Windows host | Supported | Supported when Docker GPU runtime is available | Not supported | Not supported |
+| Docker on Ubuntu | Supported | Supported | Supported | Supported |
 
 ## Docker Architecture
 
@@ -236,7 +231,6 @@ curl http://localhost:8000/v1/chat/completions \
   ```
 
 - **Docker image build fails**:
-  - Increase Docker memory limit (especially on Windows Docker Desktop)
   - Check available disk space
   - Run `docker system prune` to clean up old images
 
@@ -244,7 +238,6 @@ curl http://localhost:8000/v1/chat/completions \
 
 - **Device not detected**:
   - Check vendor tooling is installed on the host system:
-    - Windows: `nvidia-smi` (if using NVIDIA)
     - Ubuntu 26.04: `nvidia-smi`, `rocm-smi` (AMD), or `sycl-ls` (Intel Arc)
   - Ensure the appropriate GPU Docker runtime is configured and accessible to the environment.
   - Restart the application after installing drivers on the host.
