@@ -3,16 +3,20 @@ from sqlalchemy.orm import Session
 
 from app.api.deps import get_admin_user
 from app.core.db import get_db
+from app.core.device_manager import DeviceManager
 from app.models.device import Device
 from app.models.user import User
 from app.utils.schemas import DeviceReorderRequest, DeviceUpdateRequest
 
 router = APIRouter(prefix="/api/devices", tags=["devices"])
+device_manager = DeviceManager()
 
 
 @router.get("")
 def list_devices(_: User = Depends(get_admin_user), db: Session = Depends(get_db)) -> list[dict]:
     rows = db.query(Device).order_by(Device.priority.asc(), Device.id.asc()).all()
+    if not rows:
+        rows = device_manager.sync_detected_devices(db)
     return [_serialize_device(d) for d in rows]
 
 
