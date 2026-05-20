@@ -7,6 +7,7 @@ type AuthContextValue = {
   user: CurrentUser | null;
   requiresSetup: boolean;
   setupStatus: BootstrapStatus | null;
+  bootstrapError: string | null;
   isBootstrapping: boolean;
   isAuthenticating: boolean;
   refreshAuthState: () => Promise<void>;
@@ -22,6 +23,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<CurrentUser | null>(null);
   const [requiresSetup, setRequiresSetup] = useState(false);
   const [setupStatus, setSetupStatus] = useState<BootstrapStatus | null>(null);
+  const [bootstrapError, setBootstrapError] = useState<string | null>(null);
   const [isBootstrapping, setIsBootstrapping] = useState(true);
   const [isAuthenticating, setIsAuthenticating] = useState(false);
 
@@ -43,6 +45,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setIsBootstrapping(true);
     try {
       const bootstrap = await apiGet<BootstrapStatus>("/api/auth/bootstrap-status");
+      setBootstrapError(null);
       setSetupStatus(bootstrap);
       setRequiresSetup(bootstrap.requires_setup);
 
@@ -62,8 +65,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
       const currentUser = await apiGet<CurrentUser>("/api/auth/me", token);
       setUser(currentUser);
-    } catch {
+    } catch (error) {
       setUser(null);
+      setSetupStatus(null);
+      setRequiresSetup(false);
+      setBootstrapError(error instanceof Error ? error.message : "Unable to load installation state");
     } finally {
       setIsBootstrapping(false);
     }
@@ -76,6 +82,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       storeToken(response.access_token);
       setToken(response.access_token);
       const currentUser = await apiGet<CurrentUser>("/api/auth/me", response.access_token);
+      setBootstrapError(null);
       setUser(currentUser);
     } finally {
       setIsAuthenticating(false);
@@ -97,6 +104,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       setUser(currentUser);
       setSetupStatus(bootstrap);
       setRequiresSetup(bootstrap.requires_setup);
+      setBootstrapError(null);
     } finally {
       setIsAuthenticating(false);
     }
@@ -115,6 +123,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         user,
         requiresSetup,
         setupStatus,
+        bootstrapError,
         isBootstrapping,
         isAuthenticating,
         refreshAuthState,

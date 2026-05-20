@@ -6,6 +6,7 @@ from sqlalchemy.exc import IntegrityError, OperationalError, SQLAlchemyError
 from sqlalchemy.orm import Session
 
 from app.api.deps import get_current_user
+from app.core.config import get_settings
 from app.core.db import get_db
 from app.core.security import create_access_token, generate_api_key, hash_api_key, hash_password, verify_password
 from app.models.api_key import ApiKey

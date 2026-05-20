@@ -24,10 +24,13 @@ function RequireAdmin({ children }: { children: JSX.Element }) {
 }
 
 function SetupRoute() {
-  const { isBootstrapping, requiresSetup } = useAuth();
+  const { bootstrapError, isBootstrapping, requiresSetup } = useAuth();
 
   if (isBootstrapping) {
     return <section className="rounded-2xl border border-black/10 bg-white/80 p-5 text-sm text-black/60 shadow-sm">Checking installation state...</section>;
+  }
+  if (bootstrapError) {
+    return <section className="rounded-2xl border border-rose-200 bg-rose-50 p-5 text-sm text-rose-700 shadow-sm">Unable to check installation state. Confirm the backend is running and reload after resolving the API error.</section>;
   }
   if (!requiresSetup) {
     return <Navigate to="/auth" replace />;
@@ -36,8 +39,24 @@ function SetupRoute() {
 }
 
 export default function App() {
-  const { isBootstrapping, requiresSetup, user } = useAuth();
+  const { bootstrapError, isBootstrapping, requiresSetup, user } = useAuth();
   const showMainNav = !isBootstrapping && !requiresSetup;
+
+  if (!isBootstrapping && bootstrapError) {
+    return (
+      <div className="min-h-screen bg-[radial-gradient(circle_at_0%_0%,#f8fbf1_0%,#f4f0e0_45%,#efe8d2_100%)] text-ink font-body">
+        <div className="mx-auto max-w-3xl px-4 py-6 md:px-8">
+          <header className="mb-6 rounded-2xl border border-black/10 bg-white/80 p-4 shadow-sm backdrop-blur">
+            <h1 className="font-display text-2xl font-semibold tracking-tight">Pawpile</h1>
+            <p className="text-sm text-black/60">Pawcrafted by Pup Sierra</p>
+          </header>
+          <section className="rounded-2xl border border-rose-200 bg-rose-50 p-5 text-sm text-rose-700 shadow-sm">
+            Unable to check installation state. Confirm the backend is running and that <code>/api/auth/bootstrap-status</code> returns successfully, then reload the page.
+          </section>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-[radial-gradient(circle_at_0%_0%,#f8fbf1_0%,#f4f0e0_45%,#efe8d2_100%)] text-ink font-body">
