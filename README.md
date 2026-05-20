@@ -83,18 +83,13 @@ cd Pawpile
 cp .env.example .env
 ```
 
-3. Add GGUF files under models directory.
-
-```bash
-mkdir -p models
-# put your *.gguf files in ./models
-```
-
-4. Start services.
+3. Start services.
 
 ```bash
 docker compose up -d --build
 ```
+
+4. Add GGUF files under the `models/` directory or do this later using the Web UI.
 
 5. Wait for services to become healthy (typically 30-60 seconds).
 
@@ -102,25 +97,20 @@ docker compose up -d --build
 - **Frontend**: http://localhost:5173
 - **API docs**: http://localhost:8000/docs
 
-7. On first launch, create an admin account through the web UI or via API:
+7. On first launch, use the setup interface in the web UI to create the initial admin account.
 
-```bash
-curl -X POST http://localhost:8000/api/auth/bootstrap-admin \
-  -H "Content-Type: application/json" \
-  -d '{
-    "username": "admin",
-    "email": "admin@localhost",
-    "password": "your-secure-password"
-  }'
-```
+### Optional Runtime Overlays
 
-### Optional GPU Overrides
+The base stack always starts the CPU inference runtime. Add one or more vendor runtime overlays when the host supports them.
 
-CPU mode is the base stack. Layer a vendor override on top when the host runtime supports it.
+Pawpile automatically detects devices from the running runtimes and routes models to the matching vendor. The overlay choice is still needed at container startup time because NVIDIA, AMD, and Intel use different images, libraries, and device mappings.
 
 - NVIDIA: `docker compose -f docker-compose.yml -f docker-compose.nvidia.yml up -d --build`
 - AMD (ROCm, Linux host): `docker compose -f docker-compose.yml -f docker-compose.amd.yml up -d --build`
 - Intel (oneAPI / Level Zero, Linux host): `docker compose -f docker-compose.yml -f docker-compose.intel.yml up -d --build`
+- Mixed vendor example: `docker compose -f docker-compose.yml -f docker-compose.nvidia.yml -f docker-compose.amd.yml up -d --build`
+
+You can combine overlay files. Pawpile now routes models to the inference runtime that matches the selected device vendor.
 
 AMD and Intel overrides require the corresponding kernel modules
 loaded (`amdgpu` and `i915` respectively) and pass `/dev/kfd` / `/dev/dri` into the
@@ -140,13 +130,13 @@ RX 7900 series card.
 
 - `frontend`: builds the Vite app and serves it from nginx.
 - `backend`: runs FastAPI and remains the control plane for auth, devices, models, and API compatibility.
-- `inference`: runs a dedicated inference service that manages `llama-server` subprocesses inside its own container.
+- `inference-*`: one or more vendor-specific inference runtimes manage `llama-server` subprocesses inside their own containers.
 
-The backend no longer needs a host-local `llama-server`. It talks to the inference service over HTTP.
+The backend no longer needs a host-local `llama-server`. It talks to the configured inference runtimes over HTTP.
 
 ## Authentication
 
-- On first launch, create the initial admin account through the web UI or `POST /api/auth/bootstrap-admin`.
+- On first launch, create the initial admin account through the setup interface in the web UI.
 - Check whether first-run setup is needed with `GET /api/auth/bootstrap-status`.
 - Login at `POST /api/auth/login`.
 - Use returned JWT as Bearer token.
@@ -156,8 +146,9 @@ The backend no longer needs a host-local `llama-server`. It talks to the inferen
 
 ## Device Model
 
-- Devices are auto-detected at startup.
+- Devices are auto-detected at startup from the running inference runtimes.
 - New devices are persisted as disabled.
+- Devices that disappear on a later restart are automatically disabled.
 - Admin must explicitly enable devices before model assignment.
 - Auto mode is supported for model assignment.
 - Device priority is configurable.
@@ -174,7 +165,6 @@ The backend no longer needs a host-local `llama-server`. It talks to the inferen
 
 - Auth
   - GET /api/auth/bootstrap-status
-  - POST /api/auth/bootstrap-admin
   - POST /api/auth/login
 - Admin
   - GET /api/admin/users

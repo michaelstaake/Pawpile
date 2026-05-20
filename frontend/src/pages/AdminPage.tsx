@@ -94,7 +94,7 @@ const ASSIGNMENT_MODE_OPTIONS = [
   { label: "Pinned device", value: "pinned" }
 ] as const;
 
-export default function AdminPage() {
+export default function SettingsPage() {
   const [token, setToken] = useState<string>(() => window.localStorage.getItem(ADMIN_TOKEN_KEY) ?? "");
   const [requiresSetup, setRequiresSetup] = useState(false);
   const [isCheckingSetup, setIsCheckingSetup] = useState(true);

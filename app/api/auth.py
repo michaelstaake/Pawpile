@@ -1,13 +1,18 @@
 import logging
+from pathlib import Path
 
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.exc import IntegrityError, OperationalError, SQLAlchemyError
 from sqlalchemy.orm import Session
 
+from app.api.deps import get_current_user
 from app.core.db import get_db
-from app.core.security import create_access_token, hash_password, verify_password
+from app.core.security import create_access_token, generate_api_key, hash_api_key, hash_password, verify_password
+from app.models.api_key import ApiKey
+from app.models.device import Device
+from app.models.model_config import ModelConfig
 from app.models.user import User
-from app.utils.schemas import BootstrapAdminRequest, BootstrapStatusResponse, LoginRequest, LoginResponse
+from app.utils.schemas import ApiKeyCreateRequest, BootstrapAdminRequest, BootstrapStatusResponse, LoginRequest, LoginResponse, UserResponse
 
 router = APIRouter(prefix="/api/auth", tags=["auth"])
 logger = logging.getLogger(__name__)
@@ -15,8 +20,21 @@ logger = logging.getLogger(__name__)
 
 @router.get("/bootstrap-status", response_model=BootstrapStatusResponse)
 def bootstrap_status(db: Session = Depends(get_db)) -> BootstrapStatusResponse:
-    has_users = db.query(User.id).first() is not None
-    return BootstrapStatusResponse(requires_setup=not has_users)
+    has_admin_user = db.query(User.id).filter(User.is_admin.is_(True), User.is_active.is_(True)).first() is not None
+    has_enabled_device = db.query(Device.id).filter(Device.enabled.is_(True)).first() is not None
+    has_active_model = db.query(ModelConfig.id).filter(ModelConfig.activated.is_(True)).first() is not None
+    setup_complete = _setup_complete_path().exists()
+
+    if not setup_complete and has_admin_user and has_enabled_device and has_active_model:
+        _mark_setup_complete()
+        setup_complete = True
+
+    return BootstrapStatusResponse(
+        requires_setup=not setup_complete,
+        has_admin_user=has_admin_user,
+        has_enabled_device=has_enabled_device,
+        has_active_model=has_active_model,
+    )
 
 
 @router.post("/bootstrap-admin", response_model=LoginResponse)
@@ -71,3 +89,66 @@ def login(payload: LoginRequest, db: Session = Depends(get_db)) -> LoginResponse
         raise HTTPException(status_code=401, detail="Invalid username or password")
     token = create_access_token(user.username)
     return LoginResponse(access_token=token)
+
+
+@router.get("/me", response_model=UserResponse)
+def current_user(current_user: User = Depends(get_current_user)) -> UserResponse:
+    return UserResponse(
+        id=current_user.id,
+        username=current_user.username,
+        email=current_user.email,
+        is_admin=current_user.is_admin,
+        is_active=current_user.is_active,
+    )
+
+
+@router.get("/api-keys")
+def list_api_keys(current_user: User = Depends(get_current_user), db: Session = Depends(get_db)) -> list[dict]:
+    rows = (
+        db.query(ApiKey)
+        .filter(ApiKey.user_id == current_user.id)
+        .order_by(ApiKey.created_at.desc(), ApiKey.id.desc())
+        .all()
+    )
+    return [_serialize_api_key(api_key, current_user) for api_key in rows]
+
+
+@router.post("/api-keys")
+def create_api_key(payload: ApiKeyCreateRequest, current_user: User = Depends(get_current_user), db: Session = Depends(get_db)) -> dict:
+    plain_text_key = generate_api_key()
+    api_key = ApiKey(user_id=current_user.id, name=payload.name, key_hash=hash_api_key(plain_text_key))
+    db.add(api_key)
+    db.commit()
+    db.refresh(api_key)
+    return {"status": "ok", "api_key": _serialize_api_key(api_key, current_user), "plain_text_key": plain_text_key}
+
+
+@router.delete("/api-keys/{key_id}")
+def revoke_api_key(key_id: int, current_user: User = Depends(get_current_user), db: Session = Depends(get_db)) -> dict:
+    api_key = db.query(ApiKey).filter(ApiKey.id == key_id, ApiKey.user_id == current_user.id).first()
+    if not api_key:
+        raise HTTPException(status_code=404, detail="API key not found")
+    db.delete(api_key)
+    db.commit()
+    return {"status": "ok"}
+
+
+def _serialize_api_key(api_key: ApiKey, user: User) -> dict:
+    return {
+        "id": api_key.id,
+        "user_id": api_key.user_id,
+        "user_username": user.username,
+        "name": api_key.name,
+        "created_at": api_key.created_at.isoformat() if api_key.created_at else None,
+    }
+
+
+def _setup_complete_path() -> Path:
+    settings = get_settings()
+    return Path(settings.data_dir) / ".setup-complete"
+
+
+def _mark_setup_complete() -> None:
+    flag_path = _setup_complete_path()
+    flag_path.parent.mkdir(parents=True, exist_ok=True)
+    flag_path.write_text("complete\n", encoding="utf-8")

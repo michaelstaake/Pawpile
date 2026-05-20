@@ -22,7 +22,7 @@ UPLOAD_CHUNK_BYTES = 1024 * 1024
 
 
 @router.get("")
-def list_models(db: Session = Depends(get_db)) -> list[dict]:
+def list_models(_: User = Depends(get_admin_user), db: Session = Depends(get_db)) -> list[dict]:
     rows = db.query(ModelConfig).order_by(ModelConfig.alias.asc()).all()
     return [_serialize_model(m) for m in rows]
 
@@ -168,7 +168,7 @@ async def activate_model(model_id: int, _: User = Depends(get_admin_user), db: S
     if not model:
         raise HTTPException(status_code=404, detail="Model not found")
 
-    device = _resolve_device_for_model(db, model)
+    device = _resolve_device_for_model(db, model, inference)
     if not device:
         raise HTTPException(status_code=409, detail="No enabled device available for model")
 
@@ -192,22 +192,37 @@ def deactivate_model(model_id: int, _: User = Depends(get_admin_user), db: Sessi
     return {"status": "ok"}
 
 
-def _resolve_device_for_model(db: Session, model: ModelConfig) -> Device | None:
+def _resolve_device_for_model(db: Session, model: ModelConfig, inference: InferenceManager) -> Device | None:
     supported_vendors = [vendor for vendor in ["cpu", "nvidia", "amd", "intel"] if is_supported_vendor(vendor)]
 
     if model.assignment_mode == "pinned" and model.pinned_device_id:
-        return (
+        device = (
             db.query(Device)
             .filter(Device.id == model.pinned_device_id, Device.enabled.is_(True), Device.vendor.in_(supported_vendors))
             .first()
         )
+        if device and not inference.has_runtime_for_vendor(device.vendor):
+            raise HTTPException(
+                status_code=409,
+                detail=f"No inference runtime configured for pinned device vendor: {device.vendor}",
+            )
+        return device
 
-    return (
+    candidates = (
         db.query(Device)
         .filter(Device.enabled.is_(True), Device.vendor.in_(supported_vendors))
         .order_by(Device.priority.asc(), Device.id.asc())
-        .first()
+        .all()
     )
+
+    for candidate in candidates:
+        if inference.has_runtime_for_vendor(candidate.vendor):
+            return candidate
+
+    if candidates:
+        raise HTTPException(status_code=409, detail="No inference runtime configured for any enabled device")
+
+    return None
 
 
 def _serialize_model(model: ModelConfig) -> dict:

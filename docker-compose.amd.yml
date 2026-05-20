@@ -1,15 +1,23 @@
 services:
-  backend:
-    environment:
-      SUPPORTED_DEVICES: cpu,amd
-
-  inference:
+  inference-amd:
     build:
       context: .
       dockerfile: Dockerfile.inference.amd
+    container_name: pawpile-inference-amd
     environment:
-      SUPPORTED_DEVICES: cpu,amd
+      SUPPORTED_DEVICES: amd
       LLAMA_SERVER_PATH: /opt/llama.cpp/build/bin/llama-server
+    volumes:
+      - ./models:/app/models
+      - ./logs:/app/logs
+    expose:
+      - "8100"
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8100/health"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 20s
     devices:
       - /dev/kfd
       - /dev/dri
@@ -18,3 +26,4 @@ services:
       - render
     security_opt:
       - seccomp=unconfined
+    restart: unless-stopped

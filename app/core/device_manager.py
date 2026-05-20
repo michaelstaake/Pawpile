@@ -5,6 +5,7 @@ import shlex
 import subprocess
 from dataclasses import dataclass
 
+import httpx
 import psutil
 from sqlalchemy.orm import Session
 
@@ -40,10 +41,17 @@ class DetectedDevice:
 
 class DeviceManager:
     def detect_all(self) -> list[DetectedDevice]:
+        remote = self._detect_runtime_devices()
+        if remote:
+            return remote
+
         configured = self._detect_configured_devices()
         if configured:
             return configured
 
+        return self.detect_local()
+
+    def detect_local(self) -> list[DetectedDevice]:
         devices: list[DetectedDevice] = []
         # On Ubuntu, support NVIDIA, AMD, Intel, and CPU
         devices.extend(self._detect_nvidia())
@@ -55,9 +63,10 @@ class DeviceManager:
     def sync_detected_devices(self, db: Session) -> list[Device]:
         detected = self.detect_all()
         existing = {d.hardware_id: d for d in db.query(Device).all()}
+        detected_ids = {device.hardware_id for device in detected}
 
         for row in existing.values():
-            if not is_supported_vendor(row.vendor):
+            if not is_supported_vendor(row.vendor) or row.hardware_id not in detected_ids:
                 row.enabled = False
 
         for d in detected:
@@ -85,6 +94,62 @@ class DeviceManager:
 
         db.commit()
         return db.query(Device).order_by(Device.priority.asc(), Device.id.asc()).all()
+
+    def _detect_runtime_devices(self) -> list[DetectedDevice]:
+        settings = get_settings()
+        if not settings.inference_runtime_urls.strip():
+            return []
+
+        devices_by_id: dict[str, DetectedDevice] = {}
+        runtime_map = settings.inference_runtime_url_map()
+        timeout = settings.inference_service_timeout_seconds
+
+        for runtime_vendor, base_url in runtime_map.items():
+            try:
+                with httpx.Client(timeout=timeout) as client:
+                    response = client.get(f"{base_url}/runtime/devices")
+                    response.raise_for_status()
+            except Exception as exc:
+                logger.warning("Failed to fetch devices from runtime %s at %s: %s", runtime_vendor, base_url, exc)
+                continue
+
+            payload = response.json()
+            rows = payload.get("devices", []) if isinstance(payload, dict) else []
+            for row in rows:
+                device = self._parse_runtime_device(row)
+                if not device:
+                    continue
+                if runtime_vendor != "default" and device.vendor != runtime_vendor:
+                    continue
+                devices_by_id[device.hardware_id] = device
+
+        return list(devices_by_id.values())
+
+    @staticmethod
+    def _parse_runtime_device(row: object) -> DetectedDevice | None:
+        if not isinstance(row, dict):
+            return None
+
+        try:
+            hardware_id = str(row["hardware_id"])
+            name = str(row["name"])
+            vendor = str(row["vendor"])
+            device_type = str(row.get("device_type", "gpu"))
+            memory_mb = int(row.get("memory_mb", 0) or 0)
+            max_threads = int(row.get("max_threads", 0) or 0)
+            max_slots = int(row.get("max_slots", 1) or 1)
+        except (KeyError, TypeError, ValueError):
+            return None
+
+        return DetectedDevice(
+            hardware_id=hardware_id,
+            name=name,
+            vendor=vendor,
+            device_type=device_type,
+            memory_mb=memory_mb,
+            max_threads=max_threads,
+            max_slots=max(1, max_slots),
+        )
 
     def _run(self, command: str) -> str:
         try:

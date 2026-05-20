@@ -3,6 +3,9 @@ from pathlib import Path
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
+RUNTIME_VENDOR_KEYS = {"cpu", "nvidia", "amd", "intel", "default"}
+
+
 def _default_llama_server_path() -> str:
     return "/opt/llama.cpp/build/bin/llama-server"
 
@@ -43,11 +46,33 @@ class Settings(BaseSettings):
     frontend_origin: str = "http://localhost:5173"
     supported_devices: str = ""
     inference_service_url: str = "http://localhost:8100"
+    inference_runtime_urls: str = ""
     inference_service_timeout_seconds: int = 300
     max_upload_size_mb: int = 50000
 
     def supported_device_list(self) -> list[str]:
         return [item.strip().lower() for item in self.supported_devices.split(",") if item.strip()]
+
+    def inference_runtime_url_map(self) -> dict[str, str]:
+        mapping: dict[str, str] = {}
+        for entry in self.inference_runtime_urls.split(","):
+            item = entry.strip()
+            if not item or "=" not in item:
+                continue
+            vendor, url = item.split("=", 1)
+            key = vendor.strip().lower()
+            value = url.strip().rstrip("/")
+            if key in RUNTIME_VENDOR_KEYS and value:
+                mapping[key] = value
+
+        if mapping:
+            return mapping
+
+        return {"default": self.inference_service_url.rstrip("/")}
+
+    def inference_runtime_url_for_vendor(self, vendor: str) -> str | None:
+        mapping = self.inference_runtime_url_map()
+        return mapping.get(vendor.strip().lower()) or mapping.get("default")
 
 
 @lru_cache

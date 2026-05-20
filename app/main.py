@@ -1,4 +1,5 @@
 from contextlib import asynccontextmanager
+from pathlib import Path
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
@@ -18,6 +19,7 @@ inference_manager = InferenceManager()
 @asynccontextmanager
 async def lifespan(_: FastAPI):
     configure_logging(settings.app_log_level)
+    Path(settings.models_dir).mkdir(parents=True, exist_ok=True)
     Base.metadata.create_all(bind=engine)
 
     db = SessionLocal()

@@ -5,8 +5,9 @@ services:
       dockerfile: Dockerfile.backend
     container_name: pawpile-backend
     environment:
-      INFERENCE_SERVICE_URL: http://inference:8100
-      SUPPORTED_DEVICES: cpu
+      INFERENCE_SERVICE_URL: http://inference-cpu:8100
+      INFERENCE_RUNTIME_URLS: cpu=http://inference-cpu:8100,nvidia=http://inference-nvidia:8100,amd=http://inference-amd:8100,intel=http://inference-intel:8100
+      SUPPORTED_DEVICES: ""
     volumes:
       - ./models:/app/models
       - ./data:/app/data
@@ -20,7 +21,7 @@ services:
       retries: 5
       start_period: 20s
     depends_on:
-      inference:
+      inference-cpu:
         condition: service_healthy
     restart: unless-stopped
 
@@ -36,11 +37,11 @@ services:
         condition: service_healthy
     restart: unless-stopped
 
-  inference:
+  inference-cpu:
     build:
       context: .
       dockerfile: Dockerfile.inference.cpu
-    container_name: pawpile-inference
+    container_name: pawpile-inference-cpu
     environment:
       SUPPORTED_DEVICES: cpu
       LLAMA_SERVER_PATH: /opt/llama.cpp/build/bin/llama-server

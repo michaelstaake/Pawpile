@@ -10,7 +10,7 @@ from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel
 
 from app.core.config import get_settings
-from app.core.device_manager import is_supported_vendor
+from app.core.device_manager import DeviceManager, get_supported_vendors, is_supported_vendor
 
 logger = logging.getLogger(__name__)
 
@@ -141,11 +141,39 @@ class InferenceRuntime:
 
 app = FastAPI(title="Pawpile Inference Service")
 runtime = InferenceRuntime()
+device_manager = DeviceManager()
 
 
 @app.get("/health")
 def health() -> dict:
     return {"status": "ok", "active_models": sorted(runtime._running.keys())}
+
+
+@app.get("/runtime/info")
+def runtime_info() -> dict:
+    return {
+        "status": "ok",
+        "supported_vendors": sorted(get_supported_vendors()),
+        "active_models": sorted(runtime._running.keys()),
+    }
+
+
+@app.get("/runtime/devices")
+def runtime_devices() -> dict:
+    devices = [
+        {
+            "hardware_id": device.hardware_id,
+            "name": device.name,
+            "vendor": device.vendor,
+            "device_type": device.device_type,
+            "memory_mb": device.memory_mb,
+            "max_threads": device.max_threads,
+            "max_slots": device.max_slots,
+        }
+        for device in device_manager.detect_local()
+        if is_supported_vendor(device.vendor)
+    ]
+    return {"status": "ok", "devices": devices}
 
 
 @app.post("/runtime/models/activate")

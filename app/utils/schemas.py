@@ -11,8 +11,33 @@ class LoginResponse(BaseModel):
     token_type: str = "bearer"
 
 
+class UserResponse(BaseModel):
+    id: int
+    username: str
+    email: str
+    is_admin: bool
+    is_active: bool
+
+
+class ApiKeyResponse(BaseModel):
+    id: int
+    user_id: int
+    user_username: str
+    name: str
+    created_at: str | None = None
+
+
+class ApiKeyCreateResponse(BaseModel):
+    status: str
+    api_key: ApiKeyResponse
+    plain_text_key: str
+
+
 class BootstrapStatusResponse(BaseModel):
     requires_setup: bool
+    has_admin_user: bool = False
+    has_enabled_device: bool = False
+    has_active_model: bool = False
 
 
 class BootstrapAdminRequest(BaseModel):

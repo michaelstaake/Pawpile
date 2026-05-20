@@ -1,5 +1,7 @@
 import { FormEvent, useEffect, useRef, useState } from "react";
 import { apiDelete, apiGet, apiPost } from "../lib/api";
+import { useAuth } from "../context/AuthContext";
+import { getStoredToken } from "../lib/session";
 
 type ChatRole = "system" | "user" | "assistant";
 
@@ -37,9 +39,9 @@ type ChatCreateResponse = {
 };
 
 const BASE_URL = import.meta.env.VITE_API_BASE_URL ?? "";
-const ADMIN_TOKEN_KEY = "pawpile.adminToken";
 
 export default function ChatPage() {
+  const { token, user } = useAuth();
   const [models, setModels] = useState<string[]>([]);
   const [selectedModel, setSelectedModel] = useState<string>("");
   const [messages, setMessages] = useState<ChatMessage[]>([]);
@@ -47,7 +49,6 @@ export default function ChatPage() {
   const [isSending, setIsSending] = useState(false);
   const [errorMessage, setErrorMessage] = useState("");
   const [isLoadingModels, setIsLoadingModels] = useState(true);
-  const [token, setToken] = useState<string | null>(() => window.localStorage.getItem(ADMIN_TOKEN_KEY));
   const [savedChats, setSavedChats] = useState<ChatSummary[]>([]);
   const [activeChatId, setActiveChatId] = useState<number | null>(null);
   const [isLoadingChats, setIsLoadingChats] = useState(false);
@@ -57,22 +58,11 @@ export default function ChatPage() {
     void loadModels();
     if (token) {
       void refreshChats(token);
+    } else {
+      setSavedChats([]);
+      setActiveChatId(null);
     }
-    const onStorage = (event: StorageEvent) => {
-      if (event.key === ADMIN_TOKEN_KEY) {
-        setToken(event.newValue);
-        if (event.newValue) {
-          void refreshChats(event.newValue);
-        } else {
-          setSavedChats([]);
-          setActiveChatId(null);
-        }
-      }
-    };
-    window.addEventListener("storage", onStorage);
-    return () => window.removeEventListener("storage", onStorage);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [token]);
 
   useEffect(() => {
     if (transcriptRef.current) {
@@ -84,8 +74,7 @@ export default function ChatPage() {
     setIsLoadingModels(true);
     setErrorMessage("");
     try {
-      const activeToken = window.localStorage.getItem(ADMIN_TOKEN_KEY) ?? undefined;
-      const response = await apiGet<ModelListResponse>("/v1/models", activeToken);
+      const response = await apiGet<ModelListResponse>("/v1/models", token || undefined);
       const aliases = response.data.map((entry) => entry.id);
       setModels(aliases);
       setSelectedModel((current) => current || aliases[0] || "");
@@ -185,7 +174,7 @@ export default function ChatPage() {
       return;
     }
     if (!selectedModel) {
-      setErrorMessage("Activate a model in the Admin page before chatting.");
+      setErrorMessage("Activate a model in Settings before chatting.");
       return;
     }
 
@@ -283,10 +272,7 @@ export default function ChatPage() {
             </div>
           ) : (
             <div className="rounded-lg bg-black/5 p-2 text-xs text-black/60">
-              Sign in via the{" "}
-              <a className="font-semibold underline" href="/admin">
-                Admin
-              </a>{" "}
+              Sign in via the <a className="font-semibold underline" href="/auth">Auth</a>{" "}
               page to save your chat history.
             </div>
           )}
@@ -306,7 +292,10 @@ export default function ChatPage() {
       </aside>
       <main className="rounded-2xl border border-black/10 bg-white/80 p-4 shadow-sm">
         <div className="mb-4 flex items-center justify-between gap-2">
-          <h2 className="font-display text-lg">Conversation</h2>
+          <div>
+            <h2 className="font-display text-lg">Conversation</h2>
+            {user ? <p className="text-xs font-semibold uppercase tracking-[0.2em] text-black/45">Signed in as {user.username}</p> : null}
+          </div>
           <select
             value={selectedModel}
             onChange={(event) => setSelectedModel(event.target.value)}
@@ -334,8 +323,8 @@ export default function ChatPage() {
         {!isLoadingModels && models.length === 0 && (
           <div className="mb-3 rounded-lg border border-amber/40 bg-amber/10 px-3 py-2 text-sm text-black/70">
             No models are active yet. Open the{" "}
-            <a className="font-semibold underline" href="/admin">
-              Admin
+            <a className="font-semibold underline" href="/settings">
+              Settings
             </a>{" "}
             page to scan and activate one.
           </div>
@@ -396,7 +385,7 @@ async function streamCompletion(
   messages: ChatMessage[],
   onDelta: (delta: string) => void
 ): Promise<void> {
-  const token = window.localStorage.getItem(ADMIN_TOKEN_KEY) ?? undefined;
+  const token = getStoredToken() || undefined;
   const headers: Record<string, string> = { "Content-Type": "application/json" };
   if (token) {
     headers.Authorization = `Bearer ${token}`;
