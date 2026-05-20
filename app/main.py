@@ -20,6 +20,7 @@ inference_manager = InferenceManager()
 async def lifespan(_: FastAPI):
     configure_logging(settings.app_log_level)
     Path(settings.models_dir).mkdir(parents=True, exist_ok=True)
+    Path(settings.data_dir).mkdir(parents=True, exist_ok=True)
     Base.metadata.create_all(bind=engine)
 
     db = SessionLocal()

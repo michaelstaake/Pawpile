@@ -47,7 +47,6 @@ pawpile/
 │   └── main.py
 ├── frontend/
 ├── models/
-├── data/
 ├── logs/
 ├── alembic/
 ├── docker-compose.yml
@@ -88,6 +87,8 @@ cp .env.example .env
 ```bash
 docker compose up -d --build
 ```
+
+The backend stores its SQLite database in a Docker-managed volume. Model files stay in `models/` and runtime logs stay in `logs/` on the host.
 
 4. Add GGUF files under the `models/` directory or do this later using the Web UI.
 
@@ -202,7 +203,7 @@ curl http://localhost:8000/v1/chat/completions \
 
 ## Logs and Data
 
-- SQLite DB: `data/pawpile.db`
+- SQLite DB: stored in the Docker volume `pawpile-data` mounted at `/app/data`
 - Runtime logs: `logs/`
 - Models: `models/`
 
