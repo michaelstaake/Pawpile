@@ -79,8 +79,8 @@ The default Compose stack is CPU-only and is intended to run on both Windows Doc
 1. Clone or download the repository.
 
 ```bash
-git clone <repository-url>
-cd pawpile
+git clone https://github.com/michaelstaake/Pawpile.git
+cd Pawpile
 ```
 
 2. Copy environment file.
