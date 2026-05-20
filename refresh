@@ -1,0 +1,114 @@
+#!/usr/bin/env bash
+set -Eeuo pipefail
+
+# One-command destructive dev reset and rebuild.
+# Usage:
+#   ./refresh
+#   ./refresh cpu
+#   ./refresh nvidia
+#   ./refresh amd
+#   ./refresh intel
+#   ./refresh nvidia --yes
+#   ./refresh cpu --wipe-models --yes
+
+STACK="cpu"
+AUTO_YES="false"
+WIPE_MODELS="false"
+
+for arg in "$@"; do
+  case "$arg" in
+    cpu|nvidia|amd|intel)
+      STACK="$arg"
+      ;;
+    --yes)
+      AUTO_YES="true"
+      ;;
+    --wipe-models)
+      WIPE_MODELS="true"
+      ;;
+    -h|--help)
+      cat <<'EOF'
+Usage: ./refresh [cpu|nvidia|amd|intel] [--wipe-models] [--yes]
+
+Resets local checkout to origin/<current-branch>, removes local docker state,
+rebuilds, and starts the selected compose stack.
+
+Options:
+  --wipe-models   Delete contents of ./models too (destructive)
+  --yes           Skip confirmation prompt
+EOF
+      exit 0
+      ;;
+    *)
+      echo "Unknown argument: $arg"
+      echo "Run './refresh --help' for usage."
+      exit 1
+      ;;
+  esac
+done
+
+cd "$(git rev-parse --show-toplevel)"
+
+compose_args=(-f docker-compose.yml)
+case "$STACK" in
+  cpu)
+    ;;
+  nvidia)
+    compose_args+=(-f docker-compose.nvidia.yml)
+    ;;
+  amd)
+    compose_args+=(-f docker-compose.amd.yml)
+    ;;
+  intel)
+    compose_args+=(-f docker-compose.intel.yml)
+    ;;
+esac
+
+echo "About to run destructive refresh with stack: $STACK"
+echo "Actions:"
+echo "  1) docker compose down --volumes --remove-orphans"
+echo "  2) git fetch --all --prune"
+echo "  3) git reset --hard origin/<current-branch>"
+echo "  4) git clean -fdx (keeps .env and models/ by default)"
+echo "  5) remove local DB and logs"
+echo "  6) docker compose up -d --build --force-recreate"
+if [ "$WIPE_MODELS" = "true" ]; then
+  echo "  7) wipe models/*"
+fi
+
+if [ "$AUTO_YES" != "true" ]; then
+  read -r -p "Continue? [y/N] " confirm
+  if [[ ! "$confirm" =~ ^[Yy]$ ]]; then
+    echo "Aborted."
+    exit 0
+  fi
+fi
+
+echo "[1/6] Stopping and removing compose resources..."
+docker compose "${compose_args[@]}" down --volumes --remove-orphans || true
+
+echo "[2/6] Fetching latest git refs..."
+git fetch --all --prune
+
+branch="$(git rev-parse --abbrev-ref HEAD)"
+echo "[3/6] Resetting working tree to origin/$branch ..."
+git reset --hard "origin/$branch"
+
+echo "[4/6] Cleaning untracked files (excluding .env and models/)..."
+git clean -fdx -e .env -e models/
+
+if [ "$WIPE_MODELS" = "true" ]; then
+  echo "[5/6] Wiping models directory contents..."
+  rm -rf models/*
+else
+  echo "[5/6] Resetting runtime local state (DB/logs)..."
+fi
+
+rm -f data/pawpile.db
+rm -rf logs/*
+
+echo "[6/6] Rebuilding and starting compose stack..."
+docker compose "${compose_args[@]}" up -d --build --force-recreate
+
+echo "Refresh complete. Current stack status:"
+docker compose "${compose_args[@]}" ps
