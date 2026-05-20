@@ -158,4 +158,3 @@ export default function DevicesPage({ setupMode = false, onContinue }: DevicesPa
     </section>
   );
 }
-}
