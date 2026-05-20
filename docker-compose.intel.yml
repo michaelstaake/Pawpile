@@ -1,0 +1,17 @@
+services:
+  backend:
+    environment:
+      SUPPORTED_DEVICES: cpu,intel
+
+  inference:
+    build:
+      context: .
+      dockerfile: Dockerfile.inference.intel
+    environment:
+      SUPPORTED_DEVICES: cpu,intel
+      LLAMA_SERVER_PATH: /opt/llama.cpp/build/bin/llama-server
+    devices:
+      - /dev/dri
+    group_add:
+      - video
+      - render

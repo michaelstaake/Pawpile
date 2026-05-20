@@ -1,0 +1,123 @@
+from fastapi import APIRouter, Depends, HTTPException
+from sqlalchemy.orm import Session
+
+from app.api.deps import get_current_user
+from app.core.db import get_db
+from app.models.chat import Chat, ChatMessage
+from app.models.user import User
+from app.utils.schemas import ChatCreateRequest, ChatMessageAppendRequest, ChatRenameRequest
+
+router = APIRouter(prefix="/api/chat", tags=["chat"])
+
+
+@router.get("")
+def list_chats(current_user: User = Depends(get_current_user), db: Session = Depends(get_db)) -> list[dict]:
+    rows = (
+        db.query(Chat)
+        .filter(Chat.user_id == current_user.id)
+        .order_by(Chat.id.desc())
+        .all()
+    )
+    return [_serialize_chat(c) for c in rows]
+
+
+@router.post("")
+def create_chat(
+    payload: ChatCreateRequest,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+) -> dict:
+    chat = Chat(user_id=current_user.id, title=payload.title or "New Chat")
+    db.add(chat)
+    db.commit()
+    db.refresh(chat)
+    return {"status": "ok", "chat": _serialize_chat(chat)}
+
+
+@router.get("/{chat_id}")
+def get_chat(
+    chat_id: int,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+) -> dict:
+    chat = _load_chat(db, chat_id, current_user)
+    messages = (
+        db.query(ChatMessage)
+        .filter(ChatMessage.chat_id == chat.id)
+        .order_by(ChatMessage.id.asc())
+        .all()
+    )
+    return {
+        "chat": _serialize_chat(chat),
+        "messages": [_serialize_message(m) for m in messages],
+    }
+
+
+@router.post("/{chat_id}/messages")
+def append_message(
+    chat_id: int,
+    payload: ChatMessageAppendRequest,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+) -> dict:
+    chat = _load_chat(db, chat_id, current_user)
+    message = ChatMessage(chat_id=chat.id, role=payload.role, content=payload.content)
+    db.add(message)
+    db.commit()
+    db.refresh(message)
+    return {"status": "ok", "message": _serialize_message(message)}
+
+
+@router.patch("/{chat_id}")
+def rename_chat(
+    chat_id: int,
+    payload: ChatRenameRequest,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+) -> dict:
+    chat = _load_chat(db, chat_id, current_user)
+    chat.title = payload.title.strip() or chat.title
+    db.add(chat)
+    db.commit()
+    db.refresh(chat)
+    return {"status": "ok", "chat": _serialize_chat(chat)}
+
+
+@router.delete("/{chat_id}")
+def delete_chat(
+    chat_id: int,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+) -> dict:
+    chat = _load_chat(db, chat_id, current_user)
+    db.delete(chat)
+    db.commit()
+    return {"status": "ok"}
+
+
+def _load_chat(db: Session, chat_id: int, current_user: User) -> Chat:
+    chat = db.query(Chat).filter(Chat.id == chat_id).first()
+    if not chat:
+        raise HTTPException(status_code=404, detail="Chat not found")
+    if chat.user_id != current_user.id and not current_user.is_admin:
+        raise HTTPException(status_code=403, detail="Chat does not belong to the current user")
+    return chat
+
+
+def _serialize_chat(chat: Chat) -> dict:
+    return {
+        "id": chat.id,
+        "title": chat.title,
+        "user_id": chat.user_id,
+        "created_at": chat.created_at.isoformat() if chat.created_at else None,
+    }
+
+
+def _serialize_message(message: ChatMessage) -> dict:
+    return {
+        "id": message.id,
+        "chat_id": message.chat_id,
+        "role": message.role,
+        "content": message.content,
+        "created_at": message.created_at.isoformat() if message.created_at else None,
+    }

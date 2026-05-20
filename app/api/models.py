@@ -1,0 +1,238 @@
+import os
+from pathlib import Path
+
+from fastapi import APIRouter, Depends, File, HTTPException, UploadFile
+from sqlalchemy.exc import SQLAlchemyError
+from sqlalchemy.orm import Session
+
+from app.api.deps import get_admin_user
+from app.core.config import get_settings
+from app.core.db import get_db
+from app.core.device_manager import is_supported_vendor
+from app.core.inference_manager import InferenceManager
+from app.models.device import Device
+from app.models.model_config import ModelConfig
+from app.models.user import User
+from app.utils.schemas import ModelUpdateRequest
+
+router = APIRouter(prefix="/api/models", tags=["models"])
+
+ALLOWED_ASSIGNMENT_MODES = {"auto", "pinned"}
+UPLOAD_CHUNK_BYTES = 1024 * 1024
+
+
+@router.get("")
+def list_models(db: Session = Depends(get_db)) -> list[dict]:
+    rows = db.query(ModelConfig).order_by(ModelConfig.alias.asc()).all()
+    return [_serialize_model(m) for m in rows]
+
+
+@router.post("/upload")
+def upload_model(
+    file: UploadFile = File(...),
+    _: User = Depends(get_admin_user),
+    db: Session = Depends(get_db),
+) -> dict:
+    file_name = Path(file.filename or "").name
+    if not file_name:
+        raise HTTPException(status_code=400, detail="Missing file name")
+    if Path(file_name).suffix.lower() != ".gguf":
+        raise HTTPException(status_code=400, detail="Only .gguf model files are supported")
+
+    settings = get_settings()
+    models_dir = Path(settings.models_dir)
+    models_dir.mkdir(parents=True, exist_ok=True)
+    destination = models_dir / file_name
+
+    existing_model = db.query(ModelConfig).filter(ModelConfig.file_name == file_name).first()
+    if existing_model or destination.exists():
+        raise HTTPException(status_code=409, detail="A model with that file name already exists")
+
+    max_bytes = max(1, settings.max_upload_size_mb) * 1024 * 1024
+    written = 0
+    try:
+        with destination.open("wb") as output:
+            while True:
+                chunk = file.file.read(UPLOAD_CHUNK_BYTES)
+                if not chunk:
+                    break
+                written += len(chunk)
+                if written > max_bytes:
+                    output.close()
+                    destination.unlink(missing_ok=True)
+                    raise HTTPException(
+                        status_code=413,
+                        detail=f"Uploaded file exceeds the {settings.max_upload_size_mb} MB limit",
+                    )
+                output.write(chunk)
+    except OSError as exc:
+        destination.unlink(missing_ok=True)
+        raise HTTPException(status_code=500, detail="Failed to store uploaded model") from exc
+    finally:
+        file.file.close()
+
+    model = ModelConfig(
+        file_name=file_name,
+        file_path=str(destination.resolve()),
+        alias=_build_unique_alias(db, Path(file_name).stem),
+        context_length=settings.default_context_length,
+        gpu_layers=settings.default_gpu_layers,
+        threads=settings.default_threads,
+    )
+    try:
+        db.add(model)
+        db.commit()
+        db.refresh(model)
+    except SQLAlchemyError as exc:
+        db.rollback()
+        destination.unlink(missing_ok=True)
+        raise HTTPException(status_code=500, detail="Uploaded model could not be registered") from exc
+
+    return {"status": "ok", "model": _serialize_model(model)}
+
+
+@router.post("/scan")
+def scan_models(_: User = Depends(get_admin_user), db: Session = Depends(get_db)) -> dict:
+    settings = get_settings()
+    os.makedirs(settings.models_dir, exist_ok=True)
+    files = [f for f in os.listdir(settings.models_dir) if f.lower().endswith(".gguf")]
+
+    existing_by_file = {m.file_name: m for m in db.query(ModelConfig).all()}
+    added = 0
+    for file_name in files:
+        if file_name in existing_by_file:
+            continue
+        model = ModelConfig(
+            file_name=file_name,
+            file_path=os.path.abspath(os.path.join(settings.models_dir, file_name)),
+            alias=_build_unique_alias(db, os.path.splitext(file_name)[0]),
+            context_length=settings.default_context_length,
+            gpu_layers=settings.default_gpu_layers,
+            threads=settings.default_threads,
+        )
+        db.add(model)
+        added += 1
+
+    db.commit()
+    return {"status": "ok", "discovered": len(files), "added": added}
+
+
+@router.patch("/{model_id}")
+def update_model(model_id: int, payload: ModelUpdateRequest, _: User = Depends(get_admin_user), db: Session = Depends(get_db)) -> dict:
+    model = db.query(ModelConfig).filter(ModelConfig.id == model_id).first()
+    if not model:
+        raise HTTPException(status_code=404, detail="Model not found")
+
+    if payload.assignment_mode is not None and payload.assignment_mode not in ALLOWED_ASSIGNMENT_MODES:
+        raise HTTPException(status_code=400, detail="Invalid assignment mode")
+
+    if payload.pinned_device_id is not None:
+        pinned_device = db.query(Device).filter(Device.id == payload.pinned_device_id).first()
+        if not pinned_device:
+            raise HTTPException(status_code=404, detail="Pinned device not found")
+
+    if payload.alias is not None:
+        alias_conflict = (
+            db.query(ModelConfig)
+            .filter(ModelConfig.alias == payload.alias, ModelConfig.id != model_id)
+            .first()
+        )
+        if alias_conflict:
+            raise HTTPException(status_code=409, detail="A model with that alias already exists")
+
+    for field in [
+        "alias",
+        "description",
+        "system_prompt",
+        "chat_template",
+        "context_length",
+        "gpu_layers",
+        "threads",
+        "assignment_mode",
+        "pinned_device_id",
+    ]:
+        value = getattr(payload, field)
+        if value is not None:
+            setattr(model, field, value)
+
+    db.add(model)
+    db.commit()
+    db.refresh(model)
+    return {"status": "ok", "model": _serialize_model(model)}
+
+
+@router.post("/{model_id}/activate")
+async def activate_model(model_id: int, _: User = Depends(get_admin_user), db: Session = Depends(get_db)) -> dict:
+    inference: InferenceManager = router.inference_manager  # type: ignore[attr-defined]
+    model = db.query(ModelConfig).filter(ModelConfig.id == model_id).first()
+    if not model:
+        raise HTTPException(status_code=404, detail="Model not found")
+
+    device = _resolve_device_for_model(db, model)
+    if not device:
+        raise HTTPException(status_code=409, detail="No enabled device available for model")
+
+    await inference.activate_model(model, device)
+    model.activated = True
+    db.add(model)
+    db.commit()
+    return {"status": "ok", "model_id": model.id, "device_id": device.id}
+
+
+@router.post("/{model_id}/deactivate")
+def deactivate_model(model_id: int, _: User = Depends(get_admin_user), db: Session = Depends(get_db)) -> dict:
+    inference: InferenceManager = router.inference_manager  # type: ignore[attr-defined]
+    model = db.query(ModelConfig).filter(ModelConfig.id == model_id).first()
+    if not model:
+        raise HTTPException(status_code=404, detail="Model not found")
+    inference.deactivate_model(model.id)
+    model.activated = False
+    db.add(model)
+    db.commit()
+    return {"status": "ok"}
+
+
+def _resolve_device_for_model(db: Session, model: ModelConfig) -> Device | None:
+    supported_vendors = [vendor for vendor in ["cpu", "nvidia", "amd", "intel"] if is_supported_vendor(vendor)]
+
+    if model.assignment_mode == "pinned" and model.pinned_device_id:
+        return (
+            db.query(Device)
+            .filter(Device.id == model.pinned_device_id, Device.enabled.is_(True), Device.vendor.in_(supported_vendors))
+            .first()
+        )
+
+    return (
+        db.query(Device)
+        .filter(Device.enabled.is_(True), Device.vendor.in_(supported_vendors))
+        .order_by(Device.priority.asc(), Device.id.asc())
+        .first()
+    )
+
+
+def _serialize_model(model: ModelConfig) -> dict:
+    return {
+        "id": model.id,
+        "file_name": model.file_name,
+        "file_path": model.file_path,
+        "alias": model.alias,
+        "description": model.description,
+        "system_prompt": model.system_prompt,
+        "chat_template": model.chat_template,
+        "context_length": model.context_length,
+        "gpu_layers": model.gpu_layers,
+        "threads": model.threads,
+        "assignment_mode": model.assignment_mode,
+        "pinned_device_id": model.pinned_device_id,
+        "activated": model.activated,
+    }
+
+
+def _build_unique_alias(db: Session, base_alias: str) -> str:
+    alias = base_alias.strip() or "model"
+    base = alias
+    suffix = 1
+    while db.query(ModelConfig.id).filter(ModelConfig.alias == alias).first():
+        alias = f"{base}-{suffix}"
+        suffix += 1
+    return alias

@@ -1,0 +1,17 @@
+services:
+  backend:
+    environment:
+      SUPPORTED_DEVICES: cpu,nvidia
+
+  inference:
+    build:
+      context: .
+      dockerfile: Dockerfile.inference.nvidia
+    environment:
+      SUPPORTED_DEVICES: cpu,nvidia
+      LLAMA_SERVER_PATH: /opt/llama.cpp/build/bin/llama-server
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - capabilities: ["gpu"]

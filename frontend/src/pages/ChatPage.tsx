@@ -1,0 +1,467 @@
+import { FormEvent, useEffect, useRef, useState } from "react";
+import { apiDelete, apiGet, apiPost } from "../lib/api";
+
+type ChatRole = "system" | "user" | "assistant";
+
+type ChatMessage = {
+  role: ChatRole;
+  content: string;
+};
+
+type ModelListResponse = {
+  object: string;
+  data: { id: string; object: string; created: number; owned_by: string }[];
+};
+
+type ChatSummary = {
+  id: number;
+  title: string;
+  user_id: number;
+  created_at: string | null;
+};
+
+type ChatDetailResponse = {
+  chat: ChatSummary;
+  messages: {
+    id: number;
+    chat_id: number;
+    role: ChatRole;
+    content: string;
+    created_at: string | null;
+  }[];
+};
+
+type ChatCreateResponse = {
+  status: string;
+  chat: ChatSummary;
+};
+
+const BASE_URL = import.meta.env.VITE_API_BASE_URL ?? "";
+const ADMIN_TOKEN_KEY = "pawpile.adminToken";
+
+export default function ChatPage() {
+  const [models, setModels] = useState<string[]>([]);
+  const [selectedModel, setSelectedModel] = useState<string>("");
+  const [messages, setMessages] = useState<ChatMessage[]>([]);
+  const [input, setInput] = useState("");
+  const [isSending, setIsSending] = useState(false);
+  const [errorMessage, setErrorMessage] = useState("");
+  const [isLoadingModels, setIsLoadingModels] = useState(true);
+  const [token, setToken] = useState<string | null>(() => window.localStorage.getItem(ADMIN_TOKEN_KEY));
+  const [savedChats, setSavedChats] = useState<ChatSummary[]>([]);
+  const [activeChatId, setActiveChatId] = useState<number | null>(null);
+  const [isLoadingChats, setIsLoadingChats] = useState(false);
+  const transcriptRef = useRef<HTMLDivElement | null>(null);
+
+  useEffect(() => {
+    void loadModels();
+    if (token) {
+      void refreshChats(token);
+    }
+    const onStorage = (event: StorageEvent) => {
+      if (event.key === ADMIN_TOKEN_KEY) {
+        setToken(event.newValue);
+        if (event.newValue) {
+          void refreshChats(event.newValue);
+        } else {
+          setSavedChats([]);
+          setActiveChatId(null);
+        }
+      }
+    };
+    window.addEventListener("storage", onStorage);
+    return () => window.removeEventListener("storage", onStorage);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  useEffect(() => {
+    if (transcriptRef.current) {
+      transcriptRef.current.scrollTop = transcriptRef.current.scrollHeight;
+    }
+  }, [messages]);
+
+  async function loadModels() {
+    setIsLoadingModels(true);
+    setErrorMessage("");
+    try {
+      const activeToken = window.localStorage.getItem(ADMIN_TOKEN_KEY) ?? undefined;
+      const response = await apiGet<ModelListResponse>("/v1/models", activeToken);
+      const aliases = response.data.map((entry) => entry.id);
+      setModels(aliases);
+      setSelectedModel((current) => current || aliases[0] || "");
+    } catch (error) {
+      setErrorMessage(error instanceof Error ? error.message : "Failed to load models");
+    } finally {
+      setIsLoadingModels(false);
+    }
+  }
+
+  async function refreshChats(activeToken: string) {
+    setIsLoadingChats(true);
+    try {
+      const rows = await apiGet<ChatSummary[]>("/api/chat", activeToken);
+      setSavedChats(rows);
+    } catch {
+      setSavedChats([]);
+    } finally {
+      setIsLoadingChats(false);
+    }
+  }
+
+  function startNewChat() {
+    setMessages([]);
+    setInput("");
+    setErrorMessage("");
+    setActiveChatId(null);
+  }
+
+  async function openChat(chatId: number) {
+    if (!token) {
+      return;
+    }
+    setErrorMessage("");
+    try {
+      const detail = await apiGet<ChatDetailResponse>(`/api/chat/${chatId}`, token);
+      setActiveChatId(detail.chat.id);
+      setMessages(detail.messages.map((m) => ({ role: m.role, content: m.content })));
+      setInput("");
+    } catch (error) {
+      setErrorMessage(error instanceof Error ? error.message : "Failed to load chat");
+    }
+  }
+
+  async function deleteChat(chatId: number) {
+    if (!token) {
+      return;
+    }
+    try {
+      await apiDelete<{ status: string }>(`/api/chat/${chatId}`, token);
+      setSavedChats((current) => current.filter((c) => c.id !== chatId));
+      if (activeChatId === chatId) {
+        startNewChat();
+      }
+    } catch (error) {
+      setErrorMessage(error instanceof Error ? error.message : "Failed to delete chat");
+    }
+  }
+
+  async function persistMessage(chatId: number, role: ChatRole, content: string): Promise<void> {
+    if (!token || !content) {
+      return;
+    }
+    try {
+      await apiPost(`/api/chat/${chatId}/messages`, { role, content }, token);
+    } catch {
+      // Best-effort persistence.
+    }
+  }
+
+  async function ensureChat(firstMessage: string): Promise<number | null> {
+    if (!token) {
+      return null;
+    }
+    if (activeChatId !== null) {
+      return activeChatId;
+    }
+    try {
+      const title = firstMessage.slice(0, 60);
+      const response = await apiPost<{ title: string }, ChatCreateResponse>(
+        "/api/chat",
+        { title },
+        token
+      );
+      setActiveChatId(response.chat.id);
+      setSavedChats((current) => [response.chat, ...current]);
+      return response.chat.id;
+    } catch {
+      return null;
+    }
+  }
+
+  async function handleSubmit(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    const trimmed = input.trim();
+    if (!trimmed) {
+      return;
+    }
+    if (!selectedModel) {
+      setErrorMessage("Activate a model in the Admin page before chatting.");
+      return;
+    }
+
+    const nextMessages: ChatMessage[] = [...messages, { role: "user", content: trimmed }];
+    setMessages([...nextMessages, { role: "assistant", content: "" }]);
+    setInput("");
+    setErrorMessage("");
+    setIsSending(true);
+
+    const chatId = await ensureChat(trimmed);
+    if (chatId !== null) {
+      void persistMessage(chatId, "user", trimmed);
+    }
+
+    let assistantBuffer = "";
+    try {
+      await streamCompletion(selectedModel, nextMessages, (delta) => {
+        assistantBuffer += delta;
+        setMessages((current) => {
+          if (current.length === 0) {
+            return current;
+          }
+          const updated = [...current];
+          const last = updated[updated.length - 1];
+          updated[updated.length - 1] = { ...last, content: last.content + delta };
+          return updated;
+        });
+      });
+      if (chatId !== null && assistantBuffer) {
+        void persistMessage(chatId, "assistant", assistantBuffer);
+      }
+    } catch (error) {
+      const detail = error instanceof Error ? error.message : "Chat request failed";
+      setErrorMessage(detail);
+      setMessages((current) => {
+        if (current.length === 0) {
+          return current;
+        }
+        const last = current[current.length - 1];
+        if (last.role === "assistant" && last.content === "") {
+          return current.slice(0, -1);
+        }
+        return current;
+      });
+    } finally {
+      setIsSending(false);
+    }
+  }
+
+  return (
+    <section className="grid gap-4 md:grid-cols-[280px_1fr]">
+      <aside className="rounded-2xl border border-black/10 bg-white/80 p-4 shadow-sm">
+        <button
+          type="button"
+          onClick={startNewChat}
+          className="w-full rounded-xl bg-ink px-4 py-2 text-left text-sm font-semibold text-white"
+        >
+          + New Chat
+        </button>
+        <div className="mt-4 space-y-2 text-sm text-black/70">
+          {token ? (
+            <div className="space-y-2">
+              <div className="text-xs font-semibold uppercase tracking-wide text-black/40">
+                Saved chats {isLoadingChats ? "(loading...)" : `(${savedChats.length})`}
+              </div>
+              {savedChats.length === 0 && !isLoadingChats && (
+                <div className="rounded-lg bg-black/5 p-2 text-xs text-black/50">
+                  No saved chats yet. Send a message to start one.
+                </div>
+              )}
+              <ul className="max-h-[40vh] space-y-1 overflow-y-auto">
+                {savedChats.map((chat) => (
+                  <li key={chat.id} className="flex items-center gap-1">
+                    <button
+                      type="button"
+                      onClick={() => void openChat(chat.id)}
+                      className={`flex-1 truncate rounded-lg px-2 py-1 text-left text-xs hover:bg-black/5 ${
+                        activeChatId === chat.id ? "bg-amber/30" : ""
+                      }`}
+                      title={chat.title}
+                    >
+                      {chat.title || `Chat ${chat.id}`}
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => void deleteChat(chat.id)}
+                      className="rounded-lg px-2 py-1 text-xs text-black/40 hover:bg-red-50 hover:text-red-700"
+                      aria-label="Delete chat"
+                    >
+                      ×
+                    </button>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          ) : (
+            <div className="rounded-lg bg-black/5 p-2 text-xs text-black/60">
+              Sign in via the{" "}
+              <a className="font-semibold underline" href="/admin">
+                Admin
+              </a>{" "}
+              page to save your chat history.
+            </div>
+          )}
+          <div className="rounded-lg bg-black/5 p-2">
+            {messages.length === 0
+              ? "No messages yet"
+              : `${messages.length} message${messages.length === 1 ? "" : "s"}`}
+          </div>
+          <button
+            type="button"
+            onClick={() => void loadModels()}
+            className="w-full rounded-lg border border-black/15 bg-white px-3 py-2 text-left text-xs text-black/60 hover:bg-black/5"
+          >
+            Refresh models
+          </button>
+        </div>
+      </aside>
+      <main className="rounded-2xl border border-black/10 bg-white/80 p-4 shadow-sm">
+        <div className="mb-4 flex items-center justify-between gap-2">
+          <h2 className="font-display text-lg">Conversation</h2>
+          <select
+            value={selectedModel}
+            onChange={(event) => setSelectedModel(event.target.value)}
+            disabled={isLoadingModels || models.length === 0}
+            className="rounded-lg border border-black/20 bg-white px-3 py-2 text-sm"
+          >
+            {models.length === 0 ? (
+              <option value="">{isLoadingModels ? "Loading models..." : "No active models"}</option>
+            ) : (
+              models.map((alias) => (
+                <option key={alias} value={alias}>
+                  {alias}
+                </option>
+              ))
+            )}
+          </select>
+        </div>
+
+        {errorMessage && (
+          <div className="mb-3 rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-800">
+            {errorMessage}
+          </div>
+        )}
+
+        {!isLoadingModels && models.length === 0 && (
+          <div className="mb-3 rounded-lg border border-amber/40 bg-amber/10 px-3 py-2 text-sm text-black/70">
+            No models are active yet. Open the{" "}
+            <a className="font-semibold underline" href="/admin">
+              Admin
+            </a>{" "}
+            page to scan and activate one.
+          </div>
+        )}
+
+        <div
+          ref={transcriptRef}
+          className="min-h-[360px] max-h-[55vh] overflow-y-auto rounded-xl border border-dashed border-black/20 bg-sand p-4 text-sm text-black/80"
+        >
+          {messages.length === 0 ? (
+            <div className="text-black/50">Ask Pawpile anything to get started.</div>
+          ) : (
+            <div className="space-y-3">
+              {messages.map((message, index) => (
+                <div
+                  key={index}
+                  className={
+                    message.role === "user"
+                      ? "rounded-xl bg-white/90 p-3 shadow-sm"
+                      : "rounded-xl bg-black/5 p-3"
+                  }
+                >
+                  <div className="mb-1 text-xs font-semibold uppercase tracking-wide text-black/50">
+                    {message.role}
+                  </div>
+                  <div className="whitespace-pre-wrap">
+                    {message.content || (isSending && index === messages.length - 1 ? "..." : "")}
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+
+        <form className="mt-4 flex gap-2" onSubmit={handleSubmit}>
+          <input
+            value={input}
+            onChange={(event) => setInput(event.target.value)}
+            disabled={isSending}
+            className="flex-1 rounded-xl border border-black/20 bg-white px-4 py-3 text-sm"
+            placeholder="Ask Pawpile..."
+          />
+          <button
+            type="submit"
+            disabled={isSending || !selectedModel || !input.trim()}
+            className="rounded-xl bg-amber px-4 py-3 text-sm font-semibold text-black disabled:opacity-50"
+          >
+            {isSending ? "Sending..." : "Send"}
+          </button>
+        </form>
+      </main>
+    </section>
+  );
+}
+
+async function streamCompletion(
+  model: string,
+  messages: ChatMessage[],
+  onDelta: (delta: string) => void
+): Promise<void> {
+  const token = window.localStorage.getItem(ADMIN_TOKEN_KEY) ?? undefined;
+  const headers: Record<string, string> = { "Content-Type": "application/json" };
+  if (token) {
+    headers.Authorization = `Bearer ${token}`;
+  }
+
+  const response = await fetch(`${BASE_URL}/v1/chat/completions`, {
+    method: "POST",
+    headers,
+    body: JSON.stringify({ model, messages, stream: true })
+  });
+
+  if (!response.ok) {
+    let detail = `Request failed: ${response.status}`;
+    try {
+      const payload = (await response.json()) as { detail?: string };
+      if (payload.detail) {
+        detail = payload.detail;
+      }
+    } catch {
+      // ignore
+    }
+    throw new Error(detail);
+  }
+
+  if (!response.body) {
+    throw new Error("Streaming response has no body");
+  }
+
+  const reader = response.body.getReader();
+  const decoder = new TextDecoder("utf-8");
+  let buffer = "";
+
+  while (true) {
+    const { value, done } = await reader.read();
+    if (done) {
+      break;
+    }
+    buffer += decoder.decode(value, { stream: true });
+
+    let separatorIndex = buffer.indexOf("\n\n");
+    while (separatorIndex !== -1) {
+      const event = buffer.slice(0, separatorIndex);
+      buffer = buffer.slice(separatorIndex + 2);
+      separatorIndex = buffer.indexOf("\n\n");
+
+      for (const line of event.split("\n")) {
+        if (!line.startsWith("data:")) {
+          continue;
+        }
+        const data = line.slice(5).trim();
+        if (!data || data === "[DONE]") {
+          continue;
+        }
+        try {
+          const parsed = JSON.parse(data) as {
+            choices?: { delta?: { content?: string } }[];
+          };
+          const delta = parsed.choices?.[0]?.delta?.content;
+          if (delta) {
+            onDelta(delta);
+          }
+        } catch {
+          // ignore malformed chunks
+        }
+      }
+    }
+  }
+}
