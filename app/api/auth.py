@@ -13,7 +13,7 @@ from app.models.api_key import ApiKey
 from app.models.device import Device
 from app.models.model_config import ModelConfig
 from app.models.user import User
-from app.utils.schemas import ApiKeyCreateRequest, BootstrapAdminRequest, BootstrapStatusResponse, LoginRequest, LoginResponse, UserResponse
+from app.utils.schemas import ApiKeyCreateRequest, BootstrapAdminRequest, BootstrapStatusResponse, LoginRequest, LoginResponse, ProfileUpdateRequest, UserResponse
 
 router = APIRouter(prefix="/api/auth", tags=["auth"])
 logger = logging.getLogger(__name__)
@@ -94,6 +94,40 @@ def login(payload: LoginRequest, db: Session = Depends(get_db)) -> LoginResponse
 
 @router.get("/me", response_model=UserResponse)
 def current_user(current_user: User = Depends(get_current_user)) -> UserResponse:
+    return UserResponse(
+        id=current_user.id,
+        username=current_user.username,
+        email=current_user.email,
+        is_admin=current_user.is_admin,
+        is_active=current_user.is_active,
+    )
+
+
+@router.patch("/me", response_model=UserResponse)
+def update_current_user(
+    payload: ProfileUpdateRequest,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+) -> UserResponse:
+    if payload.email is None and payload.password is None:
+        raise HTTPException(status_code=400, detail="No profile changes were provided")
+
+    if payload.email is not None:
+        existing_user = (
+            db.query(User)
+            .filter(User.email == payload.email, User.id != current_user.id)
+            .first()
+        )
+        if existing_user:
+            raise HTTPException(status_code=409, detail="A user with that email already exists")
+        current_user.email = payload.email
+
+    if payload.password is not None:
+        current_user.password_hash = hash_password(payload.password)
+
+    db.add(current_user)
+    db.commit()
+    db.refresh(current_user)
     return UserResponse(
         id=current_user.id,
         username=current_user.username,

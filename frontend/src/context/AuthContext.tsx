@@ -1,5 +1,5 @@
 import { createContext, ReactNode, useContext, useEffect, useState } from "react";
-import { apiGet, apiPost } from "../lib/api";
+import { apiGet, apiPatch, apiPost } from "../lib/api";
 import { BootstrapStatus, clearStoredToken, CurrentUser, getStoredToken, LoginResponse, storeToken } from "../lib/session";
 
 type AuthContextValue = {
@@ -11,6 +11,7 @@ type AuthContextValue = {
   isBootstrapping: boolean;
   isAuthenticating: boolean;
   refreshAuthState: () => Promise<void>;
+  updateProfile: (payload: { email?: string; password?: string }) => Promise<CurrentUser>;
   login: (username: string, password: string) => Promise<void>;
   bootstrapAdmin: (username: string, email: string, password: string) => Promise<void>;
   logout: () => void;
@@ -108,6 +109,16 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
   }
 
+  async function updateProfile(payload: { email?: string; password?: string }) {
+    if (!token) {
+      throw new Error("You must be signed in to update your profile");
+    }
+
+    const currentUser = await apiPatch<{ email?: string; password?: string }, CurrentUser>("/api/auth/me", payload, token);
+    setUser(currentUser);
+    return currentUser;
+  }
+
   function logout() {
     clearStoredToken();
     setToken("");
@@ -125,6 +136,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         isBootstrapping,
         isAuthenticating,
         refreshAuthState,
+        updateProfile,
         login,
         bootstrapAdmin,
         logout,

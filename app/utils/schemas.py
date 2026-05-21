@@ -19,6 +19,11 @@ class UserResponse(BaseModel):
     is_active: bool
 
 
+class ProfileUpdateRequest(BaseModel):
+    email: str | None = Field(default=None, min_length=3, max_length=255)
+    password: str | None = Field(default=None, min_length=8, max_length=255)
+
+
 class ApiKeyResponse(BaseModel):
     id: int
     user_id: int

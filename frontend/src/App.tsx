@@ -7,11 +7,13 @@ import UsersPage from "./pages/UsersPage";
 import AuthPage from "./pages/AuthPage";
 import ApiPage from "./pages/ApiPage";
 import ProfilePage from "./pages/ProfilePage";
+import ConfigurationPage from "./pages/ConfigurationPage";
 import SetupPage from "./pages/SetupPage";
 import { useAuth } from "./context/AuthContext";
 
 const adminNavItems = [
   { to: "/api", label: "API" },
+  { to: "/configuration", label: "Configuration" },
   { to: "/devices", label: "Devices" },
   { to: "/models", label: "Models" },
   { to: "/users", label: "Users" },
@@ -150,7 +152,7 @@ export default function App() {
                       to="/profile"
                       className={({ isActive }) => `block rounded-lg px-3 py-2 text-sm ${isActive ? "bg-ink text-white" : "text-black/70 hover:bg-black/5"}`}
                     >
-                      Manage
+                      Profile
                     </NavLink>
                     <button
                       type="button"
@@ -168,7 +170,8 @@ export default function App() {
 
         <Routes>
           <Route path="/" element={requiresSetup ? <Navigate to="/setup" replace /> : <ChatPage />} />
-          <Route path="/settings" element={<RequireAdmin><Navigate to="/devices" replace /></RequireAdmin>} />
+          <Route path="/settings" element={<RequireAdmin><Navigate to="/configuration" replace /></RequireAdmin>} />
+          <Route path="/configuration" element={<RequireAdmin><ConfigurationPage /></RequireAdmin>} />
           <Route path="/devices" element={<RequireAdmin><DevicesPage /></RequireAdmin>} />
           <Route path="/models" element={<RequireAdmin><ModelsPage /></RequireAdmin>} />
           <Route path="/users" element={<RequireAdmin><UsersPage /></RequireAdmin>} />
