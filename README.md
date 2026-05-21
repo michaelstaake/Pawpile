@@ -157,6 +157,31 @@ curl http://localhost:8000/v1/chat/completions \
   }'
 ```
 
+## OpenCode Config Example
+
+Use this in your OpenCode config file to connect to Pawpile's OpenAI-compatible endpoint.
+
+```json
+{
+  "$schema": "https://opencode.ai/config.json",
+  "provider": {
+    "pawpile": {
+      "name": "pawpile",
+      "npm": "@ai-sdk/openai-compatible",
+      "options": {
+        "baseURL": "http://192.168.1.40:8000/v1",
+        "timeout": 7200000
+      },
+      "models": {
+        "gemma-4-26B-A4B-it-UD-Q4_K_M": {
+          "name": "Gemma 4"
+        }
+      }
+    }
+  }
+}
+```
+
 ## Troubleshooting
 
 ### Docker Issues
