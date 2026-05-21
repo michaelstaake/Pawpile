@@ -9,6 +9,7 @@ import ApiPage from "./pages/ApiPage";
 import ProfilePage from "./pages/ProfilePage";
 import ConfigurationPage from "./pages/ConfigurationPage";
 import SetupPage from "./pages/SetupPage";
+import StatusPage from "./pages/StatusPage";
 import { useAuth } from "./context/AuthContext";
 
 const adminNavItems = [
@@ -131,6 +132,7 @@ export default function App() {
           {showMainNav ? (
             <nav className="relative z-50 flex flex-wrap items-center gap-2 overflow-visible">
               <NavLink to="/" end className={({ isActive }) => `rounded-lg px-3 py-2 text-sm ${isActive ? "bg-ink text-white" : "bg-black/5"}`}>Chat</NavLink>
+              <NavLink to="/status" className={({ isActive }) => `rounded-lg px-3 py-2 text-sm ${isActive ? "bg-ink text-white" : "bg-black/5"}`}>Status</NavLink>
               {user?.is_admin ? (
                 <details open={openMenu === "admin"} className="group relative z-50">
                   <summary onClick={handleMenuToggle("admin")} className={`list-none rounded-lg px-3 py-2 text-sm cursor-pointer ${adminMenuActive ? "bg-ink text-white" : "bg-black/5"}`}>
@@ -194,6 +196,7 @@ export default function App() {
           <Route path="/users" element={<RequireAdmin><UsersPage /></RequireAdmin>} />
           <Route path="/login" element={<AuthPage />} />
           <Route path="/auth" element={<Navigate to="/login" replace />} />
+          <Route path="/status" element={<StatusPage />} />
           <Route path="/profile" element={<RequireUser><ProfilePage /></RequireUser>} />
           <Route path="/api" element={<Navigate to="/apikeys" replace />} />
           <Route path="/apikeys" element={<RequireUser><ApiPage /></RequireUser>} />

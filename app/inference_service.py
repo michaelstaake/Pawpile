@@ -6,6 +6,7 @@ from dataclasses import dataclass
 from pathlib import Path
 
 import httpx
+import psutil
 from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel
 
@@ -29,6 +30,9 @@ class ActivateModelRequest(BaseModel):
 @dataclass
 class RunningModel:
     model_id: int
+    alias: str
+    hardware_id: str
+    vendor: str
     port: int
     process: subprocess.Popen
 
@@ -67,7 +71,14 @@ class InferenceRuntime:
         except FileNotFoundError as exc:
             raise RuntimeError(f"llama-server executable not found at {self.settings.llama_server_path}") from exc
 
-        self._running[payload.model_id] = RunningModel(model_id=payload.model_id, port=port, process=process)
+        self._running[payload.model_id] = RunningModel(
+            model_id=payload.model_id,
+            alias=payload.alias,
+            hardware_id=payload.hardware_id,
+            vendor=payload.vendor,
+            port=port,
+            process=process,
+        )
         if not await self.wait_until_healthy(payload.model_id):
             self.deactivate_model(payload.model_id)
             raise RuntimeError(f"Model {payload.alias} failed health check")
@@ -138,6 +149,167 @@ class InferenceRuntime:
             raise RuntimeError(f"Unknown device vendor: {vendor}")
         return env
 
+    def status_payload(self) -> dict:
+        supported_vendors = get_supported_vendors()
+        detected_devices = [device for device in device_manager.detect_local() if device.vendor in supported_vendors]
+        dynamic_metrics = self._collect_dynamic_metrics()
+        models_by_hardware_id: dict[str, list[dict]] = {}
+
+        for running in self._running.values():
+            if running.process.poll() is not None:
+                continue
+
+            hardware_metrics = dynamic_metrics.get(running.hardware_id, {})
+            process_memory_by_pid = hardware_metrics.get("process_memory_by_pid", {})
+            process_memory_mb = process_memory_by_pid.get(running.process.pid)
+            if process_memory_mb is None:
+                process_memory_mb = self._process_memory_mb(running.process.pid)
+
+            models_by_hardware_id.setdefault(running.hardware_id, []).append(
+                {
+                    "model_id": running.model_id,
+                    "alias": running.alias,
+                    "pid": running.process.pid,
+                    "memory_used_mb": process_memory_mb,
+                }
+            )
+
+        devices: list[dict] = []
+        for device in detected_devices:
+            device_models = sorted(models_by_hardware_id.get(device.hardware_id, []), key=lambda row: row["model_id"])
+            hardware_metrics = dynamic_metrics.get(device.hardware_id, {})
+            process_memory_total = sum(model["memory_used_mb"] for model in device_models)
+            memory_used_mb = int(hardware_metrics.get("memory_used_mb") or 0)
+            if memory_used_mb <= 0 and process_memory_total > 0:
+                memory_used_mb = process_memory_total
+
+            usage_percent = hardware_metrics.get("usage_percent")
+            if usage_percent is None and device.max_slots > 0:
+                usage_percent = round(min(100.0, (len(device_models) / max(1, device.max_slots)) * 100), 1)
+
+            devices.append(
+                {
+                    "hardware_id": device.hardware_id,
+                    "name": device.name,
+                    "vendor": device.vendor,
+                    "device_type": device.device_type,
+                    "memory_total_mb": hardware_metrics.get("memory_total_mb") or device.memory_mb,
+                    "memory_used_mb": memory_used_mb,
+                    "usage_percent": usage_percent,
+                    "usage_source": hardware_metrics.get("usage_source", "slots"),
+                    "memory_source": hardware_metrics.get("memory_source", "processes"),
+                    "models": device_models,
+                }
+            )
+
+        return {"status": "ok", "devices": devices}
+
+    def _collect_dynamic_metrics(self) -> dict[str, dict]:
+        metrics: dict[str, dict] = {}
+
+        cpu_memory = psutil.virtual_memory()
+        metrics["cpu:0"] = {
+            "usage_percent": round(psutil.cpu_percent(), 1),
+            "usage_source": "system",
+            "memory_used_mb": int(cpu_memory.used / (1024 * 1024)),
+            "memory_total_mb": int(cpu_memory.total / (1024 * 1024)),
+            "memory_source": "system",
+            "process_memory_by_pid": {},
+        }
+
+        metrics.update(self._collect_nvidia_metrics())
+        return metrics
+
+    def _collect_nvidia_metrics(self) -> dict[str, dict]:
+        gpu_output = self._run_command(
+            [
+                "nvidia-smi",
+                "--query-gpu=index,uuid,utilization.gpu,memory.used,memory.total",
+                "--format=csv,noheader,nounits",
+            ]
+        )
+        if not gpu_output:
+            return {}
+
+        metrics: dict[str, dict] = {}
+        hardware_ids_by_uuid: dict[str, str] = {}
+        for line in gpu_output.splitlines():
+            parts = [part.strip() for part in line.split(",")]
+            if len(parts) < 5:
+                continue
+
+            hardware_id = f"nvidia:{parts[0]}"
+            uuid = parts[1]
+            hardware_ids_by_uuid[uuid] = hardware_id
+            metrics[hardware_id] = {
+                "usage_percent": self._parse_float(parts[2]),
+                "usage_source": "nvidia-smi",
+                "memory_used_mb": self._parse_int(parts[3]),
+                "memory_total_mb": self._parse_int(parts[4]),
+                "memory_source": "nvidia-smi",
+                "process_memory_by_pid": {},
+            }
+
+        process_output = self._run_command(
+            [
+                "nvidia-smi",
+                "--query-compute-apps=gpu_uuid,pid,used_gpu_memory",
+                "--format=csv,noheader,nounits",
+            ]
+        )
+        for line in process_output.splitlines():
+            parts = [part.strip() for part in line.split(",")]
+            if len(parts) < 3:
+                continue
+
+            hardware_id = hardware_ids_by_uuid.get(parts[0])
+            pid = self._parse_int(parts[1])
+            used_memory_mb = self._parse_int(parts[2])
+            if not hardware_id or pid is None or used_memory_mb is None:
+                continue
+
+            metrics.setdefault(hardware_id, {"process_memory_by_pid": {}})
+            process_memory_by_pid = metrics[hardware_id].setdefault("process_memory_by_pid", {})
+            process_memory_by_pid[pid] = used_memory_mb
+
+        return metrics
+
+    @staticmethod
+    def _run_command(command: list[str]) -> str:
+        try:
+            output = subprocess.check_output(command, stderr=subprocess.DEVNULL, text=True)
+        except Exception:
+            return ""
+        return output.strip()
+
+    @staticmethod
+    def _process_memory_mb(pid: int) -> int:
+        try:
+            process = psutil.Process(pid)
+            return int(process.memory_info().rss / (1024 * 1024))
+        except Exception:
+            return 0
+
+    @staticmethod
+    def _parse_int(value: str) -> int | None:
+        text = value.strip()
+        if not text or text.upper() == "N/A":
+            return None
+        try:
+            return int(float(text))
+        except ValueError:
+            return None
+
+    @staticmethod
+    def _parse_float(value: str) -> float | None:
+        text = value.strip()
+        if not text or text.upper() == "N/A":
+            return None
+        try:
+            return round(float(text), 1)
+        except ValueError:
+            return None
+
 
 app = FastAPI(title="Pawpile Inference Service")
 runtime = InferenceRuntime()
@@ -174,6 +346,11 @@ def runtime_devices() -> dict:
         if is_supported_vendor(device.vendor)
     ]
     return {"status": "ok", "devices": devices}
+
+
+@app.get("/runtime/status")
+def runtime_status() -> dict:
+    return runtime.status_payload()
 
 
 @app.post("/runtime/models/activate")

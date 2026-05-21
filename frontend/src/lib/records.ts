@@ -45,6 +45,42 @@ export type DeviceRecord = {
   max_slots: number;
 };
 
+export type StatusModelRecord = {
+  model_id: number;
+  alias: string;
+  memory_used_mb: number;
+  pid: number | null;
+};
+
+export type DeviceStatusRecord = {
+  id: number;
+  hardware_id: string;
+  name: string;
+  vendor: string;
+  device_type: string;
+  enabled: boolean;
+  priority: number;
+  max_slots: number;
+  max_threads: number;
+  memory_total_mb: number;
+  memory_used_mb: number;
+  usage_percent: number | null;
+  usage_source: string;
+  memory_source: string;
+  models: StatusModelRecord[];
+};
+
+export type StatusResponse = {
+  status: string;
+  refreshed_at: string;
+  devices: DeviceStatusRecord[];
+  runtime_errors: {
+    vendor: string;
+    base_url: string;
+    detail: string;
+  }[];
+};
+
 export type ScanResponse = {
   status: string;
   discovered: number;

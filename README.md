@@ -94,11 +94,9 @@ The backend stores its SQLite database in a Docker-managed volume. Model files s
 
 5. Wait for services to become healthy (typically 30-60 seconds).
 
-6. Open in your browser:
-- **Frontend**: http://localhost:5173
-- **API docs**: http://localhost:8000/docs
+6. Open in your browser: http://localhost:5173 or replace localhost with your server's local IP.
 
-7. On first launch, use the setup interface in the web UI to create the initial admin account.
+7. Complete setup - you will need to complete the web-based setup process that will display when you go to the Pawpile web UI for the first time.
 
 ### Optional Runtime Overlays
 
@@ -121,29 +119,12 @@ To target a specific AMD GPU architecture and shrink build time, override the
 `AMDGPU_TARGETS` build arg, e.g. `--build-arg AMDGPU_TARGETS=gfx1100` for an
 RX 7900 series card.
 
-## Platform Support Matrix
-
-| Platform | CPU | NVIDIA | AMD | Intel Arc |
-| --- | --- | --- | --- | --- |
-| Docker on Ubuntu | Supported | Supported | Supported | Supported |
-
-## Docker Architecture
+## Docker Containers
 
 - `frontend`: builds the Vite app and serves it from nginx.
 - `backend`: runs FastAPI and remains the control plane for auth, devices, models, and API compatibility.
 - `inference-*`: one or more vendor-specific inference runtimes manage `llama-server` subprocesses inside their own containers.
 
-The backend no longer needs a host-local `llama-server`. It talks to the configured inference runtimes over HTTP.
-
-## Authentication
-
-- On first launch, create the initial admin account through the setup interface in the web UI.
-- Check whether first-run setup is needed with `GET /api/auth/bootstrap-status`.
-- Login at `POST /api/auth/login`.
-- Use returned JWT as Bearer token.
-- OpenAI-compatible endpoints are open by default.
-- Set `OPENAI_API_AUTH_REQUIRED=true` if you want `/v1/*` to require a JWT or per-user API key.
-- Per-user API keys can be created in the admin UI and used in `Authorization: Bearer <key>` for compatibility clients when auth is enabled.
 
 ## Device Model
 
@@ -156,39 +137,13 @@ The backend no longer needs a host-local `llama-server`. It talks to the configu
 
 ## Model Workflow
 
-1. Put GGUF files into `models/`.
+1. Put GGUF files into `models/` or use the web UI to upload them.
 2. Call scan endpoint to register discovered files.
 3. Configure model metadata and device assignment.
 4. Activate model to spawn dedicated llama-server process.
 5. Only active models appear in chat selection and compatibility endpoint.
 
-## API Endpoints (Initial)
-
-- Auth
-  - GET /api/auth/bootstrap-status
-  - POST /api/auth/login
-- Admin
-  - GET /api/admin/users
-  - POST /api/admin/users
-  - PATCH /api/admin/users/{id}
-  - GET /api/admin/api-keys
-  - POST /api/admin/users/{id}/api-keys
-  - DELETE /api/admin/api-keys/{id}
-- Device management
-  - GET /api/devices
-  - PATCH /api/devices/{id}
-  - POST /api/devices/reorder
-- Model management
-  - GET /api/models
-  - POST /api/models/scan
-  - PATCH /api/models/{id}
-  - POST /api/models/{id}/activate
-  - POST /api/models/{id}/deactivate
-- OpenAI compatibility
-  - GET /v1/models
-  - POST /v1/chat/completions
-
-## OpenAI Compatibility Example
+## OpenAI Compatible Example
 
 ```bash
 curl http://localhost:8000/v1/chat/completions \
@@ -201,21 +156,11 @@ curl http://localhost:8000/v1/chat/completions \
   }'
 ```
 
-## Logs and Data
-
-- SQLite DB: stored in the Docker volume `pawpile-data` mounted at `/app/data`
-- Runtime logs: `logs/`
-- Models: `models/`
-
 ## Troubleshooting
-
-### OS Compatibility Issues
-
-- **Unsupported OS**: Ensure your host system meets the prerequisites. Using Docker isolates application dependencies, but you still need appropriate kernel drivers and runtime support (like NVIDIA Container Toolkit).
 
 ### Docker Issues
 
-- **Docker permission denied (Linux)**:
+- **Docker permission denied**:
   ```bash
   sudo usermod -aG docker $USER
   # Log out and back in, or use: newgrp docker
