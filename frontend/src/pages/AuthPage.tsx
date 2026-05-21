@@ -45,7 +45,7 @@ export default function AuthPage() {
   }
 
   if (user) {
-    return <Navigate to="/profile" replace />;
+    return <Navigate to="/" replace />;
   }
 
   return (
