@@ -5,6 +5,7 @@ import DevicesPage from "./pages/DevicesPage";
 import ModelsPage from "./pages/ModelsPage";
 import UsersPage from "./pages/UsersPage";
 import AuthPage from "./pages/AuthPage";
+import RegisterPage from "./pages/RegisterPage";
 import ApiPage from "./pages/ApiPage";
 import ProfilePage from "./pages/ProfilePage";
 import ConfigurationPage from "./pages/ConfigurationPage";
@@ -88,7 +89,7 @@ export default function App() {
   const location = useLocation();
   const [openMenu, setOpenMenu] = useState<HeaderMenu | null>(null);
   const showMainNav = !isBootstrapping && !requiresSetup;
-  const authRouteActive = location.pathname === "/login";
+  const authRouteActive = location.pathname === "/login" || location.pathname === "/register";
   const adminMenuActive = !!user?.is_admin && adminNavItems.some((item) => location.pathname === item.to);
   const userMenuActive = !!user && location.pathname === "/profile";
 
@@ -197,6 +198,7 @@ export default function App() {
           <Route path="/models" element={<RequireAdmin><ModelsPage /></RequireAdmin>} />
           <Route path="/users" element={<RequireAdmin><UsersPage /></RequireAdmin>} />
           <Route path="/login" element={<AuthPage />} />
+          <Route path="/register" element={<RegisterPage />} />
           <Route path="/auth" element={<Navigate to="/login" replace />} />
           <Route path="/status" element={<StatusPage />} />
           <Route path="/profile" element={<RequireUser><ProfilePage /></RequireUser>} />
