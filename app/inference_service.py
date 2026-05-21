@@ -1,6 +1,9 @@
 import asyncio
+import csv
+import json
 import logging
 import os
+import re
 import subprocess
 import time
 from dataclasses import dataclass
@@ -182,6 +185,10 @@ class InferenceRuntime:
             hardware_metrics = dynamic_metrics.get(device.hardware_id, {})
             process_memory_total = sum(model["memory_used_mb"] for model in device_models)
             memory_used_mb = int(hardware_metrics.get("memory_used_mb") or 0)
+            process_memory_by_pid = hardware_metrics.get("process_memory_by_pid", {})
+            if device_models and memory_used_mb > 0 and not process_memory_by_pid and process_memory_total < memory_used_mb:
+                self._distribute_shared_memory(device_models, memory_used_mb)
+                process_memory_total = sum(model["memory_used_mb"] for model in device_models)
             if memory_used_mb <= 0 and process_memory_total > 0:
                 memory_used_mb = process_memory_total
 
@@ -220,6 +227,7 @@ class InferenceRuntime:
 
         metrics.update(self._collect_nvidia_metrics())
         metrics.update(self._collect_amd_metrics())
+        metrics.update(self._collect_intel_metrics())
         return metrics
 
     def _collect_nvidia_metrics(self) -> dict[str, dict]:
@@ -287,8 +295,12 @@ class InferenceRuntime:
         text_output = self._run_command(["rocm-smi", "--showuse", "--showmeminfo", "vram"])
         return self._parse_amd_metrics_text(text_output)
 
-    @staticmethod
-    def _parse_amd_metrics_json(json_output: str) -> dict[str, dict]:
+    def _collect_intel_metrics(self) -> dict[str, dict]:
+        dump_output = self._run_command(["xpu-smi", "dump", "-d", "-1", "-m", "0,18", "-n", "1"])
+        return self._parse_intel_metrics_dump(dump_output)
+
+    @classmethod
+    def _parse_amd_metrics_json(cls, json_output: str) -> dict[str, dict]:
         if not json_output:
             return {}
         try:
@@ -310,37 +322,25 @@ class InferenceRuntime:
             index = int(digits)
             hardware_id = f"amd:{index}"
 
-            # VRAM Usage
             vram_used_bytes = 0
             vram_total_bytes = 0
             gpu_use = None
 
-            for key, val in entry.items():
-                key_lower = key.lower()
-                if "vram" in key_lower:
-                    if "use" in key_lower or "allocated" in key_lower:
-                        try:
-                            vram_used_bytes = int(str(val).strip())
-                        except ValueError:
-                            pass
-                    elif "total" in key_lower:
-                        try:
-                            vram_total_bytes = int(str(val).strip())
-                        except ValueError:
-                            pass
-                elif "gpu" in key_lower and ("use" in key_lower or "activity" in key_lower or "%" in key_lower):
-                    try:
-                        gpu_use = float(str(val).strip().replace("%", ""))
-                    except ValueError:
-                        pass
-                elif "use" in key_lower and "%" in key_lower:
-                    try:
-                        gpu_use = float(str(val).strip().replace("%", ""))
-                    except ValueError:
-                        pass
+            for path, raw_value in cls._flatten_metric_entries(entry):
+                if "vram" in path:
+                    parsed_size = cls._parse_size_to_bytes(raw_value)
+                    if parsed_size is None:
+                        continue
+                    if any(token in path for token in ["used", "use", "allocated", "used memory"]):
+                        vram_used_bytes = max(vram_used_bytes, parsed_size)
+                    elif "total" in path:
+                        vram_total_bytes = max(vram_total_bytes, parsed_size)
+
+                if gpu_use is None and any(token in path for token in ["gpu use", "gpu usage", "gpu busy", "gpu activity", "utilization"]):
+                    gpu_use = cls._parse_percentage(raw_value)
 
             metrics[hardware_id] = {
-                "usage_percent": gpu_use if gpu_use is not None else 0.0,
+                "usage_percent": gpu_use,
                 "usage_source": "rocm-smi",
                 "memory_used_mb": int(vram_used_bytes / (1024 * 1024)) if vram_used_bytes else 0,
                 "memory_total_mb": int(vram_total_bytes / (1024 * 1024)) if vram_total_bytes else 0,
@@ -349,8 +349,8 @@ class InferenceRuntime:
             }
         return metrics
 
-    @staticmethod
-    def _parse_amd_metrics_text(text_output: str) -> dict[str, dict]:
+    @classmethod
+    def _parse_amd_metrics_text(cls, text_output: str) -> dict[str, dict]:
         if not text_output:
             return {}
 
@@ -381,31 +381,143 @@ class InferenceRuntime:
                 continue
             val_part = parts[-1].strip()
 
-            # Look for values in the text line
-            val_match = re.search(r"(\d+(?:\.\d+)?)\s*(b|kb|mb|gb|tb|%)?", val_part)
-            if not val_match:
-                continue
-
-            val = float(val_match.group(1))
-            unit = (val_match.group(2) or "").lower()
-            if not unit:
-                unit_match = re.search(r"\((b|kb|mb|gb|tb|%)\)", line_lower)
-                if unit_match:
-                    unit = unit_match.group(1)
-
             if "gpu" in line_lower and ("use" in line_lower or "activity" in line_lower or "%" in line_lower):
-                metrics[hardware_id]["usage_percent"] = round(val, 1)
+                metrics[hardware_id]["usage_percent"] = cls._parse_percentage(val_part)
             elif "vram" in line_lower:
+                parsed_size = cls._parse_size_to_bytes(val_part)
+                if parsed_size is None:
+                    continue
                 if "use" in line_lower or "allocated" in line_lower:
-                    multipliers = {"b": 1, "kb": 1024, "mb": 1024**2, "gb": 1024**3, "tb": 1024**4}
-                    v_bytes = int(val * multipliers.get(unit, 1))
-                    metrics[hardware_id]["memory_used_mb"] = int(v_bytes / (1024 * 1024))
+                    metrics[hardware_id]["memory_used_mb"] = int(parsed_size / (1024 * 1024))
                 elif "total" in line_lower:
-                    multipliers = {"b": 1, "kb": 1024, "mb": 1024**2, "gb": 1024**3, "tb": 1024**4}
-                    v_bytes = int(val * multipliers.get(unit, 1))
-                    metrics[hardware_id]["memory_total_mb"] = int(v_bytes / (1024 * 1024))
+                    metrics[hardware_id]["memory_total_mb"] = int(parsed_size / (1024 * 1024))
 
         return metrics
+
+    @classmethod
+    def _parse_intel_metrics_dump(cls, dump_output: str) -> dict[str, dict]:
+        if not dump_output:
+            return {}
+
+        csv_lines = [line for line in dump_output.splitlines() if "," in line]
+        if len(csv_lines) < 2:
+            return {}
+
+        reader = csv.reader(csv_lines)
+        rows = [[cell.strip() for cell in row] for row in reader if row]
+        if len(rows) < 2:
+            return {}
+
+        header = rows[0]
+        column_map = {name: index for index, name in enumerate(header)}
+        device_column = column_map.get("DeviceId")
+        usage_column = column_map.get("GPU Utilization (%)")
+        memory_used_column = column_map.get("GPU Memory Used (MiB)")
+        if device_column is None:
+            return {}
+
+        metrics: dict[str, dict] = {}
+        for row in rows[1:]:
+            if device_column >= len(row):
+                continue
+            device_id = cls._parse_int(row[device_column])
+            if device_id is None:
+                continue
+
+            usage_percent = None
+            if usage_column is not None and usage_column < len(row):
+                usage_percent = cls._parse_float(row[usage_column])
+
+            memory_used_mb = 0
+            if memory_used_column is not None and memory_used_column < len(row):
+                memory_value = cls._parse_float(row[memory_used_column])
+                memory_used_mb = int(memory_value) if memory_value is not None else 0
+
+            metrics[f"intel:{device_id}"] = {
+                "usage_percent": usage_percent,
+                "usage_source": "xpu-smi",
+                "memory_used_mb": memory_used_mb,
+                "memory_source": "xpu-smi",
+                "process_memory_by_pid": {},
+            }
+
+        return metrics
+
+    @staticmethod
+    def _flatten_metric_entries(value: object, prefix: tuple[str, ...] = ()) -> list[tuple[str, str]]:
+        entries: list[tuple[str, str]] = []
+        if isinstance(value, dict):
+            for key, child in value.items():
+                entries.extend(InferenceRuntime._flatten_metric_entries(child, (*prefix, str(key).lower())))
+            return entries
+
+        if isinstance(value, list):
+            for index, child in enumerate(value):
+                entries.extend(InferenceRuntime._flatten_metric_entries(child, (*prefix, str(index))))
+            return entries
+
+        entries.append((" ".join(prefix), str(value).strip()))
+        return entries
+
+    @staticmethod
+    def _parse_percentage(value: str) -> float | None:
+        match = re.search(r"(-?\d+(?:\.\d+)?)\s*%?", value)
+        if not match:
+            return None
+        try:
+            return round(float(match.group(1)), 1)
+        except ValueError:
+            return None
+
+    @staticmethod
+    def _parse_size_to_bytes(value: str) -> int | None:
+        match = re.search(r"(-?\d+(?:\.\d+)?)\s*(bytes|byte|b|kbytes|kb|kib|mbytes|mb|mib|gbytes|gb|gib|tbytes|tb|tib)?", value, re.IGNORECASE)
+        if not match:
+            return None
+
+        try:
+            amount = float(match.group(1))
+        except ValueError:
+            return None
+
+        unit = (match.group(2) or "bytes").lower()
+        multipliers = {
+            "bytes": 1,
+            "byte": 1,
+            "b": 1,
+            "kbytes": 1024,
+            "kb": 1024,
+            "kib": 1024,
+            "mbytes": 1024**2,
+            "mb": 1024**2,
+            "mib": 1024**2,
+            "gbytes": 1024**3,
+            "gb": 1024**3,
+            "gib": 1024**3,
+            "tbytes": 1024**4,
+            "tb": 1024**4,
+            "tib": 1024**4,
+        }
+        return int(amount * multipliers.get(unit, 1))
+
+    @staticmethod
+    def _distribute_shared_memory(models: list[dict], total_memory_mb: int) -> None:
+        if not models or total_memory_mb <= 0:
+            return
+
+        weights = [max(0, int(model.get("memory_used_mb") or 0)) for model in models]
+        if sum(weights) <= 0:
+            weights = [1] * len(models)
+
+        weight_total = sum(weights)
+        allocations = [int(total_memory_mb * weight / weight_total) for weight in weights]
+        remainder = total_memory_mb - sum(allocations)
+        indices = sorted(range(len(weights)), key=lambda index: weights[index], reverse=True)
+        for offset in range(remainder):
+            allocations[indices[offset % len(indices)]] += 1
+
+        for model, allocation in zip(models, allocations):
+            model["memory_used_mb"] = allocation
 
     @staticmethod
     def _run_command(command: list[str]) -> str:

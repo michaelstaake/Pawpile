@@ -23,6 +23,13 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     && rm -rf /var/lib/apt/lists/* \
     && ln -sf /usr/bin/python3 /usr/bin/python
 
+ARG XPU_SMI_DEB_URL=https://github.com/intel/xpumanager/releases/download/v1.3.6/xpu-smi_1.3.6_20260206.143628.1004f6cb.u24.04_amd64.deb
+RUN curl -fsSL "$XPU_SMI_DEB_URL" -o /tmp/xpu-smi.deb \
+    && apt-get update \
+    && apt-get install -y --no-install-recommends /tmp/xpu-smi.deb \
+    && rm -f /tmp/xpu-smi.deb \
+    && rm -rf /var/lib/apt/lists/*
+
 # Create virtual environment and install requirements (AMD-style)
 COPY requirements.txt ./
 RUN python3 -m venv /opt/venv \
