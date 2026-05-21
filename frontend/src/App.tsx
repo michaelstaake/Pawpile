@@ -5,11 +5,13 @@ import DevicesPage from "./pages/DevicesPage";
 import ModelsPage from "./pages/ModelsPage";
 import UsersPage from "./pages/UsersPage";
 import AuthPage from "./pages/AuthPage";
+import ApiPage from "./pages/ApiPage";
+import ProfilePage from "./pages/ProfilePage";
 import SetupPage from "./pages/SetupPage";
 import { useAuth } from "./context/AuthContext";
 
 const adminNavItems = [
-  { to: "/auth", label: "API" },
+  { to: "/api", label: "API" },
   { to: "/devices", label: "Devices" },
   { to: "/models", label: "Models" },
   { to: "/users", label: "Users" },
@@ -28,6 +30,21 @@ function RequireAdmin({ children }: { children: JSX.Element }) {
     return <Navigate to="/setup" replace />;
   }
   if (!user?.is_admin) {
+    return <Navigate to="/auth" replace />;
+  }
+  return children;
+}
+
+function RequireUser({ children }: { children: JSX.Element }) {
+  const { isBootstrapping, requiresSetup, user } = useAuth();
+
+  if (isBootstrapping) {
+    return <section className="rounded-2xl border border-black/10 bg-white/80 p-5 text-sm text-black/60 shadow-sm">Loading your workspace...</section>;
+  }
+  if (requiresSetup) {
+    return <Navigate to="/setup" replace />;
+  }
+  if (!user) {
     return <Navigate to="/auth" replace />;
   }
   return children;
@@ -55,7 +72,7 @@ export default function App() {
   const showMainNav = !isBootstrapping && !requiresSetup;
   const authRouteActive = location.pathname === "/auth";
   const adminMenuActive = !!user?.is_admin && adminNavItems.some((item) => location.pathname === item.to);
-  const userMenuActive = !!user && authRouteActive && !user.is_admin;
+  const userMenuActive = !!user && location.pathname === "/profile";
 
   useEffect(() => {
     setOpenMenu(null);
@@ -130,7 +147,7 @@ export default function App() {
                   </summary>
                   <div className="absolute right-0 top-full z-50 mt-2 min-w-40 rounded-xl border border-black/10 bg-white/95 p-2 shadow-lg backdrop-blur">
                     <NavLink
-                      to="/auth"
+                      to="/profile"
                       className={({ isActive }) => `block rounded-lg px-3 py-2 text-sm ${isActive ? "bg-ink text-white" : "text-black/70 hover:bg-black/5"}`}
                     >
                       Manage
@@ -156,6 +173,8 @@ export default function App() {
           <Route path="/models" element={<RequireAdmin><ModelsPage /></RequireAdmin>} />
           <Route path="/users" element={<RequireAdmin><UsersPage /></RequireAdmin>} />
           <Route path="/auth" element={<AuthPage />} />
+          <Route path="/profile" element={<RequireUser><ProfilePage /></RequireUser>} />
+          <Route path="/api" element={<RequireUser><ApiPage /></RequireUser>} />
           <Route path="/setup" element={<SetupRoute />} />
           <Route path="*" element={<Navigate to={requiresSetup ? "/setup" : "/"} replace />} />
         </Routes>
