@@ -84,13 +84,17 @@ function SetupRoute() {
 }
 
 export default function App() {
-  const { bootstrapError, isBootstrapping, logout, requiresSetup, user } = useAuth();
+  const { bootstrapError, isBootstrapping, logout, requiresSetup, user, sitename } = useAuth();
   const location = useLocation();
   const [openMenu, setOpenMenu] = useState<HeaderMenu | null>(null);
   const showMainNav = !isBootstrapping && !requiresSetup;
   const authRouteActive = location.pathname === "/login";
   const adminMenuActive = !!user?.is_admin && adminNavItems.some((item) => location.pathname === item.to);
   const userMenuActive = !!user && location.pathname === "/profile";
+
+  useEffect(() => {
+    document.title = sitename || "Pawpile";
+  }, [sitename]);
 
   useEffect(() => {
     setOpenMenu(null);
@@ -109,8 +113,7 @@ export default function App() {
         <div className="mx-auto max-w-3xl px-4 py-6 md:px-8">
           <header className="mb-6 rounded-2xl border border-black/10 bg-white/80 p-4 shadow-sm backdrop-blur">
             <NavLink to="/" className="inline-flex items-baseline gap-3 rounded-lg focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ink/30">
-              <h1 className="font-display text-2xl font-semibold tracking-tight">Pawpile</h1>
-              <span className="text-sm text-black/60">{appVersionLabel}</span>
+              <h1 className="font-display text-2xl font-semibold tracking-tight">{sitename}</h1>
             </NavLink>
           </header>
           <section className="rounded-2xl border border-rose-200 bg-rose-50 p-5 text-sm text-rose-700 shadow-sm">
@@ -126,8 +129,7 @@ export default function App() {
       <div className="mx-auto max-w-7xl px-4 py-6 md:px-8">
         <header className="relative z-50 mb-6 flex flex-wrap items-center justify-between gap-4 overflow-visible rounded-2xl border border-black/10 bg-white/80 p-4 shadow-sm backdrop-blur isolate">
           <NavLink to="/" className="inline-flex items-baseline gap-3 rounded-lg focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ink/30">
-            <h1 className="font-display text-2xl font-semibold tracking-tight">Pawpile</h1>
-            <span className="text-sm text-black/60">{appVersionLabel}</span>
+            <h1 className="font-display text-2xl font-semibold tracking-tight">{sitename}</h1>
           </NavLink>
           {showMainNav ? (
             <nav className="relative z-50 flex flex-wrap items-center gap-2 overflow-visible">

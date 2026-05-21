@@ -12,6 +12,7 @@ type AuthContextValue = {
   isAuthenticating: boolean;
   allowAnonymousChat: boolean;
   usersCanRegister: boolean;
+  sitename: string;
   refreshAuthState: () => Promise<void>;
   updateProfile: (payload: { email?: string; password?: string }) => Promise<CurrentUser>;
   login: (username: string, password: string) => Promise<void>;
@@ -32,6 +33,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [isAuthenticating, setIsAuthenticating] = useState(false);
   const [allowAnonymousChat, setAllowAnonymousChat] = useState(true);
   const [usersCanRegister, setUsersCanRegister] = useState(false);
+  const [sitename, setSitename] = useState("Pawpile");
 
   useEffect(() => {
     const onStorage = (event: StorageEvent) => {
@@ -56,6 +58,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       setRequiresSetup(bootstrap.requires_setup);
       setAllowAnonymousChat(bootstrap.allow_anonymous_chat);
       setUsersCanRegister(bootstrap.users_can_register);
+      setSitename(bootstrap.sitename || "Pawpile");
 
       if (!token) {
         setUser(null);
@@ -77,6 +80,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       setRequiresSetup(false);
       setAllowAnonymousChat(true);
       setUsersCanRegister(false);
+      setSitename("Pawpile");
       setBootstrapError(error instanceof Error ? error.message : "Unable to load installation state");
     } finally {
       setIsBootstrapping(false);
@@ -114,6 +118,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       setRequiresSetup(bootstrap.requires_setup);
       setAllowAnonymousChat(bootstrap.allow_anonymous_chat);
       setUsersCanRegister(bootstrap.users_can_register);
+      setSitename(bootstrap.sitename || "Pawpile");
       setBootstrapError(null);
     } finally {
       setIsAuthenticating(false);
@@ -166,6 +171,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         isAuthenticating,
         allowAnonymousChat,
         usersCanRegister,
+        sitename,
         refreshAuthState,
         updateProfile,
         login,

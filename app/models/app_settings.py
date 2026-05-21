@@ -1,4 +1,4 @@
-from sqlalchemy import Boolean, Integer
+from sqlalchemy import Boolean, Integer, String
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.core.db import Base
@@ -11,3 +11,4 @@ class AppSettings(Base):
     allow_anonymous_chat: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
     users_can_register: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
     auto_load_enabled_models_on_startup: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
+    sitename: Mapped[str] = mapped_column(String(255), default="Pawpile", nullable=False)

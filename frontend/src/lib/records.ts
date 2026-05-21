@@ -111,6 +111,7 @@ export type AppSettingsRecord = {
   allow_anonymous_chat: boolean;
   users_can_register: boolean;
   auto_load_enabled_models_on_startup: boolean;
+  sitename: string;
 };
 
 export type ApiKeyCreateResponse = {

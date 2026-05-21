@@ -39,6 +39,7 @@ def bootstrap_status(db: Session = Depends(get_db)) -> BootstrapStatusResponse:
         has_active_model=has_active_model,
         allow_anonymous_chat=app_settings.allow_anonymous_chat,
         users_can_register=app_settings.users_can_register,
+        sitename=app_settings.sitename,
     )
 
 

@@ -45,6 +45,7 @@ class BootstrapStatusResponse(BaseModel):
     has_active_model: bool = False
     allow_anonymous_chat: bool = True
     users_can_register: bool = False
+    sitename: str = "Pawpile"
 
 
 class BootstrapAdminRequest(BaseModel):
@@ -63,12 +64,14 @@ class AppSettingsResponse(BaseModel):
     allow_anonymous_chat: bool = True
     users_can_register: bool = False
     auto_load_enabled_models_on_startup: bool = False
+    sitename: str = "Pawpile"
 
 
 class AppSettingsUpdateRequest(BaseModel):
     allow_anonymous_chat: bool | None = None
     users_can_register: bool | None = None
     auto_load_enabled_models_on_startup: bool | None = None
+    sitename: str | None = None
 
 
 class UserCreateRequest(BaseModel):
