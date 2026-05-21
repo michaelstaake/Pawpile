@@ -1,6 +1,7 @@
 import asyncio
 import logging
 from dataclasses import dataclass
+import json
 
 import httpx
 
@@ -9,6 +10,24 @@ from app.models.device import Device
 from app.models.model_config import ModelConfig
 
 logger = logging.getLogger(__name__)
+
+
+def _runtime_error_detail(response: httpx.Response) -> str:
+    try:
+        payload = response.json()
+    except (ValueError, json.JSONDecodeError):
+        payload = None
+
+    if isinstance(payload, dict):
+        detail = payload.get("detail")
+        if isinstance(detail, str) and detail.strip():
+            return detail.strip()
+
+    text = response.text.strip()
+    if text:
+        return text
+
+    return f"Inference runtime request failed with status {response.status_code}"
 
 
 @dataclass
@@ -54,7 +73,8 @@ class InferenceManager:
         timeout = self.settings.inference_service_timeout_seconds
         async with httpx.AsyncClient(timeout=timeout) as client:
             response = await client.post(f"{runtime_url}/runtime/models/activate", json=payload)
-            response.raise_for_status()
+            if response.is_error:
+                raise RuntimeError(_runtime_error_detail(response))
 
         self._running[model.id] = RunningModel(
             model_id=model.id,

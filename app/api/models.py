@@ -185,7 +185,10 @@ async def activate_model(model_id: int, _: User = Depends(get_admin_user), db: S
     if not device:
         raise HTTPException(status_code=409, detail="No enabled device available for model")
 
-    await inference.activate_model(model, device)
+    try:
+        await inference.activate_model(model, device)
+    except RuntimeError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
     model.activated = True
     db.add(model)
     db.commit()
