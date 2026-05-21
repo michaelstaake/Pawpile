@@ -263,9 +263,150 @@ class DeviceManager:
             )
         return devices
 
+    @staticmethod
+    def _clean_intel_device_name(raw_name: str) -> str:
+        name_match = re.search(r"(Intel\(R\).*?Graphics)\b", raw_name)
+        name = name_match.group(1) if name_match else re.sub(r"\s*\[.*?\]\s*$", "", raw_name)
+        return re.sub(r"\s+", " ", name).strip()[:120]
+
+    @staticmethod
+    def _parse_intel_memory_mb(raw_value: str) -> int:
+        text = raw_value.strip()
+        if not text:
+            return 0
+
+        size_match = re.search(
+            r"(\d+(?:\.\d+)?)\s*(bytes|b|kbytes|kb|kib|mbytes|mb|mib|gbytes|gb|gib|tbytes|tb|tib)\b",
+            text,
+            re.IGNORECASE,
+        )
+        if not size_match:
+            bytes_match = re.match(r"^(\d+)\b", text)
+            if not bytes_match:
+                return 0
+            return int(int(bytes_match.group(1)) / (1024 * 1024))
+
+        value = float(size_match.group(1))
+        unit = size_match.group(2).lower()
+        multipliers = {
+            "bytes": 1,
+            "b": 1,
+            "kbytes": 1024,
+            "kb": 1024,
+            "kib": 1024,
+            "mbytes": 1024**2,
+            "mb": 1024**2,
+            "mib": 1024**2,
+            "gbytes": 1024**3,
+            "gb": 1024**3,
+            "gib": 1024**3,
+            "tbytes": 1024**4,
+            "tb": 1024**4,
+            "tib": 1024**4,
+        }
+        return int((value * multipliers.get(unit, 0)) / (1024 * 1024))
+
+    @classmethod
+    def _parse_intel_clinfo(cls, text_output: str) -> list[dict[str, int | str]]:
+        if not text_output:
+            return []
+
+        devices: list[dict[str, int | str]] = []
+        current_name = ""
+        current_vendor = ""
+        current_type = ""
+        current_memory_mb = 0
+
+        def flush_current() -> None:
+            nonlocal current_name, current_vendor, current_type, current_memory_mb
+            if not current_name:
+                return
+
+            name = cls._clean_intel_device_name(current_name)
+            vendor_lower = current_vendor.lower()
+            type_lower = current_type.lower()
+            name_lower = name.lower()
+            is_intel = "intel" in vendor_lower or "intel" in name_lower
+            is_gpu = "gpu" in type_lower or "graphics" in name_lower or "arc" in name_lower
+            if is_intel and is_gpu:
+                devices.append({"name": name, "memory_mb": current_memory_mb})
+
+            current_name = ""
+            current_vendor = ""
+            current_type = ""
+            current_memory_mb = 0
+
+        for raw_line in text_output.splitlines():
+            line = raw_line.strip()
+            if not line:
+                continue
+
+            if line.startswith("Device Name"):
+                flush_current()
+                current_name = line[len("Device Name") :].strip(" :\t")
+                continue
+
+            if not current_name:
+                continue
+
+            if line.startswith("Device Vendor"):
+                current_vendor = line[len("Device Vendor") :].strip(" :\t")
+                continue
+
+            if line.startswith("Device Type"):
+                current_type = line[len("Device Type") :].strip(" :\t")
+                continue
+
+            if line.startswith("Global memory size"):
+                current_memory_mb = cls._parse_intel_memory_mb(line[len("Global memory size") :].strip(" :\t"))
+
+        flush_current()
+        return devices
+
+    @classmethod
+    def _match_intel_memory(cls, names: list[str], clinfo_devices: list[dict[str, int | str]]) -> list[int]:
+        if not names:
+            return []
+        if not clinfo_devices:
+            return [0] * len(names)
+
+        remaining = [
+            {
+                "name_key": cls._clean_intel_device_name(str(device.get("name") or "")).lower(),
+                "memory_mb": int(device.get("memory_mb") or 0),
+            }
+            for device in clinfo_devices
+        ]
+        matched_memory = [0] * len(names)
+
+        for index, name in enumerate(names):
+            name_key = cls._clean_intel_device_name(name).lower()
+            match_index = next(
+                (
+                    candidate_index
+                    for candidate_index, candidate in enumerate(remaining)
+                    if candidate["memory_mb"] > 0 and candidate["name_key"] == name_key
+                ),
+                None,
+            )
+            if match_index is None:
+                continue
+            matched_memory[index] = remaining.pop(match_index)["memory_mb"]
+
+        fallback_memory = [candidate["memory_mb"] for candidate in remaining if candidate["memory_mb"] > 0]
+        fallback_index = 0
+        for index, memory_mb in enumerate(matched_memory):
+            if memory_mb > 0 or fallback_index >= len(fallback_memory):
+                continue
+            matched_memory[index] = fallback_memory[fallback_index]
+            fallback_index += 1
+
+        return matched_memory
+
     def _detect_intel(self) -> list[DetectedDevice]:
         output = self._run("sycl-ls")
-        devices: list[DetectedDevice] = []
+        clinfo_devices = self._parse_intel_clinfo(self._run("clinfo"))
+        detected_names: list[str] = []
         names_in_order: list[str] = []
         preferred_counts: dict[str, int] = {}
         fallback_counts: dict[str, int] = {}
@@ -276,9 +417,7 @@ class DeviceManager:
                 continue
 
             raw_name = line.split(",", 1)[-1].strip() if "," in line else line.strip()
-            name_match = re.search(r"(Intel\(R\).*?Graphics)\b", raw_name)
-            name = name_match.group(1) if name_match else re.sub(r"\s*\[.*?\]\s*$", "", raw_name)
-            name = re.sub(r"\s+", " ", name).strip()[:120]
+            name = self._clean_intel_device_name(raw_name)
             if not name:
                 continue
 
@@ -290,20 +429,22 @@ class DeviceManager:
             else:
                 fallback_counts[name] = fallback_counts.get(name, 0) + 1
 
-        idx = 0
         for name in names_in_order:
             count = max(preferred_counts.get(name, 0), fallback_counts.get(name, 0))
-            for _ in range(count):
-                devices.append(
-                    DetectedDevice(
-                        hardware_id=f"intel:{idx}",
-                        name=name,
-                        vendor="intel",
-                        device_type="gpu",
-                        memory_mb=0,
-                    )
+            detected_names.extend([name] * count)
+
+        memory_by_index = self._match_intel_memory(detected_names, clinfo_devices)
+        devices: list[DetectedDevice] = []
+        for idx, name in enumerate(detected_names):
+            devices.append(
+                DetectedDevice(
+                    hardware_id=f"intel:{idx}",
+                    name=name,
+                    vendor="intel",
+                    device_type="gpu",
+                    memory_mb=memory_by_index[idx] if idx < len(memory_by_index) else 0,
                 )
-                idx += 1
+            )
         return devices
 
     def _detect_cpu(self) -> list[DetectedDevice]:

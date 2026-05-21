@@ -1,6 +1,6 @@
 # Pawpile
 
-Pawpile is a mostly vibe-coded self-hosted AI platform designed to run completely in Docker on Ubuntu. It gives you a web UI where you can manege auth, models, and devices to get a web chat or expose an OpenAI-compatible API to your local network.
+Pawpile is a mostly vibe-coded self-hosted AI platform designed to run completely in Docker on Ubuntu. It gives you a web UI where you can manege devices, models, users, and auth to get a web chat or expose an OpenAI-compatible API to your local network.
 
 ## The Problem Pawpile Solves
 
@@ -14,58 +14,16 @@ Hardware to run AI locally is expensive, but cloud AI solution pricing keeps goi
 
 If it works on other operating systems, awesome, but supporting that is outside the scope of this project.
 
-### Hardware Acceleration (Optional)
+### Docker
 
-- **NVIDIA**: CUDA 11.8+ and cuDNN, available on Linux
-- **AMD**: ROCm - requires `/dev/kfd` and `/dev/dri` access
-- **Intel Arc**: Requires the `xe` kernel driver (default on Ubuntu 26.04 with kernel 6.11+) and `/dev/dri` access. Note: `xe` is the driver for Arc GPUs — `i915` is for Intel integrated graphics and is unrelated.
+Ensure Docker is running in the system context.
 
-## Features
+### Supported Devices
 
-- FastAPI backend with SQLite storage.
-- React + TypeScript + Tailwind frontend.
-- OpenAI-compatible API:
-  - /v1/models
-  - /v1/chat/completions
-- Device auto-detection on startup:
-  - Ubuntu 26.04: NVIDIA (nvidia-smi), AMD ROCm (rocm-smi), Intel SYCL (sycl-ls), CPU
-- Devices are detected automatically and disabled by default when first discovered.
-- One model per compute device. No tensor parallelism or layer splitting.
-- Queueing when assigned device is busy (no CPU fallback).
-- JWT auth and per-user API keys.
-- SQLite for users, devices, model config, chats, and job state.
-
-## Project Layout
-
-```text
-pawpile/
-├── app/
-│   ├── api/
-│   ├── core/
-│   ├── models/
-│   ├── utils/
-│   └── main.py
-├── frontend/
-├── models/
-├── logs/
-├── alembic/
-├── docker-compose.yml
-├── .env.example
-├── requirements.txt
-├── README.md
-└── LICENSE
-```
-
-## Quick Start (Docker)
-
-The default Compose stack is CPU-only and runs on Ubuntu.
-
-### Prerequisites
-
-- Docker installed (20.10+ recommended)
-- Docker daemon running, and user added to the docker group
-- At least 8 GB RAM available for containers
-- 20+ GB free disk space
+- **CPU**: x86_64
+- **NVIDIA**: CUDA
+- **AMD**: ROCm
+- **Intel Arc**: Note: `xe` is the correct driver for supported Arc GPUs — `i915` is not supported.
 
 ### Setup Steps
 
@@ -82,71 +40,31 @@ cd Pawpile
 cp .env.example .env
 ```
 
-3. Start services.
+3. Run it! The base stack always starts the CPU inference runtime. Add one or more vendor runtime overlays depending on what hardware you have in the host. You can mix different hardware types.
 
-```bash
-docker compose up -d --build
-```
-
-The backend stores its SQLite database in a Docker-managed volume. Model files stay in `models/` and runtime logs stay in `logs/` on the host.
-
-4. Add GGUF files under the `models/` directory or do this later using the Web UI.
-
-5. Wait for services to become healthy (typically 30-60 seconds).
-
-6. Open in your browser: http://localhost:5173 or replace localhost with your server's local IP.
-
-7. Complete setup - you will need to complete the web-based setup process that will display when you go to the Pawpile web UI for the first time.
-
-### Optional Runtime Overlays
-
-The base stack always starts the CPU inference runtime. Add one or more vendor runtime overlays when the host supports them.
-
-Pawpile automatically detects devices from the running runtimes and routes models to the matching vendor. The overlay choice is still needed at container startup time because NVIDIA, AMD, and Intel use different images, libraries, and device mappings.
-
+- CPU only: `docker compose up -d --build`
 - NVIDIA: `docker compose -f docker-compose.yml -f docker-compose.nvidia.yml up -d --build`
 - AMD (ROCm): `docker compose -f docker-compose.yml -f docker-compose.amd.yml up -d --build`
 - Intel (oneAPI / Level Zero): `docker compose -f docker-compose.yml -f docker-compose.intel.yml up -d --build`
-- Mixed vendor with NVIDIA and AMD example: `docker compose -f docker-compose.yml -f docker-compose.nvidia.yml -f docker-compose.amd.yml up -d --build`
+- Mixed vendor example with NVIDIA and AMD: `docker compose -f docker-compose.yml -f docker-compose.nvidia.yml -f docker-compose.amd.yml up -d --build`
 
-You can combine overlay files. Pawpile now routes models to the inference runtime that matches the selected device vendor.
+The backend stores its SQLite database in a Docker-managed volume. Model files stay in `models/` and runtime logs stay in `logs/` on the host.
 
-AMD and Intel overrides require the corresponding kernel modules
-loaded (`amdgpu` and `xe` respectively) and pass `/dev/kfd` / `/dev/dri` into the
-inference container. On Ubuntu 26.04 with kernel 6.11+, `xe` is loaded by default
-for Arc Alchemist (A-series) discrete GPUs. Verify with `lsmod | grep xe` on the host
-before starting the Intel overlay.
+4. Add your AI models GGUF files under the `models/` directory or do this later using the Web UI.
 
-To target a specific AMD GPU architecture and shrink build time, override the
-`AMDGPU_TARGETS` build arg, e.g. `--build-arg AMDGPU_TARGETS=gfx1100` for an
-RX 7900 series card or `--build-arg AMDGPU_TARGETS=gfx1201` for a Radeon AI PRO
-R9700. Pawpile forwards that value to llama.cpp's `GPU_TARGETS` build option.
+5. Initial setup will take a long time.Wait for services to become healthy (typically 30-60 seconds).
 
-## Docker Containers
+6. Open in your browser: http://localhost:5173 or replace localhost with your server's local IP.
 
-- `frontend`: builds the Vite app and serves it from nginx.
-- `backend`: runs FastAPI and remains the control plane for auth, devices, models, and API compatibility.
-- `inference-*`: one or more vendor-specific inference runtimes manage `llama-server` subprocesses inside their own containers.
+7. On a new install you will be redirected to the setup page. Once you have created your initial admin user and selected a device and model to start with, you can use Pawpile.
 
+## Interacting with the AI Models
 
-## Device Model
+### Web Interface Chat
 
-- Devices are auto-detected at startup from the running inference runtimes.
-- New devices are persisted as disabled.
-- Devices that disappear on a later restart are automatically disabled.
-- Admin must explicitly enable devices before model assignment.
-- Auto mode is supported for model assignment.
-- Device priority is configurable.
+You can chat with your enabled models through the web interface. This is the easiest, but least powerful way to interact with Pawpile.
 
-## Model Workflow
-
-1. Put GGUF files into `models/` or use the web UI to upload them.
-2. Call scan endpoint to register discovered files.
-3. Configure model metadata and device assignment.
-4. Activate model to spawn dedicated llama-server process.
-5. Only active models appear in chat selection and compatibility endpoint.
-
-## OpenAI Compatible Example
+### OpenAI Compatible API
 
 OpenAI-compatible endpoints require authentication by default.
 Provide a valid bearer token, which can be either a JWT access token or an API key.
@@ -205,7 +123,7 @@ Use this in your OpenCode config file to connect to Pawpile's OpenAI-compatible 
 
 - **Docker Desktop**:
   - If you have Docker Desktop installed, ensure Pawpile is running in the system's context not Docker Desktop's context
-  - Run `docker context use default` to clean up old images
+  - Run `docker context use default` to correct the system context.
 
 
 ### Device Detection Issues
@@ -221,13 +139,7 @@ Use this in your OpenCode config file to connect to Pawpile's OpenAI-compatible 
 - **Model activation failed**:
   - Confirm `LLAMA_SERVER_PATH` in `.env` is set correctly inside the container (defaults to `/opt/llama.cpp/build/bin/llama-server`).
   - Confirm the model path exists and is readable under the `models/` directory in the project root (which is mounted into the containers).
-  - Ensure sufficient host RAM is allocated for the model context size.
-
-### Queueing Behavior
-
-- **Queueing expected**: If a device is busy, requests are queued by policy (priority then FIFO).
-  - This is normal behavior and not an error.
-  - Monitor job queue in the admin UI.
+  - Ensure the models are not too large for the device you are running it on.
 
 ## License
 
