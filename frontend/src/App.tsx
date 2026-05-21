@@ -16,7 +16,7 @@ const adminNavItems = [
   { to: "/devices", label: "Devices" },
   { to: "/models", label: "Models" },
   { to: "/users", label: "Users" },
-  { to: "/api", label: "API" },
+  { to: "/apikeys", label: "API" },
 ] as const;
 
 const appVersionLabel = `v${__APP_VERSION__}`;
@@ -152,7 +152,7 @@ export default function App() {
                   </div>
                 </details>
               ) : user ? (
-                <NavLink to="/api" className={({ isActive }) => `rounded-lg px-3 py-2 text-sm ${isActive ? "bg-ink text-white" : "bg-black/5"}`}>API</NavLink>
+                <NavLink to="/apikeys" className={({ isActive }) => `rounded-lg px-3 py-2 text-sm ${isActive ? "bg-ink text-white" : "bg-black/5"}`}>API</NavLink>
               ) : null}
               {!user ? (
                 <NavLink to="/login" className={() => `rounded-lg px-3 py-2 text-sm ${authRouteActive ? "bg-ink text-white" : "bg-black/5"}`}>Login</NavLink>
@@ -195,7 +195,8 @@ export default function App() {
           <Route path="/login" element={<AuthPage />} />
           <Route path="/auth" element={<Navigate to="/login" replace />} />
           <Route path="/profile" element={<RequireUser><ProfilePage /></RequireUser>} />
-          <Route path="/api" element={<RequireUser><ApiPage /></RequireUser>} />
+          <Route path="/api" element={<Navigate to="/apikeys" replace />} />
+          <Route path="/apikeys" element={<RequireUser><ApiPage /></RequireUser>} />
           <Route path="/setup" element={<SetupRoute />} />
           <Route path="*" element={<Navigate to={requiresSetup ? "/setup" : "/"} replace />} />
         </Routes>

@@ -5,7 +5,7 @@ import { useAuth } from "../context/AuthContext";
 import { AppSettingsRecord } from "../lib/records";
 
 const settingsLinks = [
-  { to: "/api", label: "API" },
+  { to: "/apikeys", label: "API" },
   { to: "/devices", label: "Devices" },
   { to: "/models", label: "Models" },
   { to: "/users", label: "Users" },

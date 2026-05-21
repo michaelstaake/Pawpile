@@ -104,43 +104,13 @@ export default function UsersPage() {
 
   return (
     <section className="grid gap-4">
-      <article className="overflow-hidden rounded-3xl border border-black/10 bg-[linear-gradient(140deg,rgba(17,24,39,0.96),rgba(53,83,56,0.88)_55%,rgba(245,158,11,0.74))] p-6 text-white shadow-sm">
-        <div className="flex flex-wrap items-start justify-between gap-5">
-          <div className="max-w-2xl">
-            <p className="text-xs font-semibold uppercase tracking-[0.24em] text-white/65">Directory</p>
-            <h1 className="mt-3 font-display text-3xl leading-tight">Manage who can sign in and what level of access they keep.</h1>
-            <p className="mt-3 text-sm text-white/78">Create users in a dedicated modal, then edit roles and account status directly from the roster.</p>
-          </div>
-          <button className="rounded-xl bg-white px-4 py-3 text-sm font-semibold text-ink" type="button" onClick={() => setIsCreateModalOpen(true)}>
-            Add user
-          </button>
-        </div>
-
-        <div className="mt-6 grid gap-3 sm:grid-cols-3">
-          <div className="rounded-2xl border border-white/15 bg-white/10 p-4 backdrop-blur">
-            <p className="text-xs uppercase tracking-[0.24em] text-white/60">Total users</p>
-            <p className="mt-3 font-display text-3xl">{users.length}</p>
-          </div>
-          <div className="rounded-2xl border border-white/15 bg-white/10 p-4 backdrop-blur">
-            <p className="text-xs uppercase tracking-[0.24em] text-white/60">Admins</p>
-            <p className="mt-3 font-display text-3xl">{adminCount}</p>
-          </div>
-          <div className="rounded-2xl border border-white/15 bg-white/10 p-4 backdrop-blur">
-            <p className="text-xs uppercase tracking-[0.24em] text-white/60">Active accounts</p>
-            <p className="mt-3 font-display text-3xl">{activeCount}</p>
-          </div>
-        </div>
-      </article>
-
       {errorMessage ? <p className="rounded-xl border border-rose-200 bg-rose-50 px-3 py-2 text-sm text-rose-700">{errorMessage}</p> : null}
       {successMessage ? <p className="rounded-xl border border-emerald-200 bg-emerald-50 px-3 py-2 text-sm text-emerald-700">{successMessage}</p> : null}
 
       <article className="rounded-3xl border border-black/10 bg-white/85 p-5 shadow-sm backdrop-blur">
         <div className="flex flex-wrap items-start justify-between gap-4">
           <div>
-            <p className="text-xs font-semibold uppercase tracking-[0.24em] text-black/45">Roster</p>
-            <h2 className="mt-2 font-display text-2xl">Users</h2>
-            <p className="mt-2 text-sm text-black/70">Update account details in place. Password fields stay empty until you intentionally reset one.</p>
+            <h2 className="font-display text-2xl">Users</h2>
           </div>
           <button className="rounded-xl border border-black/15 bg-white px-4 py-3 text-sm font-semibold text-black" type="button" onClick={() => setIsCreateModalOpen(true)}>
             Add user
@@ -202,9 +172,7 @@ export default function UsersPage() {
         <article className="max-h-[min(92vh,860px)] overflow-y-auto p-5 sm:p-6">
           <div className="flex flex-wrap items-start justify-between gap-3">
             <div>
-              <p className="text-xs font-semibold uppercase tracking-[0.24em] text-black/45">Create</p>
-              <h2 id="user-create-title" className="mt-2 font-display text-2xl">Add user</h2>
-              <p className="mt-2 text-sm text-black/70">Create an account, then refine details later from the roster.</p>
+              <h2 id="user-create-title" className="font-display text-2xl">Add user</h2>
             </div>
             <button className="rounded-xl border border-black/15 bg-white px-4 py-2 text-sm font-semibold text-black" type="button" onClick={() => setIsCreateModalOpen(false)}>
               Close
@@ -235,9 +203,6 @@ export default function UsersPage() {
                   Active
                 </label>
               </div>
-            </div>
-            <div className="rounded-2xl border border-dashed border-black/15 bg-sand/60 p-4 text-sm text-black/65">
-              New users appear in the roster immediately after creation so you can refine role, email, or password reset details in place.
             </div>
             <div>
               <button className="rounded-xl bg-ink px-4 py-2 text-sm font-semibold text-white disabled:cursor-not-allowed disabled:opacity-60" type="submit" disabled={isCreatingUser}>
