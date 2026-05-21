@@ -49,22 +49,20 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       setSetupStatus(bootstrap);
       setRequiresSetup(bootstrap.requires_setup);
 
-      if (bootstrap.requires_setup) {
-        setUser(null);
-        if (token) {
-          clearStoredToken();
-          setToken("");
-        }
-        return;
-      }
-
       if (!token) {
         setUser(null);
         return;
       }
 
-      const currentUser = await apiGet<CurrentUser>("/api/auth/me", token);
-      setUser(currentUser);
+      try {
+        const currentUser = await apiGet<CurrentUser>("/api/auth/me", token);
+        setUser(currentUser);
+      } catch (error) {
+        setUser(null);
+        clearStoredToken();
+        setToken("");
+        throw error;
+      }
     } catch (error) {
       setUser(null);
       setSetupStatus(null);
