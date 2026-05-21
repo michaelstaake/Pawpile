@@ -175,7 +175,7 @@ Use this in your OpenCode config file to connect to Pawpile's OpenAI-compatible 
       "name": "pawpile",
       "npm": "@ai-sdk/openai-compatible",
       "options": {
-        "baseURL": "http://192.168.1.40:8000/v1",
+        "baseURL": "http://localhost:8000/v1",
         "apiKey": "YOUR_API_KEY",
         "timeout": 7200000
       },
