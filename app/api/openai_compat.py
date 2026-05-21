@@ -10,7 +10,7 @@ from app.core.db import get_db
 from app.core.inference_manager import InferenceManager
 from app.models.model_config import ModelConfig
 from app.models.user import User
-from app.utils.schemas import OpenAIChatRequest
+from app.utils.schemas import OpenAIChatRequest, normalize_message_content
 
 router = APIRouter(prefix="/v1", tags=["openai"])
 
@@ -50,7 +50,13 @@ async def v1_chat_completions(payload: OpenAIChatRequest, _: User = Depends(requ
 
     request_payload = {
         "model": payload.model,
-        "messages": [m.model_dump() for m in payload.messages],
+        "messages": [
+            {
+                "role": m.role,
+                "content": normalize_message_content(m.content),
+            }
+            for m in payload.messages
+        ],
         "stream": payload.stream,
         "temperature": payload.temperature,
         "max_tokens": payload.max_tokens,

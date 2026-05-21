@@ -5,7 +5,7 @@ from app.api.deps import get_current_user
 from app.core.db import get_db
 from app.models.chat import Chat, ChatMessage
 from app.models.user import User
-from app.utils.schemas import ChatCreateRequest, ChatMessageAppendRequest, ChatRenameRequest
+from app.utils.schemas import ChatCreateRequest, ChatMessageAppendRequest, ChatRenameRequest, normalize_message_content
 
 router = APIRouter(prefix="/api/chat", tags=["chat"])
 
@@ -61,7 +61,11 @@ def append_message(
     db: Session = Depends(get_db),
 ) -> dict:
     chat = _load_chat(db, chat_id, current_user)
-    message = ChatMessage(chat_id=chat.id, role=payload.role, content=payload.content)
+    message = ChatMessage(
+        chat_id=chat.id,
+        role=payload.role,
+        content=normalize_message_content(payload.content),
+    )
     db.add(message)
     db.commit()
     db.refresh(message)

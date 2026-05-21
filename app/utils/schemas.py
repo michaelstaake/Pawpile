@@ -1,4 +1,42 @@
-from pydantic import BaseModel, Field
+from typing import Any
+
+from pydantic import BaseModel, Field, field_validator
+
+
+def normalize_message_content(content: Any) -> str:
+    """Normalize OpenAI-style content to plain text for text-only backends.
+
+    Supported inputs:
+    - string content
+    - list of content parts (only text parts are kept)
+    """
+    if isinstance(content, str):
+        return content
+
+    if isinstance(content, list):
+        text_parts: list[str] = []
+        for index, part in enumerate(content):
+            if not isinstance(part, dict):
+                raise ValueError(f"content part at index {index} must be an object")
+
+            part_type = part.get("type")
+            if not isinstance(part_type, str):
+                raise ValueError(f"content part at index {index} is missing a valid type")
+
+            if part_type != "text":
+                # Non-text parts are currently ignored.
+                continue
+
+            text = part.get("text", "")
+            if text is None:
+                text = ""
+            if not isinstance(text, str):
+                raise ValueError(f"text content part at index {index} must have string text")
+            text_parts.append(text)
+
+        return "\n".join(text_parts)
+
+    raise ValueError("content must be a string or an array of content parts")
 
 
 class LoginRequest(BaseModel):
@@ -131,7 +169,12 @@ class ModelUpdateRequest(BaseModel):
 
 class ChatMessageRequest(BaseModel):
     role: str
-    content: str
+    content: str | list[dict[str, Any]]
+
+    @field_validator("content", mode="before")
+    @classmethod
+    def _normalize_content(cls, value: Any) -> str:
+        return normalize_message_content(value)
 
 
 class ChatCreateRequest(BaseModel):
@@ -144,7 +187,19 @@ class ChatRenameRequest(BaseModel):
 
 class ChatMessageAppendRequest(BaseModel):
     role: str = Field(min_length=1, max_length=32)
-    content: str = Field(min_length=1)
+    content: str | list[dict[str, Any]]
+
+    @field_validator("content", mode="before")
+    @classmethod
+    def _normalize_content(cls, value: Any) -> str:
+        return normalize_message_content(value)
+
+    @field_validator("content")
+    @classmethod
+    def _require_non_empty_content(cls, value: str) -> str:
+        if len(value) < 1:
+            raise ValueError("content must not be empty")
+        return value
 
 
 class OpenAIChatRequest(BaseModel):
