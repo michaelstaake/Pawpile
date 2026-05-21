@@ -493,9 +493,6 @@ export default function ModelsPage({ setupMode = false, onComplete }: ModelsPage
                 <p className="text-sm text-black/55">
                   {isReordering ? "Saving order..." : savingModelIds.includes(activeModel.id) ? "Saving settings..." : pendingModelIds.includes(activeModel.id) ? "Saving changes..." : "Changes save automatically."}
                 </p>
-                <button className="rounded-xl bg-ink px-4 py-2 text-sm font-semibold text-white" type="button" onClick={() => setActiveModelId(null)}>
-                  Done
-                </button>
               </div>
             </article>
           </Modal>
