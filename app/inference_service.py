@@ -186,8 +186,7 @@ class InferenceRuntime:
                 memory_used_mb = process_memory_total
 
             usage_percent = hardware_metrics.get("usage_percent")
-            if usage_percent is None and device.max_slots > 0:
-                usage_percent = round(min(100.0, (len(device_models) / max(1, device.max_slots)) * 100), 1)
+            usage_source = hardware_metrics.get("usage_source") if usage_percent is not None else "unavailable"
 
             devices.append(
                 {
@@ -198,7 +197,7 @@ class InferenceRuntime:
                     "memory_total_mb": hardware_metrics.get("memory_total_mb") or device.memory_mb,
                     "memory_used_mb": memory_used_mb,
                     "usage_percent": usage_percent,
-                    "usage_source": hardware_metrics.get("usage_source", "slots"),
+                    "usage_source": usage_source,
                     "memory_source": hardware_metrics.get("memory_source", "processes"),
                     "models": device_models,
                 }

@@ -46,14 +46,15 @@ function colorForModel(model: StatusModelRecord) {
 
 function usageLabel(device: DeviceStatusRecord) {
   if (device.usage_percent === null) {
-    return `${device.models.length}/${device.max_slots} slots active`;
+    return "Live utilization unavailable";
   }
 
-  return `${device.usage_percent.toFixed(1)}% in use`;
+  return `${device.usage_percent.toFixed(1)}% live load`;
 }
 
 function DeviceCard({ device }: { device: DeviceStatusRecord }) {
-  const usagePercent = clampPercent(device.usage_percent ?? (device.models.length / Math.max(1, device.max_slots)) * 100);
+  const usagePercent = clampPercent(device.usage_percent);
+  const hasUsage = device.usage_percent !== null;
   const memoryPercent = clampPercent((device.memory_used_mb / Math.max(1, device.memory_total_mb)) * 100);
   const modelMemoryTotal = device.models.reduce((sum, model) => sum + model.memory_used_mb, 0);
   const unassignedMemoryPercent = clampPercent(memoryPercent - clampPercent((modelMemoryTotal / Math.max(1, device.memory_total_mb)) * 100));
@@ -64,7 +65,7 @@ function DeviceCard({ device }: { device: DeviceStatusRecord }) {
         <div>
           <h3 className="font-display text-xl text-ink">{device.name}</h3>
           <p className="mt-2 text-sm text-black/65">
-            {device.vendor} {device.device_type} · {device.hardware_id}
+            {device.vendor} {device.device_type} · {device.hardware_id} · {device.models.length}/{device.max_slots} slots active
           </p>
         </div>
       </div>
@@ -77,10 +78,13 @@ function DeviceCard({ device }: { device: DeviceStatusRecord }) {
                 <p className="text-xs font-semibold uppercase tracking-[0.24em] text-black/45">Usage</p>
                 <p className="mt-1 text-sm text-black/65">{usageLabel(device)}</p>
               </div>
-              <p className="font-display text-2xl text-ink">{usagePercent.toFixed(1)}%</p>
+              <p className="font-display text-2xl text-ink">{hasUsage ? `${usagePercent.toFixed(1)}%` : "N/A"}</p>
             </div>
             <div className="mt-4 h-4 overflow-hidden rounded-full bg-black/10">
-              <div className="h-full rounded-full bg-blue-600 transition-[width] duration-500" style={{ width: `${usagePercent}%` }} />
+              <div
+                className={`h-full rounded-full transition-[width] duration-500 ${hasUsage ? "bg-blue-600" : "bg-black/25"}`}
+                style={{ width: hasUsage ? `${usagePercent}%` : "100%" }}
+              />
             </div>
           </section>
 
@@ -189,8 +193,9 @@ export default function StatusPage() {
     const activeModels = visibleDevices.reduce((sum, device) => sum + device.models.length, 0);
     const totalMemory = visibleDevices.reduce((sum, device) => sum + device.memory_total_mb, 0);
     const usedMemory = visibleDevices.reduce((sum, device) => sum + device.memory_used_mb, 0);
-    const averageUsage = visibleDevices.length > 0
-      ? visibleDevices.reduce((sum, device) => sum + clampPercent(device.usage_percent ?? (device.models.length / Math.max(1, device.max_slots)) * 100), 0) / visibleDevices.length
+    const devicesWithUsage = visibleDevices.filter((device) => device.usage_percent !== null);
+    const averageUsage = devicesWithUsage.length > 0
+      ? devicesWithUsage.reduce((sum, device) => sum + clampPercent(device.usage_percent), 0) / devicesWithUsage.length
       : 0;
 
     return {
@@ -199,6 +204,7 @@ export default function StatusPage() {
       totalMemory,
       usedMemory,
       averageUsage,
+      devicesWithUsageCount: devicesWithUsage.length,
     };
   }, [visibleDevices]);
 
@@ -223,7 +229,8 @@ export default function StatusPage() {
           </div>
           <div className="rounded-2xl border border-black/10 bg-white/75 p-4">
             <p className="text-xs font-semibold uppercase tracking-[0.24em] text-black/45">Average Usage</p>
-            <p className="mt-2 font-display text-3xl text-ink">{summary.averageUsage.toFixed(1)}%</p>
+            <p className="mt-2 font-display text-3xl text-ink">{summary.devicesWithUsageCount > 0 ? `${summary.averageUsage.toFixed(1)}%` : "N/A"}</p>
+            <p className="mt-2 text-xs text-black/50">{summary.devicesWithUsageCount > 0 ? `From ${summary.devicesWithUsageCount} device${summary.devicesWithUsageCount === 1 ? "" : "s"} with live telemetry` : "No live telemetry available"}</p>
           </div>
         </div>
       </article>

@@ -46,8 +46,7 @@ async def get_status(db: Session = Depends(get_db)) -> dict:
             memory_used_mb = sum(model["memory_used_mb"] for model in models)
 
         usage_percent = _coalesce_float(runtime_device.get("usage_percent"))
-        if usage_percent is None and device.max_slots > 0:
-            usage_percent = round(min(100.0, (len(models) / max(1, device.max_slots)) * 100), 1)
+        usage_source = runtime_device.get("usage_source") if usage_percent is not None else None
 
         serialized_devices.append(
             {
@@ -63,7 +62,7 @@ async def get_status(db: Session = Depends(get_db)) -> dict:
                 "memory_total_mb": _coalesce_int(runtime_device.get("memory_total_mb")) or device.memory_mb,
                 "memory_used_mb": memory_used_mb,
                 "usage_percent": usage_percent,
-                "usage_source": runtime_device.get("usage_source") or "slots",
+                "usage_source": usage_source or "unavailable",
                 "memory_source": runtime_device.get("memory_source") or "processes",
                 "models": models,
             }
