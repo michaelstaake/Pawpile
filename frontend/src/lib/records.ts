@@ -17,6 +17,7 @@ export type ApiKeyRecord = {
 
 export type ModelRecord = {
   id: number;
+  priority: number;
   file_name: string;
   file_path: string;
   alias: string;

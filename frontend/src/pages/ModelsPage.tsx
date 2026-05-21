@@ -1,4 +1,4 @@
-import { FormEvent, useEffect, useRef, useState } from "react";
+import { type DragEvent, type FormEvent, useEffect, useRef, useState } from "react";
 import { apiGet, apiPatch, apiPost, apiPostFormWithProgress } from "../lib/api";
 import { useAuth } from "../context/AuthContext";
 import { DeviceRecord, ModelRecord, ModelUpdateResponse, ScanResponse, UploadResponse } from "../lib/records";
@@ -38,6 +38,17 @@ function serializeModelConfig(model: ModelRecord) {
   return JSON.stringify(buildModelPayload(model));
 }
 
+function sortModels(models: ModelRecord[]) {
+  return [...models].sort((left, right) => left.priority - right.priority || left.id - right.id);
+}
+
+function moveModel(models: ModelRecord[], fromIndex: number, toIndex: number) {
+  const nextModels = [...models];
+  const [movedModel] = nextModels.splice(fromIndex, 1);
+  nextModels.splice(toIndex, 0, movedModel);
+  return nextModels.map((model, index) => ({ ...model, priority: index }));
+}
+
 function formatFileSize(bytes: number): string {
   if (bytes < 1024) {
     return `${bytes} B`;
@@ -59,11 +70,14 @@ export default function ModelsPage({ setupMode = false, onComplete }: ModelsPage
   const { token, refreshAuthState } = useAuth();
   const [models, setModels] = useState<ModelRecord[]>([]);
   const [devices, setDevices] = useState<DeviceRecord[]>([]);
+  const [activeModelId, setActiveModelId] = useState<number | null>(null);
+  const [draggedModelId, setDraggedModelId] = useState<number | null>(null);
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [uploadProgress, setUploadProgress] = useState<UploadProgressState>({ loaded: 0, total: 0 });
   const [isLoading, setIsLoading] = useState(false);
   const [isUploading, setIsUploading] = useState(false);
   const [isScanning, setIsScanning] = useState(false);
+  const [isReordering, setIsReordering] = useState(false);
   const [savingModelIds, setSavingModelIds] = useState<number[]>([]);
   const [pendingModelIds, setPendingModelIds] = useState<number[]>([]);
   const [errorMessage, setErrorMessage] = useState("");
@@ -93,9 +107,10 @@ export default function ModelsPage({ setupMode = false, onComplete }: ModelsPage
         apiGet<ModelRecord[]>("/api/models", activeToken),
         apiGet<DeviceRecord[]>("/api/devices", activeToken),
       ]);
-      savedConfigRef.current = Object.fromEntries(modelsResponse.map((model) => [model.id, serializeModelConfig(model)]));
-      savedActivationRef.current = Object.fromEntries(modelsResponse.map((model) => [model.id, model.activated]));
-      setModels(modelsResponse);
+      const orderedModels = sortModels(modelsResponse);
+      savedConfigRef.current = Object.fromEntries(orderedModels.map((model) => [model.id, serializeModelConfig(model)]));
+      savedActivationRef.current = Object.fromEntries(orderedModels.map((model) => [model.id, model.activated]));
+      setModels(orderedModels);
       setDevices(devicesResponse);
       setPendingModelIds([]);
     } catch (error) {
@@ -154,7 +169,7 @@ export default function ModelsPage({ setupMode = false, onComplete }: ModelsPage
       });
       savedConfigRef.current[response.model.id] = serializeModelConfig(response.model);
       savedActivationRef.current[response.model.id] = response.model.activated;
-      setModels((current) => [response.model, ...current.filter((model) => model.id !== response.model.id)].sort((left, right) => left.alias.localeCompare(right.alias)));
+      setModels((current) => sortModels([...current.filter((model) => model.id !== response.model.id), response.model]));
       setSelectedFile(null);
       const input = document.getElementById("model-upload-input") as HTMLInputElement | null;
       if (input) {
@@ -261,9 +276,68 @@ export default function ModelsPage({ setupMode = false, onComplete }: ModelsPage
     }
   }
 
+  async function persistModelOrder(nextModels: ModelRecord[], previousModels: ModelRecord[]) {
+    if (!token) {
+      return;
+    }
+
+    setIsReordering(true);
+    setErrorMessage("");
+    setSuccessMessage("");
+
+    try {
+      await apiPost<{ models: { id: number; priority: number }[] }, { status: string }>(
+        "/api/models/reorder",
+        {
+          models: nextModels.map((model, index) => ({ id: model.id, priority: index })),
+        },
+        token,
+      );
+      setSuccessMessage("Saved model order.");
+    } catch (error) {
+      setModels(previousModels);
+      setErrorMessage(error instanceof Error ? error.message : "Failed to save model order");
+    } finally {
+      setIsReordering(false);
+    }
+  }
+
+  function handleDragStart(modelId: number) {
+    setDraggedModelId(modelId);
+  }
+
+  function handleDragOver(event: DragEvent<HTMLElement>) {
+    event.preventDefault();
+  }
+
+  function handleDragEnd() {
+    setDraggedModelId(null);
+  }
+
+  function handleModelDrop(targetModelId: number) {
+    if (draggedModelId === null || draggedModelId === targetModelId || isReordering) {
+      setDraggedModelId(null);
+      return;
+    }
+
+    const fromIndex = models.findIndex((model) => model.id === draggedModelId);
+    const toIndex = models.findIndex((model) => model.id === targetModelId);
+    if (fromIndex === -1 || toIndex === -1) {
+      setDraggedModelId(null);
+      return;
+    }
+
+    const previousModels = models;
+    const nextModels = moveModel(models, fromIndex, toIndex);
+    setDraggedModelId(null);
+    setModels(nextModels);
+    void persistModelOrder(nextModels, previousModels);
+  }
+
   const activeModels = models.filter((model) => model.activated).length;
   const uploadTotal = uploadProgress.total || selectedFile?.size || 0;
   const uploadPercent = uploadTotal > 0 ? Math.min(100, Math.round((uploadProgress.loaded / uploadTotal) * 100)) : 0;
+  const activeModel = activeModelId === null ? null : models.find((model) => model.id === activeModelId) ?? null;
 
   return (
     <section className="grid gap-4">
@@ -306,10 +380,18 @@ export default function ModelsPage({ setupMode = false, onComplete }: ModelsPage
           {models.map((model) => (
             <article
               key={model.id}
-              className="rounded-2xl border border-black/10 bg-[#fffdf7] p-4"
+              className={`rounded-2xl border border-black/10 bg-[#fffdf7] p-4 transition-shadow ${draggedModelId === model.id ? "shadow-lg ring-2 ring-amber/60" : ""}`}
+              draggable={!isReordering}
+              onDragStart={() => handleDragStart(model.id)}
+              onDragOver={handleDragOver}
+              onDragEnd={handleDragEnd}
+              onDrop={() => handleModelDrop(model.id)}
             >
               <div className="flex flex-wrap items-start justify-between gap-3">
-                <div>
+                <div className="flex items-start gap-3">
+                  <div className="rounded-xl border border-black/10 bg-white px-2 py-1 text-xs font-semibold uppercase tracking-[0.2em] text-black/45">
+                    Drag
+                  </div>
                   <h3 className="font-display text-base">{model.alias}</h3>
                   <p className="mt-1 text-sm text-black/70">{model.file_name}</p>
                 </div>
@@ -317,37 +399,67 @@ export default function ModelsPage({ setupMode = false, onComplete }: ModelsPage
                   <span className={`rounded-full px-3 py-1 text-xs font-semibold ${model.activated ? "bg-emerald-100 text-emerald-800" : "bg-black/5 text-black/55"}`}>
                     {model.activated ? "Enabled" : "Disabled"}
                   </span>
+                  <button className="rounded-xl border border-black/15 bg-white px-4 py-2 text-sm font-semibold text-black" type="button" onClick={() => setActiveModelId(model.id)}>
+                    Configure
+                  </button>
                 </div>
               </div>
 
-              <div className="mt-4 grid gap-3 md:grid-cols-2">
+              <div className="mt-4 flex flex-wrap items-center justify-between gap-3">
+                <p className="text-sm text-black/55">Drag and drop to change the order used across the app.</p>
+                {savingModelIds.includes(model.id) || pendingModelIds.includes(model.id) ? (
+                  <p className="text-sm text-black/55">
+                    {savingModelIds.includes(model.id) ? "Saving..." : "Saving changes..."}
+                  </p>
+                ) : null}
+              </div>
+            </article>
+          ))}
+          {models.length === 0 ? <p className="rounded-2xl border border-dashed border-black/15 bg-sand/60 px-4 py-6 text-sm text-black/60">No models registered yet.</p> : null}
+        </div>
+
+        {activeModel ? (
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/35 p-4 backdrop-blur-sm" role="dialog" aria-modal="true" aria-labelledby="model-config-title" onClick={() => setActiveModelId(null)}>
+            <article className="max-h-[90vh] w-full max-w-4xl overflow-y-auto rounded-[28px] border border-black/10 bg-[#fffdf7] p-5 shadow-2xl" onClick={(event) => event.stopPropagation()}>
+              <div className="flex flex-wrap items-start justify-between gap-3">
+                <div>
+                  <p className="text-xs font-semibold uppercase tracking-[0.2em] text-black/45">Model Settings</p>
+                  <h3 id="model-config-title" className="mt-2 font-display text-xl">{activeModel.alias}</h3>
+                  <p className="mt-1 text-sm text-black/70">{activeModel.file_name}</p>
+                </div>
+                <button className="rounded-xl border border-black/15 bg-white px-4 py-2 text-sm font-semibold text-black" type="button" onClick={() => setActiveModelId(null)}>
+                  Close
+                </button>
+              </div>
+
+              <div className="mt-5 grid gap-3 md:grid-cols-2">
                 <label className="grid gap-1 text-sm text-black/70">
-                  Alias
-                  <input className="rounded-xl border border-black/15 bg-white px-3 py-2 text-sm" value={model.alias} onChange={(event) => updateModelDraft(model.id, { alias: event.target.value })} />
+                  Name
+                  <input className="rounded-xl border border-black/15 bg-white px-3 py-2 text-sm" value={activeModel.alias} onChange={(event) => updateModelDraft(activeModel.id, { alias: event.target.value })} />
                 </label>
                 <label className="flex items-center gap-2 rounded-xl border border-black/10 bg-white px-3 py-2 text-sm text-black/70 md:self-end">
-                  <input type="checkbox" checked={model.activated} onChange={(event) => updateModelDraft(model.id, { activated: event.target.checked })} />
+                  <input type="checkbox" checked={activeModel.activated} onChange={(event) => updateModelDraft(activeModel.id, { activated: event.target.checked })} />
                   Enabled
                 </label>
-                <label className="grid gap-1 text-sm text-black/70">
+                <label className="grid gap-1 text-sm text-black/70 md:col-span-2">
                   Description
-                  <input className="rounded-xl border border-black/15 bg-white px-3 py-2 text-sm" value={model.description} onChange={(event) => updateModelDraft(model.id, { description: event.target.value })} />
+                  <input className="rounded-xl border border-black/15 bg-white px-3 py-2 text-sm" value={activeModel.description} onChange={(event) => updateModelDraft(activeModel.id, { description: event.target.value })} />
                 </label>
                 <label className="grid gap-1 text-sm text-black/70">
                   Context Length
-                  <input className="rounded-xl border border-black/15 bg-white px-3 py-2 text-sm" type="number" min={256} value={model.context_length} onChange={(event) => updateModelDraft(model.id, { context_length: Number(event.target.value) || 256 })} />
+                  <input className="rounded-xl border border-black/15 bg-white px-3 py-2 text-sm" type="number" min={256} value={activeModel.context_length} onChange={(event) => updateModelDraft(activeModel.id, { context_length: Number(event.target.value) || 256 })} />
                 </label>
                 <label className="grid gap-1 text-sm text-black/70">
                   Threads
-                  <input className="rounded-xl border border-black/15 bg-white px-3 py-2 text-sm" type="number" min={1} value={model.threads} onChange={(event) => updateModelDraft(model.id, { threads: Number(event.target.value) || 1 })} />
+                  <input className="rounded-xl border border-black/15 bg-white px-3 py-2 text-sm" type="number" min={1} value={activeModel.threads} onChange={(event) => updateModelDraft(activeModel.id, { threads: Number(event.target.value) || 1 })} />
                 </label>
                 <label className="grid gap-1 text-sm text-black/70">
                   GPU Layers
-                  <input className="rounded-xl border border-black/15 bg-white px-3 py-2 text-sm" type="number" value={model.gpu_layers} onChange={(event) => updateModelDraft(model.id, { gpu_layers: Number(event.target.value) || 0 })} />
+                  <input className="rounded-xl border border-black/15 bg-white px-3 py-2 text-sm" type="number" value={activeModel.gpu_layers} onChange={(event) => updateModelDraft(activeModel.id, { gpu_layers: Number(event.target.value) || 0 })} />
                 </label>
                 <label className="grid gap-1 text-sm text-black/70">
                   Assignment Mode
-                  <select className="rounded-xl border border-black/15 bg-white px-3 py-2 text-sm" value={model.assignment_mode} onChange={(event) => updateModelDraft(model.id, { assignment_mode: event.target.value, pinned_device_id: event.target.value === "pinned" ? model.pinned_device_id : null })}>
+                  <select className="rounded-xl border border-black/15 bg-white px-3 py-2 text-sm" value={activeModel.assignment_mode} onChange={(event) => updateModelDraft(activeModel.id, { assignment_mode: event.target.value, pinned_device_id: event.target.value === "pinned" ? activeModel.pinned_device_id : null })}>
                     {ASSIGNMENT_MODE_OPTIONS.map((option) => (
                       <option key={option.value} value={option.value}>
                         {option.label}
@@ -359,7 +471,7 @@ export default function ModelsPage({ setupMode = false, onComplete }: ModelsPage
 
               <label className="mt-3 grid gap-1 text-sm text-black/70">
                 Pinned Device
-                <select className="rounded-xl border border-black/15 bg-white px-3 py-2 text-sm disabled:bg-black/5" value={model.pinned_device_id ?? ""} onChange={(event) => updateModelDraft(model.id, { pinned_device_id: event.target.value ? Number(event.target.value) : null })} disabled={model.assignment_mode !== "pinned"}>
+                <select className="rounded-xl border border-black/15 bg-white px-3 py-2 text-sm disabled:bg-black/5" value={activeModel.pinned_device_id ?? ""} onChange={(event) => updateModelDraft(activeModel.id, { pinned_device_id: event.target.value ? Number(event.target.value) : null })} disabled={activeModel.assignment_mode !== "pinned"}>
                   <option value="">Choose a device</option>
                   {devices.filter((device) => device.enabled).map((device) => (
                     <option key={device.id} value={device.id}>
@@ -371,25 +483,25 @@ export default function ModelsPage({ setupMode = false, onComplete }: ModelsPage
 
               <label className="mt-3 grid gap-1 text-sm text-black/70">
                 System Prompt
-                <textarea className="min-h-24 rounded-xl border border-black/15 bg-white px-3 py-2 text-sm" value={model.system_prompt} onChange={(event) => updateModelDraft(model.id, { system_prompt: event.target.value })} />
+                <textarea className="min-h-24 rounded-xl border border-black/15 bg-white px-3 py-2 text-sm" value={activeModel.system_prompt} onChange={(event) => updateModelDraft(activeModel.id, { system_prompt: event.target.value })} />
               </label>
 
               <label className="mt-3 grid gap-1 text-sm text-black/70">
                 Chat Template
-                <textarea className="min-h-24 rounded-xl border border-black/15 bg-white px-3 py-2 text-sm" value={model.chat_template} onChange={(event) => updateModelDraft(model.id, { chat_template: event.target.value })} />
+                <textarea className="min-h-24 rounded-xl border border-black/15 bg-white px-3 py-2 text-sm" value={activeModel.chat_template} onChange={(event) => updateModelDraft(activeModel.id, { chat_template: event.target.value })} />
               </label>
 
-              <div className="mt-4 flex flex-wrap items-center justify-between gap-3">
-                {savingModelIds.includes(model.id) || pendingModelIds.includes(model.id) ? (
-                  <p className="text-sm text-black/55">
-                    {savingModelIds.includes(model.id) ? "Saving..." : "Saving changes..."}
-                  </p>
-                ) : null}
+              <div className="mt-4 flex flex-wrap items-center justify-between gap-3 border-t border-black/10 pt-4">
+                <p className="text-sm text-black/55">
+                  {isReordering ? "Saving order..." : savingModelIds.includes(activeModel.id) ? "Saving settings..." : pendingModelIds.includes(activeModel.id) ? "Saving changes..." : "Changes save automatically."}
+                </p>
+                <button className="rounded-xl bg-ink px-4 py-2 text-sm font-semibold text-white" type="button" onClick={() => setActiveModelId(null)}>
+                  Done
+                </button>
               </div>
             </article>
-          ))}
-          {models.length === 0 ? <p className="rounded-2xl border border-dashed border-black/15 bg-sand/60 px-4 py-6 text-sm text-black/60">No models registered yet.</p> : null}
-        </div>
+          </div>
+        ) : null}
 
         {setupMode ? (
           <div className="mt-5 flex items-center justify-between gap-3 rounded-2xl border border-black/10 bg-sand/60 px-4 py-4 text-sm text-black/70">

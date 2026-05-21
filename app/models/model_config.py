@@ -10,6 +10,7 @@ class ModelConfig(Base):
     __tablename__ = "model_configs"
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True, index=True)
+    priority: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
     file_name: Mapped[str] = mapped_column(String(255), unique=True, nullable=False)
     file_path: Mapped[str] = mapped_column(String(1024), nullable=False)
     alias: Mapped[str] = mapped_column(String(120), unique=True, nullable=False)

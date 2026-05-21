@@ -13,7 +13,7 @@ from app.core.inference_manager import InferenceManager
 from app.models.device import Device
 from app.models.model_config import ModelConfig
 from app.models.user import User
-from app.utils.schemas import ModelUpdateRequest
+from app.utils.schemas import ModelReorderRequest, ModelUpdateRequest
 
 router = APIRouter(prefix="/api/models", tags=["models"])
 
@@ -23,8 +23,19 @@ UPLOAD_CHUNK_BYTES = 1024 * 1024
 
 @router.get("")
 def list_models(_: User = Depends(get_admin_user), db: Session = Depends(get_db)) -> list[dict]:
-    rows = db.query(ModelConfig).order_by(ModelConfig.alias.asc()).all()
+    rows = db.query(ModelConfig).order_by(ModelConfig.priority.asc(), ModelConfig.id.asc()).all()
     return [_serialize_model(m) for m in rows]
+
+
+@router.post("/reorder")
+def reorder_models(payload: ModelReorderRequest, _: User = Depends(get_admin_user), db: Session = Depends(get_db)) -> dict:
+    for item in payload.models:
+        model = db.query(ModelConfig).filter(ModelConfig.id == item.id).first()
+        if model:
+            model.priority = item.priority
+            db.add(model)
+    db.commit()
+    return {"status": "ok"}
 
 
 @router.post("/upload")
@@ -72,6 +83,7 @@ def upload_model(
         file.file.close()
 
     model = ModelConfig(
+        priority=_next_model_priority(db),
         file_name=file_name,
         file_path=str(destination.resolve()),
         alias=_build_unique_alias(db, Path(file_name).stem),
@@ -103,6 +115,7 @@ def scan_models(_: User = Depends(get_admin_user), db: Session = Depends(get_db)
         if file_name in existing_by_file:
             continue
         model = ModelConfig(
+            priority=_next_model_priority(db),
             file_name=file_name,
             file_path=os.path.abspath(os.path.join(settings.models_dir, file_name)),
             alias=_build_unique_alias(db, os.path.splitext(file_name)[0]),
@@ -228,6 +241,7 @@ def _resolve_device_for_model(db: Session, model: ModelConfig, inference: Infere
 def _serialize_model(model: ModelConfig) -> dict:
     return {
         "id": model.id,
+        "priority": model.priority,
         "file_name": model.file_name,
         "file_path": model.file_path,
         "alias": model.alias,
@@ -251,3 +265,8 @@ def _build_unique_alias(db: Session, base_alias: str) -> str:
         alias = f"{base}-{suffix}"
         suffix += 1
     return alias
+
+
+def _next_model_priority(db: Session) -> int:
+    last_model = db.query(ModelConfig).order_by(ModelConfig.priority.desc(), ModelConfig.id.desc()).first()
+    return 0 if not last_model else last_model.priority + 1

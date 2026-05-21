@@ -18,7 +18,12 @@ router = APIRouter(prefix="/v1", tags=["openai"])
 
 @router.get("/models")
 def v1_models(_: User | None = Depends(require_api_access), db: Session = Depends(get_db)) -> dict:
-    models = db.query(ModelConfig).filter(ModelConfig.activated.is_(True)).all()
+    models = (
+        db.query(ModelConfig)
+        .filter(ModelConfig.activated.is_(True))
+        .order_by(ModelConfig.priority.asc(), ModelConfig.id.asc())
+        .all()
+    )
     return {
         "object": "list",
         "data": [

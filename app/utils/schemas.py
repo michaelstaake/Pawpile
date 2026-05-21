@@ -106,6 +106,15 @@ class DeviceReorderRequest(BaseModel):
     devices: list[DeviceReorderItem]
 
 
+class ModelReorderItem(BaseModel):
+    id: int
+    priority: int
+
+
+class ModelReorderRequest(BaseModel):
+    models: list[ModelReorderItem]
+
+
 class ModelUpdateRequest(BaseModel):
     alias: str | None = None
     description: str | None = None
