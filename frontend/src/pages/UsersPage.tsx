@@ -1,4 +1,5 @@
 import { FormEvent, useEffect, useState } from "react";
+import { Link } from "react-router-dom";
 import Modal from "../components/ui/Modal";
 import { apiGet, apiPatch, apiPost } from "../lib/api";
 import { useAuth } from "../context/AuthContext";
@@ -13,7 +14,7 @@ type CreateUserPayload = {
 };
 
 export default function UsersPage() {
-  const { token } = useAuth();
+  const { token, user: currentUser } = useAuth();
   const [users, setUsers] = useState<UserRecord[]>([]);
   const [newUser, setNewUser] = useState<CreateUserPayload>({ username: "", email: "", password: "", is_admin: false, is_active: true });
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
@@ -99,8 +100,7 @@ export default function UsersPage() {
     }
   }
 
-  const adminCount = users.filter((user) => user.is_admin).length;
-  const activeCount = users.filter((user) => user.is_active).length;
+  const visibleUsers = currentUser ? users.filter((user) => user.id !== currentUser.id) : users;
 
   return (
     <section className="grid gap-4">
@@ -118,7 +118,7 @@ export default function UsersPage() {
         </div>
 
         <div className="mt-5 space-y-4">
-          {users.map((user) => (
+          {visibleUsers.map((user) => (
             <form
               key={user.id}
               className="rounded-2xl border border-black/10 bg-[#fffdf7] p-4"
@@ -164,7 +164,18 @@ export default function UsersPage() {
             </form>
           ))}
           {isLoading ? <p className="rounded-2xl border border-black/10 bg-white px-4 py-6 text-sm text-black/60">Loading users...</p> : null}
-          {!isLoading && users.length === 0 ? <p className="rounded-2xl border border-dashed border-black/15 bg-sand/60 px-4 py-6 text-sm text-black/60">No users created yet.</p> : null}
+          {!isLoading && visibleUsers.length === 0 ? (
+            currentUser?.is_admin ? (
+              <div className="rounded-2xl border border-dashed border-black/15 bg-sand/60 px-5 py-6 text-sm text-black/65">
+                <p className="font-semibold text-black">There are no other users yet.</p>
+                <p className="mt-2">
+                  If you want to update your own account, go to the <Link to="/profile" className="font-semibold text-black underline decoration-black/30 underline-offset-4">Profile page</Link>.
+                </p>
+              </div>
+            ) : (
+              <p className="rounded-2xl border border-dashed border-black/15 bg-sand/60 px-4 py-6 text-sm text-black/60">No users created yet.</p>
+            )
+          ) : null}
         </div>
       </article>
 

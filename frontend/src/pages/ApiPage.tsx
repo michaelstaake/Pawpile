@@ -127,20 +127,21 @@ export default function ApiPage() {
       {errorMessage ? <p className="rounded-xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700">{errorMessage}</p> : null}
       {successMessage ? <p className="rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-700">{successMessage}</p> : null}
 
-      <div className="grid gap-4 xl:grid-cols-[1.1fr_0.9fr] xl:items-start">
-        <article className="rounded-3xl border border-black/10 bg-white/85 p-5 shadow-sm backdrop-blur">
-          <div className="flex flex-wrap items-start justify-between gap-4">
-            <div className="max-w-2xl">
-              <p className="text-xs font-semibold uppercase tracking-[0.24em] text-black/45">Inventory</p>
-              <h2 className="mt-2 font-display text-2xl">Your API keys</h2>
-              <p className="mt-2 text-sm text-black/70">Review every key tied to your account and revoke access directly from this page.</p>
-            </div>
+      <article className="rounded-3xl border border-black/10 bg-white/85 p-5 shadow-sm backdrop-blur">
+        <div className="flex flex-wrap items-start justify-between gap-4">
+          <div className="max-w-2xl">
+            <h2 className="font-display text-2xl">API keys</h2>
+            <p className="mt-2 text-sm text-black/70">Create and manage access tokens for your account from the same workspace-style layout as user administration.</p>
           </div>
+          <button className="rounded-xl border border-black/15 bg-white px-4 py-3 text-sm font-semibold text-black" type="button" onClick={() => setIsCreateModalOpen(true)}>
+            Add API key
+          </button>
+        </div>
 
-          <div className="mt-5 space-y-3">
-            {isLoadingKeys ? <p className="rounded-2xl border border-black/10 bg-white px-4 py-6 text-sm text-black/60">Loading API keys...</p> : null}
-            {!isLoadingKeys ? apiKeys.map((apiKey, index) => (
-              <div key={apiKey.id} className="rounded-2xl border border-black/10 bg-[#fffdf7] p-4 transition hover:border-black/20 hover:shadow-sm">
+        <div className="mt-5 grid gap-4 xl:grid-cols-[minmax(0,1.55fr)_minmax(280px,0.85fr)] xl:items-start">
+          <div className="space-y-4">
+            {apiKeys.map((apiKey, index) => (
+              <div key={apiKey.id} className="rounded-2xl border border-black/10 bg-[#fffdf7] p-4">
                 <div className="flex flex-wrap items-start justify-between gap-4">
                   <div>
                     <div className="flex flex-wrap items-center gap-2">
@@ -160,7 +161,8 @@ export default function ApiPage() {
                   </button>
                 </div>
               </div>
-            )) : null}
+            ))}
+            {isLoadingKeys ? <p className="rounded-2xl border border-black/10 bg-white px-4 py-6 text-sm text-black/60">Loading API keys...</p> : null}
             {!isLoadingKeys && apiKeys.length === 0 ? (
               <div className="rounded-2xl border border-dashed border-black/15 bg-sand/60 px-5 py-8 text-center">
                 <h3 className="font-display text-lg text-black">No API keys yet</h3>
@@ -168,44 +170,40 @@ export default function ApiPage() {
               </div>
             ) : null}
           </div>
-        </article>
 
-        <article className="rounded-3xl border border-black/10 bg-white/85 p-5 shadow-sm backdrop-blur">
-          <p className="text-xs font-semibold uppercase tracking-[0.24em] text-black/45">Create</p>
-          <h2 className="mt-2 font-display text-2xl">Issue a new API key</h2>
-          <p className="mt-2 text-sm text-black/70">Launch the key wizard in a modal so the full secret handling flow stays isolated and easy to copy from.</p>
+          <aside className="rounded-2xl border border-black/10 bg-[#f8f3e6] p-4">
+            <p className="text-xs font-semibold uppercase tracking-[0.24em] text-black/45">Create</p>
+            <h3 className="mt-2 font-display text-xl text-black">Issue a new API key</h3>
+            <p className="mt-2 text-sm text-black/70">New keys are shown only once after creation. Store them in your client or secret manager before closing the modal.</p>
 
-          <div className="mt-5 rounded-2xl border border-dashed border-black/15 bg-sand/60 p-4 text-sm text-black/65">
-            New keys are shown only once after creation. Store them in your client or secret manager before closing the modal.
-          </div>
-
-          {latestApiKey ? (
-            <div className="mt-5 rounded-2xl border border-amber-300 bg-amber-50 p-4 text-amber-950">
-              <p className="text-xs font-semibold uppercase tracking-[0.24em] text-amber-700">Latest secret</p>
-              <h3 className="mt-2 font-display text-lg">Key created successfully</h3>
-              <div className="mt-4 rounded-2xl bg-black px-4 py-3 font-mono text-sm text-white">
-                {showLatestApiKey ? latestApiKey : maskApiKey(latestApiKey)}
+            {latestApiKey ? (
+              <div className="mt-5 rounded-2xl border border-amber-300 bg-amber-50 p-4 text-amber-950">
+                <p className="text-xs font-semibold uppercase tracking-[0.24em] text-amber-700">Latest secret</p>
+                <h4 className="mt-2 font-display text-lg">Key created successfully</h4>
+                <div className="mt-4 rounded-2xl bg-black px-4 py-3 font-mono text-sm text-white">
+                  {showLatestApiKey ? latestApiKey : maskApiKey(latestApiKey)}
+                </div>
+                <div className="mt-4 flex flex-wrap items-center gap-3">
+                  <button className="rounded-xl border border-amber-300 px-3 py-2 text-sm font-semibold text-amber-900" type="button" onClick={() => setShowLatestApiKey((current) => !current)}>
+                    {showLatestApiKey ? "Hide value" : "Reveal value"}
+                  </button>
+                  <button className="rounded-xl bg-amber-500 px-4 py-2 text-sm font-semibold text-amber-950" type="button" onClick={() => void handleCopyLatestApiKey()}>
+                    Copy key
+                  </button>
+                  {copyState === "copied" ? <p className="text-sm text-emerald-700">Copied to clipboard.</p> : null}
+                  {copyState === "failed" ? <p className="text-sm text-rose-700">Clipboard copy failed. Copy it manually.</p> : null}
+                </div>
               </div>
-              <div className="mt-4 flex flex-wrap items-center gap-3">
-                <button className="rounded-xl border border-amber-300 px-3 py-2 text-sm font-semibold text-amber-900" type="button" onClick={() => setShowLatestApiKey((current) => !current)}>
-                  {showLatestApiKey ? "Hide value" : "Reveal value"}
-                </button>
-                <button className="rounded-xl bg-amber-500 px-4 py-2 text-sm font-semibold text-amber-950" type="button" onClick={() => void handleCopyLatestApiKey()}>
-                  Copy key
-                </button>
-                {copyState === "copied" ? <p className="text-sm text-emerald-700">Copied to clipboard.</p> : null}
-                {copyState === "failed" ? <p className="text-sm text-rose-700">Clipboard copy failed. Copy it manually.</p> : null}
-              </div>
+            ) : null}
+
+            <div className="mt-5 flex flex-wrap gap-3">
+              <button className="rounded-xl bg-ink px-4 py-3 text-sm font-semibold text-white" type="button" onClick={() => setIsCreateModalOpen(true)}>
+                Add API key
+              </button>
             </div>
-          ) : null}
-
-          <div className="mt-5 flex flex-wrap gap-3">
-            <button className="rounded-xl bg-ink px-4 py-3 text-sm font-semibold text-white" type="button" onClick={() => setIsCreateModalOpen(true)}>
-              Add API key
-            </button>
-          </div>
-        </article>
-      </div>
+          </aside>
+        </div>
+      </article>
 
       <Modal open={isCreateModalOpen} onClose={closeCreateModal} labelledBy="api-key-create-title" panelClassName="max-h-[min(92vh,820px)] max-w-2xl">
         <article className="max-h-[min(92vh,820px)] overflow-y-auto p-5 sm:p-6">
