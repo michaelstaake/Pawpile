@@ -1,7 +1,9 @@
-import { FormEvent, useEffect, useState } from "react";
+import { FormEvent, useEffect, useRef, useState } from "react";
 import { apiGet, apiPatch, apiPost, apiPostFormWithProgress } from "../lib/api";
 import { useAuth } from "../context/AuthContext";
 import { DeviceRecord, ModelRecord, ModelUpdateResponse, ScanResponse, UploadResponse } from "../lib/records";
+
+const AUTO_SAVE_DELAY_MS = 700;
 
 const ASSIGNMENT_MODE_OPTIONS = [
   { label: "Auto", value: "auto" },
@@ -17,6 +19,24 @@ type UploadProgressState = {
   loaded: number;
   total: number;
 };
+
+function buildModelPayload(model: ModelRecord) {
+  return {
+    alias: model.alias,
+    description: model.description,
+    system_prompt: model.system_prompt,
+    chat_template: model.chat_template,
+    context_length: model.context_length,
+    gpu_layers: model.gpu_layers,
+    threads: model.threads,
+    assignment_mode: model.assignment_mode,
+    pinned_device_id: model.assignment_mode === "pinned" ? model.pinned_device_id : null,
+  };
+}
+
+function serializeModelConfig(model: ModelRecord) {
+  return JSON.stringify(buildModelPayload(model));
+}
 
 function formatFileSize(bytes: number): string {
   if (bytes < 1024) {
@@ -44,10 +64,20 @@ export default function ModelsPage({ setupMode = false, onComplete }: ModelsPage
   const [isLoading, setIsLoading] = useState(false);
   const [isUploading, setIsUploading] = useState(false);
   const [isScanning, setIsScanning] = useState(false);
-  const [savingModelId, setSavingModelId] = useState<number | null>(null);
-  const [togglingModelId, setTogglingModelId] = useState<number | null>(null);
+  const [savingModelIds, setSavingModelIds] = useState<number[]>([]);
+  const [pendingModelIds, setPendingModelIds] = useState<number[]>([]);
   const [errorMessage, setErrorMessage] = useState("");
   const [successMessage, setSuccessMessage] = useState("");
+  const latestModelsRef = useRef<ModelRecord[]>([]);
+  const savedConfigRef = useRef<Record<number, string>>({});
+  const savedActivationRef = useRef<Record<number, boolean>>({});
+  const saveTimeoutsRef = useRef<Record<number, number>>({});
+  const savingIdsRef = useRef<Set<number>>(new Set());
+  const resaveRequestedRef = useRef<Set<number>>(new Set());
+
+  useEffect(() => {
+    latestModelsRef.current = models;
+  }, [models]);
 
   useEffect(() => {
     if (!token) {
@@ -63,8 +93,11 @@ export default function ModelsPage({ setupMode = false, onComplete }: ModelsPage
         apiGet<ModelRecord[]>("/api/models", activeToken),
         apiGet<DeviceRecord[]>("/api/devices", activeToken),
       ]);
+      savedConfigRef.current = Object.fromEntries(modelsResponse.map((model) => [model.id, serializeModelConfig(model)]));
+      savedActivationRef.current = Object.fromEntries(modelsResponse.map((model) => [model.id, model.activated]));
       setModels(modelsResponse);
       setDevices(devicesResponse);
+      setPendingModelIds([]);
     } catch (error) {
       setErrorMessage(error instanceof Error ? error.message : "Failed to load model data");
     } finally {
@@ -72,8 +105,29 @@ export default function ModelsPage({ setupMode = false, onComplete }: ModelsPage
     }
   }
 
+  useEffect(() => () => {
+    Object.values(saveTimeoutsRef.current).forEach((timeoutId) => window.clearTimeout(timeoutId));
+  }, []);
+
+  function scheduleModelSave(modelId: number) {
+    const existingTimeout = saveTimeoutsRef.current[modelId];
+    if (existingTimeout) {
+      window.clearTimeout(existingTimeout);
+    }
+
+    setPendingModelIds((current) => (current.includes(modelId) ? current : [...current, modelId]));
+
+    saveTimeoutsRef.current[modelId] = window.setTimeout(() => {
+      delete saveTimeoutsRef.current[modelId];
+      void persistModel(modelId);
+    }, AUTO_SAVE_DELAY_MS);
+  }
+
   function updateModelDraft(modelId: number, updates: Partial<ModelRecord>) {
+    setErrorMessage("");
+    setSuccessMessage("");
     setModels((current) => current.map((model) => (model.id === modelId ? { ...model, ...updates } : model)));
+    scheduleModelSave(modelId);
   }
 
   async function handleUpload(event: FormEvent<HTMLFormElement>) {
@@ -98,6 +152,8 @@ export default function ModelsPage({ setupMode = false, onComplete }: ModelsPage
           total: progress.total || selectedFile.size,
         });
       });
+      savedConfigRef.current[response.model.id] = serializeModelConfig(response.model);
+      savedActivationRef.current[response.model.id] = response.model.activated;
       setModels((current) => [response.model, ...current.filter((model) => model.id !== response.model.id)].sort((left, right) => left.alias.localeCompare(right.alias)));
       setSelectedFile(null);
       const input = document.getElementById("model-upload-input") as HTMLInputElement | null;
@@ -133,54 +189,75 @@ export default function ModelsPage({ setupMode = false, onComplete }: ModelsPage
     }
   }
 
-  async function handleModelSave(model: ModelRecord) {
+  async function persistModel(modelId: number) {
     if (!token) {
       return;
     }
 
-    setSavingModelId(model.id);
+    if (savingIdsRef.current.has(modelId)) {
+      resaveRequestedRef.current.add(modelId);
+      return;
+    }
+
+    const model = latestModelsRef.current.find((item) => item.id === modelId);
+    if (!model) {
+      return;
+    }
+
+    const configChanged = savedConfigRef.current[modelId] !== serializeModelConfig(model);
+    const activationChanged = savedActivationRef.current[modelId] !== model.activated;
+
+    if (!configChanged && !activationChanged) {
+      setPendingModelIds((current) => current.filter((id) => id !== modelId));
+      return;
+    }
+
+    savingIdsRef.current.add(modelId);
+    setSavingModelIds((current) => (current.includes(modelId) ? current : [...current, modelId]));
+    setPendingModelIds((current) => current.filter((id) => id !== modelId));
     setErrorMessage("");
     setSuccessMessage("");
 
+    let savedSuccessfully = false;
+
     try {
-      const response = await apiPatch<Record<string, string | number | null>, ModelUpdateResponse>(`/api/models/${model.id}`, {
-        alias: model.alias,
-        description: model.description,
-        system_prompt: model.system_prompt,
-        chat_template: model.chat_template,
-        context_length: model.context_length,
-        gpu_layers: model.gpu_layers,
-        threads: model.threads,
-        assignment_mode: model.assignment_mode,
-        pinned_device_id: model.assignment_mode === "pinned" ? model.pinned_device_id : null,
-      }, token);
-      setModels((current) => current.map((item) => (item.id === model.id ? response.model : item)));
-      setSuccessMessage(`Saved settings for ${response.model.alias}.`);
+      if (configChanged) {
+        const response = await apiPatch<Record<string, string | number | null>, ModelUpdateResponse>(`/api/models/${model.id}`, buildModelPayload(model), token);
+        savedConfigRef.current[model.id] = serializeModelConfig(response.model);
+        if (!activationChanged) {
+          savedActivationRef.current[model.id] = response.model.activated;
+        }
+        setModels((current) => current.map((item) => (item.id === model.id ? { ...response.model, activated: activationChanged ? model.activated : response.model.activated } : item)));
+      }
+
+      if (activationChanged) {
+        await apiPost<Record<string, never>, { status: string }>(`/api/models/${model.id}/${model.activated ? "activate" : "deactivate"}`, {}, token);
+        savedActivationRef.current[model.id] = model.activated;
+        setModels((current) => current.map((item) => (item.id === model.id ? { ...item, activated: model.activated } : item)));
+        await refreshAuthState();
+      }
+
+      setSuccessMessage(`Saved settings for ${model.alias}.`);
+      savedSuccessfully = true;
     } catch (error) {
+      if (activationChanged) {
+        const previousActivation = savedActivationRef.current[model.id];
+        setModels((current) => current.map((item) => (item.id === model.id ? { ...item, activated: previousActivation } : item)));
+      }
       setErrorMessage(error instanceof Error ? error.message : "Model update failed");
     } finally {
-      setSavingModelId(null);
-    }
-  }
+      savingIdsRef.current.delete(modelId);
+      setSavingModelIds((current) => current.filter((id) => id !== modelId));
 
-  async function handleModelToggle(model: ModelRecord) {
-    if (!token) {
-      return;
-    }
+      const latestModel = latestModelsRef.current.find((item) => item.id === modelId);
+      const configStillDirty = latestModel ? savedConfigRef.current[modelId] !== serializeModelConfig(latestModel) : false;
+      const activationStillDirty = latestModel ? savedActivationRef.current[modelId] !== latestModel.activated : false;
+      const shouldResave = savedSuccessfully && (resaveRequestedRef.current.has(modelId) || configStillDirty || activationStillDirty);
+      resaveRequestedRef.current.delete(modelId);
 
-    setTogglingModelId(model.id);
-    setErrorMessage("");
-    setSuccessMessage("");
-
-    try {
-      await apiPost<Record<string, never>, { status: string }>(`/api/models/${model.id}/${model.activated ? "deactivate" : "activate"}`, {}, token);
-      await refreshData(token);
-      await refreshAuthState();
-      setSuccessMessage(`${model.activated ? "Deactivated" : "Activated"} ${model.alias}.`);
-    } catch (error) {
-      setErrorMessage(error instanceof Error ? error.message : "Model toggle failed");
-    } finally {
-      setTogglingModelId(null);
+      if (shouldResave) {
+        scheduleModelSave(modelId);
+      }
     }
   }
 
@@ -233,13 +310,9 @@ export default function ModelsPage({ setupMode = false, onComplete }: ModelsPage
 
         <div className="mt-5 space-y-4">
           {models.map((model) => (
-            <form
+            <article
               key={model.id}
               className="rounded-2xl border border-black/10 bg-[#fffdf7] p-4"
-              onSubmit={(event: FormEvent<HTMLFormElement>) => {
-                event.preventDefault();
-                void handleModelSave(model);
-              }}
             >
               <div className="flex flex-wrap items-start justify-between gap-3">
                 <div>
@@ -248,11 +321,8 @@ export default function ModelsPage({ setupMode = false, onComplete }: ModelsPage
                 </div>
                 <div className="flex flex-wrap items-center gap-2">
                   <span className={`rounded-full px-3 py-1 text-xs font-semibold ${model.activated ? "bg-emerald-100 text-emerald-800" : "bg-black/5 text-black/55"}`}>
-                    {model.activated ? "Active" : "Inactive"}
+                    {model.activated ? "Enabled" : "Disabled"}
                   </span>
-                  <button className="rounded-xl border border-black/15 px-3 py-2 text-sm font-semibold text-black disabled:cursor-not-allowed disabled:opacity-60" type="button" onClick={() => void handleModelToggle(model)} disabled={togglingModelId === model.id}>
-                    {togglingModelId === model.id ? "Working..." : model.activated ? "Deactivate" : "Activate"}
-                  </button>
                 </div>
               </div>
 
@@ -260,6 +330,10 @@ export default function ModelsPage({ setupMode = false, onComplete }: ModelsPage
                 <label className="grid gap-1 text-sm text-black/70">
                   Alias
                   <input className="rounded-xl border border-black/15 bg-white px-3 py-2 text-sm" value={model.alias} onChange={(event) => updateModelDraft(model.id, { alias: event.target.value })} />
+                </label>
+                <label className="flex items-center gap-2 rounded-xl border border-black/10 bg-white px-3 py-2 text-sm text-black/70 md:self-end">
+                  <input type="checkbox" checked={model.activated} onChange={(event) => updateModelDraft(model.id, { activated: event.target.checked })} />
+                  Enabled for chats
                 </label>
                 <label className="grid gap-1 text-sm text-black/70">
                   Description
@@ -313,11 +387,11 @@ export default function ModelsPage({ setupMode = false, onComplete }: ModelsPage
 
               <div className="mt-4 flex flex-wrap items-center justify-between gap-3">
                 <p className="break-all text-xs text-black/45">{model.file_path}</p>
-                <button className="rounded-xl bg-ink px-4 py-2 text-sm font-semibold text-white disabled:cursor-not-allowed disabled:opacity-60" type="submit" disabled={savingModelId === model.id}>
-                  {savingModelId === model.id ? "Saving..." : "Save Model Settings"}
-                </button>
+                <p className="text-sm text-black/55">
+                  {savingModelIds.includes(model.id) ? "Saving..." : pendingModelIds.includes(model.id) ? "Saving changes..." : "Changes auto-save."}
+                </p>
               </div>
-            </form>
+            </article>
           ))}
           {models.length === 0 ? <p className="rounded-2xl border border-dashed border-black/15 bg-sand/60 px-4 py-6 text-sm text-black/60">No models registered yet.</p> : null}
         </div>
@@ -325,7 +399,7 @@ export default function ModelsPage({ setupMode = false, onComplete }: ModelsPage
         {setupMode ? (
           <div className="mt-5 flex items-center justify-between gap-3 rounded-2xl border border-black/10 bg-sand/60 px-4 py-4 text-sm text-black/70">
             <p>{activeModels > 0 ? `${activeModels} model${activeModels === 1 ? " is" : "s are"} active.` : "Activate at least one model to finish setup."}</p>
-            <button className="rounded-xl bg-ink px-4 py-2 font-semibold text-white disabled:cursor-not-allowed disabled:opacity-60" type="button" onClick={onComplete} disabled={activeModels === 0}>
+            <button className="rounded-xl bg-ink px-4 py-2 font-semibold text-white disabled:cursor-not-allowed disabled:opacity-60" type="button" onClick={onComplete} disabled={activeModels === 0 || pendingModelIds.length > 0 || savingModelIds.length > 0}>
               Finish Setup
             </button>
           </div>

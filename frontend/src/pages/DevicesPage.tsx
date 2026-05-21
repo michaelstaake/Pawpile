@@ -1,9 +1,23 @@
-import React from "react";
-
-import { FormEvent, useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { apiGet, apiPatch } from "../lib/api";
 import { useAuth } from "../context/AuthContext";
 import { DeviceRecord, DeviceUpdateResponse } from "../lib/records";
+
+const AUTO_SAVE_DELAY_MS = 700;
+
+function buildDevicePayload(device: DeviceRecord) {
+  return {
+    name: device.name,
+    enabled: device.enabled,
+    priority: device.priority,
+    max_threads: device.max_threads,
+    max_slots: device.max_slots,
+  };
+}
+
+function serializeDevice(device: DeviceRecord) {
+  return JSON.stringify(buildDevicePayload(device));
+}
 
 type DevicesPageProps = {
   setupMode?: boolean;
@@ -14,9 +28,19 @@ export default function DevicesPage({ setupMode = false, onContinue }: DevicesPa
   const { token } = useAuth();
   const [devices, setDevices] = useState<DeviceRecord[]>([]);
   const [isLoading, setIsLoading] = useState(false);
-  const [savingDeviceId, setSavingDeviceId] = useState<number | null>(null);
+  const [savingDeviceIds, setSavingDeviceIds] = useState<number[]>([]);
+  const [pendingDeviceIds, setPendingDeviceIds] = useState<number[]>([]);
   const [errorMessage, setErrorMessage] = useState("");
   const [successMessage, setSuccessMessage] = useState("");
+  const latestDevicesRef = useRef<DeviceRecord[]>([]);
+  const savedSnapshotsRef = useRef<Record<number, string>>({});
+  const saveTimeoutsRef = useRef<Record<number, number>>({});
+  const savingIdsRef = useRef<Set<number>>(new Set());
+  const resaveRequestedRef = useRef<Set<number>>(new Set());
+
+  useEffect(() => {
+    latestDevicesRef.current = devices;
+  }, [devices]);
 
   useEffect(() => {
     if (!token) {
@@ -29,7 +53,9 @@ export default function DevicesPage({ setupMode = false, onContinue }: DevicesPa
     setIsLoading(true);
     try {
       const response = await apiGet<DeviceRecord[]>("/api/devices", activeToken);
+      savedSnapshotsRef.current = Object.fromEntries(response.map((device) => [device.id, serializeDevice(device)]));
       setDevices(response);
+      setPendingDeviceIds([]);
     } catch (error) {
       setErrorMessage(error instanceof Error ? error.message : "Failed to load devices");
     } finally {
@@ -37,33 +63,81 @@ export default function DevicesPage({ setupMode = false, onContinue }: DevicesPa
     }
   }
 
-  function updateDeviceDraft(deviceId: number, updates: Partial<DeviceRecord>) {
-    setDevices((current) => current.map((device) => (device.id === deviceId ? { ...device, ...updates } : device)));
+  useEffect(() => () => {
+    Object.values(saveTimeoutsRef.current).forEach((timeoutId) => window.clearTimeout(timeoutId));
+  }, []);
+
+  function scheduleDeviceSave(deviceId: number) {
+    const existingTimeout = saveTimeoutsRef.current[deviceId];
+    if (existingTimeout) {
+      window.clearTimeout(existingTimeout);
+    }
+
+    setPendingDeviceIds((current) => (current.includes(deviceId) ? current : [...current, deviceId]));
+
+    saveTimeoutsRef.current[deviceId] = window.setTimeout(() => {
+      delete saveTimeoutsRef.current[deviceId];
+      void persistDevice(deviceId);
+    }, AUTO_SAVE_DELAY_MS);
   }
 
-  async function handleDeviceSave(device: DeviceRecord) {
+  function updateDeviceDraft(deviceId: number, updates: Partial<DeviceRecord>) {
+    setErrorMessage("");
+    setSuccessMessage("");
+    setDevices((current) => current.map((device) => (device.id === deviceId ? { ...device, ...updates } : device)));
+    scheduleDeviceSave(deviceId);
+  }
+
+  async function persistDevice(deviceId: number) {
     if (!token) {
       return;
     }
 
-    setSavingDeviceId(device.id);
+    if (savingIdsRef.current.has(deviceId)) {
+      resaveRequestedRef.current.add(deviceId);
+      return;
+    }
+
+    const device = latestDevicesRef.current.find((item) => item.id === deviceId);
+    if (!device) {
+      return;
+    }
+
+    if (savedSnapshotsRef.current[deviceId] === serializeDevice(device)) {
+      setPendingDeviceIds((current) => current.filter((id) => id !== deviceId));
+      return;
+    }
+
+    savingIdsRef.current.add(deviceId);
+    setSavingDeviceIds((current) => (current.includes(deviceId) ? current : [...current, deviceId]));
+    setPendingDeviceIds((current) => current.filter((id) => id !== deviceId));
     setErrorMessage("");
     setSuccessMessage("");
 
+    let savedSuccessfully = false;
+
     try {
       const response = await apiPatch<Record<string, string | number | boolean>, DeviceUpdateResponse>(`/api/devices/${device.id}`, {
-        name: device.name,
-        enabled: device.enabled,
-        priority: device.priority,
-        max_threads: device.max_threads,
-        max_slots: device.max_slots,
+        ...buildDevicePayload(device),
       }, token);
+      savedSnapshotsRef.current[device.id] = serializeDevice(response.device);
       setDevices((current) => current.map((item) => (item.id === device.id ? response.device : item)));
       setSuccessMessage(`Saved device settings for ${response.device.name}.`);
+      savedSuccessfully = true;
     } catch (error) {
       setErrorMessage(error instanceof Error ? error.message : "Device update failed");
     } finally {
-      setSavingDeviceId(null);
+      savingIdsRef.current.delete(deviceId);
+      setSavingDeviceIds((current) => current.filter((id) => id !== deviceId));
+
+      const latestDevice = latestDevicesRef.current.find((item) => item.id === deviceId);
+      const needsResave = savedSuccessfully && latestDevice && savedSnapshotsRef.current[deviceId] !== serializeDevice(latestDevice);
+      const shouldResave = resaveRequestedRef.current.has(deviceId) || Boolean(needsResave);
+      resaveRequestedRef.current.delete(deviceId);
+
+      if (shouldResave) {
+        scheduleDeviceSave(deviceId);
+      }
     }
   }
 
@@ -90,13 +164,9 @@ export default function DevicesPage({ setupMode = false, onContinue }: DevicesPa
 
         <div className="mt-5 space-y-4">
           {devices.map((device) => (
-            <form
+            <article
               key={device.id}
               className="rounded-2xl border border-black/10 bg-[#fffdf7] p-4"
-              onSubmit={(event: FormEvent<HTMLFormElement>) => {
-                event.preventDefault();
-                void handleDeviceSave(device);
-              }}
             >
               <div className="flex flex-wrap items-start justify-between gap-3">
                 <div>
@@ -137,11 +207,11 @@ export default function DevicesPage({ setupMode = false, onContinue }: DevicesPa
 
               <div className="mt-4 flex flex-wrap items-center justify-between gap-3">
                 <p className="break-all text-xs text-black/45">{device.hardware_id}</p>
-                <button className="rounded-xl bg-ink px-4 py-2 text-sm font-semibold text-white disabled:cursor-not-allowed disabled:opacity-60" type="submit" disabled={savingDeviceId === device.id}>
-                  {savingDeviceId === device.id ? "Saving..." : "Save Device Settings"}
-                </button>
+                <p className="text-sm text-black/55">
+                  {savingDeviceIds.includes(device.id) ? "Saving..." : pendingDeviceIds.includes(device.id) ? "Saving changes..." : "Changes auto-save."}
+                </p>
               </div>
-            </form>
+            </article>
           ))}
           {devices.length === 0 ? <p className="rounded-2xl border border-dashed border-black/15 bg-sand/60 px-4 py-6 text-sm text-black/60">No devices detected yet.</p> : null}
         </div>
@@ -149,7 +219,7 @@ export default function DevicesPage({ setupMode = false, onContinue }: DevicesPa
         {setupMode ? (
           <div className="mt-5 flex items-center justify-between gap-3 rounded-2xl border border-black/10 bg-sand/60 px-4 py-4 text-sm text-black/70">
             <p>{enabledDevices > 0 ? `${enabledDevices} device${enabledDevices === 1 ? " is" : "s are"} ready.` : "Enable at least one device to continue."}</p>
-            <button className="rounded-xl bg-ink px-4 py-2 font-semibold text-white disabled:cursor-not-allowed disabled:opacity-60" type="button" onClick={onContinue} disabled={enabledDevices === 0}>
+            <button className="rounded-xl bg-ink px-4 py-2 font-semibold text-white disabled:cursor-not-allowed disabled:opacity-60" type="button" onClick={onContinue} disabled={enabledDevices === 0 || pendingDeviceIds.length > 0 || savingDeviceIds.length > 0}>
               Continue to Models
             </button>
           </div>
