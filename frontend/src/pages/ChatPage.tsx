@@ -368,52 +368,41 @@ export default function ChatPage() {
           ) : (
             <div className="space-y-3">
               {messages.map((message, index) => (
-                <div
-                  key={index}
-                  className={
-                    message.role === "user"
-                      ? "rounded-2xl border border-black/5 bg-white/90 p-4 shadow-sm"
-                      : "rounded-2xl border border-black/5 bg-white/55 p-4 shadow-sm shadow-black/5"
-                  }
-                >
-                  <div className="mb-2 flex items-center justify-between gap-3">
-                    <div className="text-xs font-semibold uppercase tracking-[0.2em] text-black/45">
+                message.role === "assistant" && message.phase === "thinking" && !message.content ? (
+                  <div key={index} className="px-1 py-1 text-sm font-medium text-black/45">
+                    <span className="inline-flex items-center gap-2">
+                      <span className="animate-pulse">Processing...</span>
+                    </span>
+                  </div>
+                ) : (
+                  <div
+                    key={index}
+                    className={
+                      message.role === "user"
+                        ? "rounded-2xl border border-black/5 bg-white/90 p-4 shadow-sm"
+                        : "rounded-2xl border border-black/5 bg-white/55 p-4 shadow-sm shadow-black/5"
+                    }
+                  >
+                    <div className="mb-2 text-xs font-semibold uppercase tracking-[0.2em] text-black/45">
                       {message.role}
                     </div>
-                    {message.role === "assistant" && message.phase && message.phase !== "complete" ? (
-                      <div className="rounded-full bg-amber/20 px-2.5 py-1 text-[11px] font-semibold uppercase tracking-wide text-black/65">
-                        {message.phase === "thinking" ? "Processing" : "Streaming"}
-                      </div>
-                    ) : null}
-                  </div>
-                  <div className="whitespace-pre-wrap leading-7 text-[15px] text-black/85">
-                    {message.content ||
-                      (message.role === "assistant" && message.phase === "thinking" ? "Processing your request..." : "")}
-                    {message.role === "assistant" && message.phase === "streaming" ? (
-                      <span className="ml-1 inline-block h-5 w-2 animate-pulse rounded-full bg-amber align-middle" />
-                    ) : null}
-                  </div>
-                  {message.role === "assistant" && message.phase === "complete" && message.stats ? (
-                    <div className="mt-4 grid gap-2 border-t border-black/10 pt-3 text-xs text-black/60 md:grid-cols-3">
-                      <div className="rounded-xl bg-black/5 px-3 py-2">
-                        <div className="uppercase tracking-wide text-black/40">Model</div>
-                        <div className="mt-1 font-semibold text-black/75">{message.stats.model}</div>
-                      </div>
-                      <div className="rounded-xl bg-black/5 px-3 py-2">
-                        <div className="uppercase tracking-wide text-black/40">Tokens</div>
-                        <div className="mt-1 font-semibold text-black/75">
-                          {formatInteger(message.stats.totalTokens)} total
-                        </div>
-                      </div>
-                      <div className="rounded-xl bg-black/5 px-3 py-2">
-                        <div className="uppercase tracking-wide text-black/40">Speed</div>
-                        <div className="mt-1 font-semibold text-black/75">
-                          {formatRate(message.stats.tokensPerSecond)} tok/s
-                        </div>
-                      </div>
+                    <div className="whitespace-pre-wrap leading-7 text-[15px] text-black/85">
+                      {message.content}
+                      {message.role === "assistant" && message.phase === "streaming" ? (
+                        <span className="ml-1 inline-block h-5 w-2 animate-pulse rounded-full bg-amber align-middle" />
+                      ) : null}
                     </div>
-                  ) : null}
-                </div>
+                    {message.role === "assistant" && message.phase === "complete" && message.stats ? (
+                      <div className="mt-3 border-t border-black/8 pt-2 text-[11px] text-black/45">
+                        <span className="font-medium text-black/55">{message.stats.model}</span>
+                        <span className="mx-2 text-black/20">/</span>
+                        <span>{formatInteger(message.stats.totalTokens)} tokens</span>
+                        <span className="mx-2 text-black/20">/</span>
+                        <span>{formatRate(message.stats.tokensPerSecond)} tok/s</span>
+                      </div>
+                    ) : null}
+                  </div>
+                )
               ))}
             </div>
           )}
