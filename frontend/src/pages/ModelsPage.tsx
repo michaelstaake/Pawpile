@@ -78,7 +78,7 @@ function formatFileSize(bytes: number): string {
 }
 
 export default function ModelsPage({ setupMode = false, onComplete }: ModelsPageProps) {
-  const { token, refreshAuthState } = useAuth();
+  const { token } = useAuth();
   const [models, setModels] = useState<ModelRecord[]>([]);
   const [devices, setDevices] = useState<DeviceRecord[]>([]);
   const [activeModelId, setActiveModelId] = useState<number | null>(null);
@@ -271,7 +271,6 @@ export default function ModelsPage({ setupMode = false, onComplete }: ModelsPage
         await apiPost<Record<string, never>, { status: string }>(`/api/models/${model.id}/${model.activated ? "activate" : "deactivate"}`, {}, token);
         savedActivationRef.current[model.id] = model.activated;
         setModels((current) => current.map((item) => (item.id === model.id ? { ...item, activated: model.activated } : item)));
-        await refreshAuthState();
       }
 
       setSuccessMessage(`Saved settings for ${model.alias}.`);
@@ -444,9 +443,6 @@ export default function ModelsPage({ setupMode = false, onComplete }: ModelsPage
                       <h4 className="mt-2 font-display text-lg">{model.alias}</h4>
                       <p className="mt-1 text-sm text-black/70">{model.file_name}</p>
                     </div>
-                    <button className="rounded-xl border border-black/15 bg-white px-4 py-2 text-sm font-semibold text-black" type="button" onClick={() => setActiveModelId(null)}>
-                      Collapse
-                    </button>
                   </div>
 
                   <div className="mt-5 grid gap-3 md:grid-cols-2">
