@@ -301,7 +301,10 @@ class InferenceRuntime:
 
         metrics: dict[str, dict] = {}
         for card_key, entry in data.items():
-            if not card_key.lower().startswith("card") or not isinstance(entry, dict):
+            if not isinstance(entry, dict):
+                continue
+            card_lower = card_key.lower()
+            if not ("card" in card_lower or "device" in card_lower or "gpu" in card_lower):
                 continue
 
             digits = re.sub(r"\D", "", card_key) or "0"
@@ -311,22 +314,27 @@ class InferenceRuntime:
             # VRAM Usage
             vram_used_bytes = 0
             vram_total_bytes = 0
-            for key, val in entry.items():
-                if "vram memory use" in key.lower() or "vram use" in key.lower():
-                    try:
-                        vram_used_bytes = int(str(val).strip())
-                    except ValueError:
-                        pass
-                elif "vram total memory" in key.lower():
-                    try:
-                        vram_total_bytes = int(str(val).strip())
-                    except ValueError:
-                        pass
-
-            # Utilization %
             gpu_use = None
+
             for key, val in entry.items():
-                if "gpu use" in key.lower() or "gpu activity" in key.lower() or "gpu %" in key.lower() or "use %" in key.lower() or "gpu activity %" in key.lower():
+                key_lower = key.lower()
+                if "vram" in key_lower:
+                    if "use" in key_lower or "allocated" in key_lower:
+                        try:
+                            vram_used_bytes = int(str(val).strip())
+                        except ValueError:
+                            pass
+                    elif "total" in key_lower:
+                        try:
+                            vram_total_bytes = int(str(val).strip())
+                        except ValueError:
+                            pass
+                elif "gpu" in key_lower and ("use" in key_lower or "activity" in key_lower or "%" in key_lower):
+                    try:
+                        gpu_use = float(str(val).strip().replace("%", ""))
+                    except ValueError:
+                        pass
+                elif "use" in key_lower and "%" in key_lower:
                     try:
                         gpu_use = float(str(val).strip().replace("%", ""))
                     except ValueError:
@@ -351,7 +359,7 @@ class InferenceRuntime:
         # Parse text output (e.g. Card0 GPU use %: 0.1, Card0 VRAM total memory: ..., Card0 VRAM memory use: ...)
         for line in text_output.splitlines():
             line_lower = line.lower()
-            card_match = re.search(r"card(\d+)", line_lower)
+            card_match = re.search(r"(?:card|gpu|device)\[?(\d+)\]?", line_lower)
             if not card_match:
                 continue
 
@@ -369,24 +377,34 @@ class InferenceRuntime:
                 },
             )
 
+            parts = line_lower.split(":")
+            if len(parts) < 2:
+                continue
+            val_part = parts[-1].strip()
+
             # Look for values in the text line
-            val_match = re.search(r"(\d+(?:\.\d+)?)\s*(b|kb|mb|gb|tb|%)?", line_lower)
+            val_match = re.search(r"(\d+(?:\.\d+)?)\s*(b|kb|mb|gb|tb|%)?", val_part)
             if not val_match:
                 continue
 
             val = float(val_match.group(1))
             unit = (val_match.group(2) or "").lower()
+            if not unit:
+                unit_match = re.search(r"\((b|kb|mb|gb|tb|%)\)", line_lower)
+                if unit_match:
+                    unit = unit_match.group(1)
 
-            if "gpu use" in line_lower:
+            if "gpu" in line_lower and ("use" in line_lower or "activity" in line_lower or "%" in line_lower):
                 metrics[hardware_id]["usage_percent"] = round(val, 1)
-            elif "vram memory use" in line_lower:
-                multipliers = {"b": 1, "kb": 1024, "mb": 1024**2, "gb": 1024**3, "tb": 1024**4}
-                v_bytes = int(val * multipliers.get(unit, 1))
-                metrics[hardware_id]["memory_used_mb"] = int(v_bytes / (1024 * 1024))
-            elif "vram total memory" in line_lower:
-                multipliers = {"b": 1, "kb": 1024, "mb": 1024**2, "gb": 1024**3, "tb": 1024**4}
-                v_bytes = int(val * multipliers.get(unit, 1))
-                metrics[hardware_id]["memory_total_mb"] = int(v_bytes / (1024 * 1024))
+            elif "vram" in line_lower:
+                if "use" in line_lower or "allocated" in line_lower:
+                    multipliers = {"b": 1, "kb": 1024, "mb": 1024**2, "gb": 1024**3, "tb": 1024**4}
+                    v_bytes = int(val * multipliers.get(unit, 1))
+                    metrics[hardware_id]["memory_used_mb"] = int(v_bytes / (1024 * 1024))
+                elif "total" in line_lower:
+                    multipliers = {"b": 1, "kb": 1024, "mb": 1024**2, "gb": 1024**3, "tb": 1024**4}
+                    v_bytes = int(val * multipliers.get(unit, 1))
+                    metrics[hardware_id]["memory_total_mb"] = int(v_bytes / (1024 * 1024))
 
         return metrics
 
