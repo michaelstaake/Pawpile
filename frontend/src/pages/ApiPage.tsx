@@ -3,11 +3,32 @@ import { apiDelete, apiGet, apiPost } from "../lib/api";
 import { useAuth } from "../context/AuthContext";
 import { ApiKeyCreateResponse, ApiKeyRecord } from "../lib/records";
 
+function formatCreatedAt(value: string | null): string {
+  if (!value) {
+    return "Unknown creation date";
+  }
+
+  return new Intl.DateTimeFormat(undefined, {
+    dateStyle: "medium",
+    timeStyle: "short",
+  }).format(new Date(value));
+}
+
+function maskApiKey(value: string): string {
+  if (value.length <= 14) {
+    return value;
+  }
+
+  return `${value.slice(0, 10)}...${value.slice(-4)}`;
+}
+
 export default function ApiPage() {
   const { token, user } = useAuth();
   const [apiKeys, setApiKeys] = useState<ApiKeyRecord[]>([]);
   const [newKeyName, setNewKeyName] = useState("");
   const [latestApiKey, setLatestApiKey] = useState("");
+  const [showLatestApiKey, setShowLatestApiKey] = useState(false);
+  const [copyState, setCopyState] = useState<"idle" | "copied" | "failed">("idle");
   const [isLoadingKeys, setIsLoadingKeys] = useState(false);
   const [isCreatingKey, setIsCreatingKey] = useState(false);
   const [revokingKeyId, setRevokingKeyId] = useState<number | null>(null);
@@ -48,6 +69,8 @@ export default function ApiPage() {
       const response = await apiPost<{ name: string }, ApiKeyCreateResponse>("/api/auth/api-keys", { name: newKeyName }, token);
       setApiKeys((current) => [response.api_key, ...current]);
       setLatestApiKey(response.plain_text_key);
+      setShowLatestApiKey(false);
+      setCopyState("idle");
       setNewKeyName("");
       setSuccessMessage(`Created API key ${response.api_key.name}.`);
     } catch (error) {
@@ -77,55 +100,171 @@ export default function ApiPage() {
     }
   }
 
+  async function handleCopyLatestApiKey() {
+    if (!latestApiKey) {
+      return;
+    }
+
+    try {
+      await navigator.clipboard.writeText(latestApiKey);
+      setCopyState("copied");
+    } catch {
+      setCopyState("failed");
+    }
+  }
+
+  const activeKeyCount = apiKeys.length;
+  const newestKey = apiKeys[0] ?? null;
+
   return (
-    <section className="grid gap-4 xl:grid-cols-[0.95fr_1.05fr]">
-      <article className="rounded-2xl border border-black/10 bg-white/80 p-5 shadow-sm backdrop-blur xl:col-start-2">
-        <div className="flex flex-wrap items-start justify-between gap-4">
-          <div>
-            <p className="text-xs font-semibold uppercase tracking-[0.24em] text-black/45">API Keys</p>
-            <h2 className="mt-2 font-display text-xl">Client access</h2>
-            <p className="mt-2 text-sm text-black/70">Create and revoke the personal keys used with the OpenAI-compatible API.</p>
+    <section className="grid gap-4">
+      <article className="overflow-hidden rounded-3xl border border-black/10 bg-[linear-gradient(140deg,rgba(17,24,39,0.96),rgba(12,74,110,0.9)_55%,rgba(245,158,11,0.78))] p-6 text-white shadow-sm">
+        <div className="flex flex-wrap items-start justify-between gap-5">
+          <div className="max-w-2xl">
+            <p className="text-xs font-semibold uppercase tracking-[0.24em] text-white/65">API Access</p>
+            <h1 className="mt-3 font-display text-3xl leading-tight">Manage the keys your clients use to reach Pawpile.</h1>
+            <p className="mt-3 text-sm text-white/78">Review active keys, create a named credential for each client, and revoke access without leaving this page.</p>
           </div>
-          <button className="rounded-xl border border-black/15 px-4 py-2 text-sm font-semibold text-black disabled:cursor-not-allowed disabled:opacity-60" type="button" onClick={() => token && void refreshApiKeys(token)} disabled={!token || isLoadingKeys}>
+          <button
+            className="rounded-xl border border-white/20 bg-white/10 px-4 py-2 text-sm font-semibold text-white backdrop-blur disabled:cursor-not-allowed disabled:opacity-60"
+            type="button"
+            onClick={() => token && void refreshApiKeys(token)}
+            disabled={!token || isLoadingKeys}
+          >
             {isLoadingKeys ? "Refreshing..." : "Refresh Keys"}
           </button>
         </div>
 
-        {errorMessage ? <p className="mt-4 rounded-xl border border-rose-200 bg-rose-50 px-3 py-2 text-sm text-rose-700">{errorMessage}</p> : null}
-        {successMessage ? <p className="mt-4 rounded-xl border border-emerald-200 bg-emerald-50 px-3 py-2 text-sm text-emerald-700">{successMessage}</p> : null}
-        {latestApiKey ? <p className="mt-4 rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-900">New API key: <span className="font-mono">{latestApiKey}</span></p> : null}
-
-        <form className="mt-5 grid gap-3 rounded-2xl border border-dashed border-black/15 bg-sand/70 p-4" onSubmit={handleCreateApiKey}>
-          <h3 className="font-display text-base">Create API Key</h3>
-          <label className="grid gap-1 text-sm text-black/70">
-            Key Name
-            <input className="rounded-xl border border-black/15 bg-white px-3 py-2 text-sm" value={newKeyName} onChange={(event) => setNewKeyName(event.target.value)} placeholder="Desktop client" />
-          </label>
-          <div>
-            <button className="rounded-xl bg-ink px-4 py-2 text-sm font-semibold text-white disabled:cursor-not-allowed disabled:opacity-60" type="submit" disabled={isCreatingKey || !newKeyName.trim()}>
-              {isCreatingKey ? "Creating..." : "Create API Key"}
-            </button>
+        <div className="mt-6 grid gap-3 sm:grid-cols-3">
+          <div className="rounded-2xl border border-white/15 bg-white/10 p-4 backdrop-blur">
+            <p className="text-xs uppercase tracking-[0.24em] text-white/60">Active keys</p>
+            <p className="mt-3 font-display text-3xl">{activeKeyCount}</p>
           </div>
-        </form>
-
-        <div className="mt-5 space-y-3">
-          {apiKeys.map((apiKey) => (
-            <div key={apiKey.id} className="rounded-2xl border border-black/10 bg-[#fffdf7] p-4">
-              <div className="flex items-start justify-between gap-3">
-                <div>
-                  <h3 className="font-display text-base">{apiKey.name}</h3>
-                  <p className="mt-1 text-sm text-black/70">{apiKey.user_username}</p>
-                  <p className="mt-1 text-xs text-black/45">{apiKey.created_at ? new Date(apiKey.created_at).toLocaleString() : "Unknown date"}</p>
-                </div>
-                <button className="rounded-xl border border-rose-200 px-3 py-2 text-sm font-semibold text-rose-700 disabled:cursor-not-allowed disabled:opacity-60" type="button" onClick={() => void handleRevokeApiKey(apiKey.id)} disabled={revokingKeyId === apiKey.id}>
-                  {revokingKeyId === apiKey.id ? "Revoking..." : "Revoke"}
-                </button>
-              </div>
-            </div>
-          ))}
-          {apiKeys.length === 0 ? <p className="rounded-2xl border border-dashed border-black/15 bg-sand/60 px-4 py-6 text-sm text-black/60">No API keys created yet.</p> : null}
+          <div className="rounded-2xl border border-white/15 bg-white/10 p-4 backdrop-blur">
+            <p className="text-xs uppercase tracking-[0.24em] text-white/60">Newest key</p>
+            <p className="mt-3 text-sm font-semibold text-white">{newestKey?.name ?? "No keys yet"}</p>
+          </div>
+          <div className="rounded-2xl border border-white/15 bg-white/10 p-4 backdrop-blur">
+            <p className="text-xs uppercase tracking-[0.24em] text-white/60">Owner</p>
+            <p className="mt-3 text-sm font-semibold text-white">{user?.username ?? "Signed out"}</p>
+          </div>
         </div>
       </article>
+
+      <div className="grid gap-4 xl:grid-cols-[0.95fr_1.05fr] xl:items-start">
+        <article className="rounded-2xl border border-black/10 bg-white/85 p-5 shadow-sm backdrop-blur">
+          <p className="text-xs font-semibold uppercase tracking-[0.24em] text-black/45">Create</p>
+          <h2 className="mt-2 font-display text-xl">Issue a new API key</h2>
+          <p className="mt-2 text-sm text-black/70">Name each key by the app or environment using it so revocation stays obvious later.</p>
+
+          <form className="mt-5 grid gap-4" onSubmit={handleCreateApiKey}>
+            <label className="grid gap-2 text-sm text-black/70">
+              <span className="font-semibold text-black">Key name</span>
+              <input
+                className="rounded-2xl border border-black/10 bg-white px-4 py-3 text-sm outline-none transition focus:border-black/25"
+                value={newKeyName}
+                onChange={(event) => setNewKeyName(event.target.value)}
+                placeholder="Desktop client"
+                maxLength={80}
+              />
+            </label>
+
+            <div className="rounded-2xl border border-dashed border-black/15 bg-sand/60 p-4 text-sm text-black/65">
+              New keys are shown only once after creation. Store them in your client or secret manager before leaving this page.
+            </div>
+
+            <div>
+              <button
+                className="rounded-xl bg-ink px-4 py-3 text-sm font-semibold text-white disabled:cursor-not-allowed disabled:opacity-60"
+                type="submit"
+                disabled={isCreatingKey || !newKeyName.trim()}
+              >
+                {isCreatingKey ? "Creating..." : "Create API Key"}
+              </button>
+            </div>
+          </form>
+
+          {latestApiKey ? (
+            <div className="mt-5 rounded-2xl border border-amber-300 bg-amber-50 p-4 text-amber-950">
+              <div className="flex flex-wrap items-start justify-between gap-3">
+                <div>
+                  <p className="text-xs font-semibold uppercase tracking-[0.24em] text-amber-700">New key</p>
+                  <h3 className="mt-2 font-display text-lg">Save this secret now</h3>
+                </div>
+                <button
+                  className="rounded-xl border border-amber-300 px-3 py-2 text-sm font-semibold text-amber-900"
+                  type="button"
+                  onClick={() => setShowLatestApiKey((current) => !current)}
+                >
+                  {showLatestApiKey ? "Hide value" : "Reveal value"}
+                </button>
+              </div>
+              <div className="mt-4 rounded-2xl bg-black px-4 py-3 font-mono text-sm text-white">
+                {showLatestApiKey ? latestApiKey : maskApiKey(latestApiKey)}
+              </div>
+              <div className="mt-4 flex flex-wrap items-center gap-3">
+                <button
+                  className="rounded-xl bg-amber-500 px-4 py-2 text-sm font-semibold text-amber-950"
+                  type="button"
+                  onClick={() => void handleCopyLatestApiKey()}
+                >
+                  Copy key
+                </button>
+                {copyState === "copied" ? <p className="text-sm text-emerald-700">Copied to clipboard.</p> : null}
+                {copyState === "failed" ? <p className="text-sm text-rose-700">Clipboard copy failed. Copy it manually.</p> : null}
+              </div>
+            </div>
+          ) : null}
+
+          {errorMessage ? <p className="mt-4 rounded-xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700">{errorMessage}</p> : null}
+          {successMessage ? <p className="mt-4 rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-700">{successMessage}</p> : null}
+        </article>
+
+        <article className="rounded-2xl border border-black/10 bg-white/85 p-5 shadow-sm backdrop-blur">
+          <div className="flex flex-wrap items-start justify-between gap-4">
+            <div>
+              <p className="text-xs font-semibold uppercase tracking-[0.24em] text-black/45">Inventory</p>
+              <h2 className="mt-2 font-display text-xl">Existing API keys</h2>
+              <p className="mt-2 text-sm text-black/70">Each key is tied to your account and can be revoked independently when a client is retired or rotated.</p>
+            </div>
+            <div className="rounded-2xl border border-black/10 bg-sand/60 px-4 py-3 text-right">
+              <p className="text-xs uppercase tracking-[0.2em] text-black/45">Total</p>
+              <p className="mt-1 font-display text-2xl text-black">{activeKeyCount}</p>
+            </div>
+          </div>
+
+          <div className="mt-5 space-y-3">
+            {apiKeys.map((apiKey, index) => (
+              <div key={apiKey.id} className="rounded-2xl border border-black/10 bg-[#fffdf7] p-4 transition hover:border-black/20 hover:shadow-sm">
+                <div className="flex flex-wrap items-start justify-between gap-4">
+                  <div>
+                    <div className="flex flex-wrap items-center gap-2">
+                      <h3 className="font-display text-lg text-black">{apiKey.name}</h3>
+                      {index === 0 ? <span className="rounded-full bg-emerald-100 px-2.5 py-1 text-xs font-semibold text-emerald-700">Newest</span> : null}
+                    </div>
+                    <p className="mt-2 text-sm text-black/70">Used by {apiKey.user_username}</p>
+                    <p className="mt-1 text-xs uppercase tracking-[0.18em] text-black/45">Created {formatCreatedAt(apiKey.created_at)}</p>
+                  </div>
+                  <button
+                    className="rounded-xl border border-rose-200 px-3 py-2 text-sm font-semibold text-rose-700 disabled:cursor-not-allowed disabled:opacity-60"
+                    type="button"
+                    onClick={() => void handleRevokeApiKey(apiKey.id)}
+                    disabled={revokingKeyId === apiKey.id}
+                  >
+                    {revokingKeyId === apiKey.id ? "Revoking..." : "Revoke"}
+                  </button>
+                </div>
+              </div>
+            ))}
+            {apiKeys.length === 0 ? (
+              <div className="rounded-2xl border border-dashed border-black/15 bg-sand/60 px-5 py-8 text-center">
+                <h3 className="font-display text-lg text-black">No API keys yet</h3>
+                <p className="mt-2 text-sm text-black/60">Create your first key to connect scripts, local tools, or external clients to the API.</p>
+              </div>
+            ) : null}
+          </div>
+        </article>
+      </div>
     </section>
   );
 }
