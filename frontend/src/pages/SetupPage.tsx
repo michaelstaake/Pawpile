@@ -48,12 +48,10 @@ export default function SetupPage() {
   return (
     <section className="grid gap-4">
       <article className="rounded-2xl border border-black/10 bg-white/80 p-5 shadow-sm backdrop-blur">
-        <p className="text-xs font-semibold uppercase tracking-[0.24em] text-black/45">Initial Setup</p>
-        <h2 className="mt-2 font-display text-xl">Finish your Pawpile install</h2>
-        <p className="mt-2 max-w-3xl text-sm text-black/70">Setup is only available until you have an admin account, at least one enabled device, and at least one active model.</p>
+        <h2 className="font-display text-xl">Pawpile Setup</h2>
 
         <div className="mt-5 grid gap-3 md:grid-cols-3">
-          {["Create admin", "Configure devices", "Activate models"].map((label, index) => {
+          {["Create admin", "Configure devices", "Configure models"].map((label, index) => {
             const stepNumber = index + 1;
             const isCurrent = step === stepNumber;
             const isDone = step > stepNumber;
@@ -69,8 +67,7 @@ export default function SetupPage() {
 
       {step === 1 ? (
         <article className="rounded-2xl border border-black/10 bg-white/80 p-5 shadow-sm backdrop-blur">
-          <h3 className="font-display text-lg">Create the first admin</h3>
-          <p className="mt-2 text-sm text-black/70">This account controls the rest of setup and becomes your first administrator.</p>
+          <h3 className="font-display text-lg">Create admin</h3>
           {errorMessage ? <p className="mt-4 rounded-xl border border-rose-200 bg-rose-50 px-3 py-2 text-sm text-rose-700">{errorMessage}</p> : null}
           <form className="mt-5 grid gap-3 md:max-w-xl" onSubmit={handleBootstrap}>
             <label className="grid gap-1 text-sm text-black/70">
@@ -87,7 +84,7 @@ export default function SetupPage() {
             </label>
             <div>
               <button className="rounded-xl bg-ink px-4 py-2 text-sm font-semibold text-white disabled:cursor-not-allowed disabled:opacity-60" type="submit" disabled={isAuthenticating}>
-                {isAuthenticating ? "Creating..." : "Create Admin"}
+                {isAuthenticating ? "Creating..." : "Next"}
               </button>
             </div>
           </form>

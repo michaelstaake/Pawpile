@@ -1,4 +1,5 @@
 import { type DragEvent, type FormEvent, useEffect, useRef, useState } from "react";
+import Modal from "../components/ui/Modal";
 import { apiGet, apiPatch, apiPost, apiPostFormWithProgress } from "../lib/api";
 import { useAuth } from "../context/AuthContext";
 import { DeviceRecord, ModelRecord, ModelUpdateResponse, ScanResponse, UploadResponse } from "../lib/records";
@@ -388,10 +389,7 @@ export default function ModelsPage({ setupMode = false, onComplete }: ModelsPage
               onDrop={() => handleModelDrop(model.id)}
             >
               <div className="flex flex-wrap items-start justify-between gap-3">
-                <div className="flex items-start gap-3">
-                  <div className="rounded-xl border border-black/10 bg-white px-2 py-1 text-xs font-semibold uppercase tracking-[0.2em] text-black/45">
-                    Drag
-                  </div>
+                <div>
                   <h3 className="font-display text-base">{model.alias}</h3>
                   <p className="mt-1 text-sm text-black/70">{model.file_name}</p>
                 </div>
@@ -419,8 +417,8 @@ export default function ModelsPage({ setupMode = false, onComplete }: ModelsPage
         </div>
 
         {activeModel ? (
-          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/35 p-4 backdrop-blur-sm" role="dialog" aria-modal="true" aria-labelledby="model-config-title" onClick={() => setActiveModelId(null)}>
-            <article className="max-h-[90vh] w-full max-w-4xl overflow-y-auto rounded-[28px] border border-black/10 bg-[#fffdf7] p-5 shadow-2xl" onClick={(event) => event.stopPropagation()}>
+          <Modal open={!!activeModel} onClose={() => setActiveModelId(null)} labelledBy="model-config-title" panelClassName="max-h-[min(92vh,960px)] max-w-5xl">
+            <article className="max-h-[min(92vh,960px)] overflow-y-auto p-5 sm:p-6">
               <div className="flex flex-wrap items-start justify-between gap-3">
                 <div>
                   <p className="text-xs font-semibold uppercase tracking-[0.2em] text-black/45">Model Settings</p>
@@ -500,7 +498,7 @@ export default function ModelsPage({ setupMode = false, onComplete }: ModelsPage
                 </button>
               </div>
             </article>
-          </div>
+          </Modal>
         ) : null}
 
         {setupMode ? (
