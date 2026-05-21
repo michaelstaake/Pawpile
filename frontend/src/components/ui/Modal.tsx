@@ -19,6 +19,11 @@ function getFocusableElements(container: HTMLElement) {
 
 export default function Modal({ open, onClose, labelledBy, describedBy, panelClassName = "", children }: ModalProps) {
   const panelRef = useRef<HTMLDivElement | null>(null);
+  const onCloseRef = useRef(onClose);
+
+  useEffect(() => {
+    onCloseRef.current = onClose;
+  }, [onClose]);
 
   useEffect(() => {
     if (!open) {
@@ -43,7 +48,7 @@ export default function Modal({ open, onClose, labelledBy, describedBy, panelCla
     function handleKeyDown(event: KeyboardEvent) {
       if (event.key === "Escape") {
         event.preventDefault();
-        onClose();
+        onCloseRef.current();
         return;
       }
 
@@ -83,7 +88,7 @@ export default function Modal({ open, onClose, labelledBy, describedBy, panelCla
       document.removeEventListener("keydown", handleKeyDown);
       body.style.overflow = previousOverflow;
     };
-  }, [open, onClose]);
+  }, [open]);
 
   if (!open) {
     return null;

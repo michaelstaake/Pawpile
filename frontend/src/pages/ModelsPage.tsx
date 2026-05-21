@@ -39,6 +39,16 @@ function serializeModelConfig(model: ModelRecord) {
   return JSON.stringify(buildModelPayload(model));
 }
 
+function mergeSavedModel(current: ModelRecord, sent: ModelRecord, saved: ModelRecord): ModelRecord {
+  const merged = { ...saved };
+  for (const key of Object.keys(current) as Array<keyof ModelRecord>) {
+    if (current[key] !== sent[key]) {
+      (merged as any)[key] = current[key];
+    }
+  }
+  return merged;
+}
+
 function sortModels(models: ModelRecord[]) {
   return [...models].sort((left, right) => left.priority - right.priority || left.id - right.id);
 }
@@ -243,7 +253,18 @@ export default function ModelsPage({ setupMode = false, onComplete }: ModelsPage
         if (!activationChanged) {
           savedActivationRef.current[model.id] = response.model.activated;
         }
-        setModels((current) => current.map((item) => (item.id === model.id ? { ...response.model, activated: activationChanged ? model.activated : response.model.activated } : item)));
+        setModels((current) =>
+          current.map((item) => {
+            if (item.id !== model.id) {
+              return item;
+            }
+            const merged = mergeSavedModel(item, model, response.model);
+            return {
+              ...merged,
+              activated: activationChanged ? item.activated : merged.activated,
+            };
+          })
+        );
       }
 
       if (activationChanged) {
