@@ -220,6 +220,7 @@ class InferenceRuntime:
         }
 
         metrics.update(self._collect_nvidia_metrics())
+        metrics.update(self._collect_amd_metrics())
         return metrics
 
     def _collect_nvidia_metrics(self) -> dict[str, dict]:
@@ -273,6 +274,119 @@ class InferenceRuntime:
             metrics.setdefault(hardware_id, {"process_memory_by_pid": {}})
             process_memory_by_pid = metrics[hardware_id].setdefault("process_memory_by_pid", {})
             process_memory_by_pid[pid] = used_memory_mb
+
+        return metrics
+
+    def _collect_amd_metrics(self) -> dict[str, dict]:
+        # Try JSON first
+        json_output = self._run_command(["rocm-smi", "--showuse", "--showmeminfo", "vram", "--json"])
+        metrics = self._parse_amd_metrics_json(json_output)
+        if metrics:
+            return metrics
+
+        # Fallback to plain text output
+        text_output = self._run_command(["rocm-smi", "--showuse", "--showmeminfo", "vram"])
+        return self._parse_amd_metrics_text(text_output)
+
+    @staticmethod
+    def _parse_amd_metrics_json(json_output: str) -> dict[str, dict]:
+        if not json_output:
+            return {}
+        try:
+            data = json.loads(json_output)
+        except Exception:
+            return {}
+        if not isinstance(data, dict):
+            return {}
+
+        metrics: dict[str, dict] = {}
+        for card_key, entry in data.items():
+            if not card_key.lower().startswith("card") or not isinstance(entry, dict):
+                continue
+
+            digits = re.sub(r"\D", "", card_key) or "0"
+            index = int(digits)
+            hardware_id = f"amd:{index}"
+
+            # VRAM Usage
+            vram_used_bytes = 0
+            vram_total_bytes = 0
+            for key, val in entry.items():
+                if "vram memory use" in key.lower() or "vram use" in key.lower():
+                    try:
+                        vram_used_bytes = int(str(val).strip())
+                    except ValueError:
+                        pass
+                elif "vram total memory" in key.lower():
+                    try:
+                        vram_total_bytes = int(str(val).strip())
+                    except ValueError:
+                        pass
+
+            # Utilization %
+            gpu_use = None
+            for key, val in entry.items():
+                if "gpu use" in key.lower() or "gpu activity" in key.lower() or "gpu %" in key.lower() or "use %" in key.lower() or "gpu activity %" in key.lower():
+                    try:
+                        gpu_use = float(str(val).strip().replace("%", ""))
+                    except ValueError:
+                        pass
+
+            metrics[hardware_id] = {
+                "usage_percent": gpu_use if gpu_use is not None else 0.0,
+                "usage_source": "rocm-smi",
+                "memory_used_mb": int(vram_used_bytes / (1024 * 1024)) if vram_used_bytes else 0,
+                "memory_total_mb": int(vram_total_bytes / (1024 * 1024)) if vram_total_bytes else 0,
+                "memory_source": "rocm-smi",
+                "process_memory_by_pid": {},
+            }
+        return metrics
+
+    @staticmethod
+    def _parse_amd_metrics_text(text_output: str) -> dict[str, dict]:
+        if not text_output:
+            return {}
+
+        metrics: dict[str, dict] = {}
+        # Parse text output (e.g. Card0 GPU use %: 0.1, Card0 VRAM total memory: ..., Card0 VRAM memory use: ...)
+        for line in text_output.splitlines():
+            line_lower = line.lower()
+            card_match = re.search(r"card(\d+)", line_lower)
+            if not card_match:
+                continue
+
+            index = int(card_match.group(1))
+            hardware_id = f"amd:{index}"
+            metrics.setdefault(
+                hardware_id,
+                {
+                    "usage_percent": 0.0,
+                    "usage_source": "rocm-smi",
+                    "memory_used_mb": 0,
+                    "memory_total_mb": 0,
+                    "memory_source": "rocm-smi",
+                    "process_memory_by_pid": {},
+                },
+            )
+
+            # Look for values in the text line
+            val_match = re.search(r"(\d+(?:\.\d+)?)\s*(b|kb|mb|gb|tb|%)?", line_lower)
+            if not val_match:
+                continue
+
+            val = float(val_match.group(1))
+            unit = (val_match.group(2) or "").lower()
+
+            if "gpu use" in line_lower:
+                metrics[hardware_id]["usage_percent"] = round(val, 1)
+            elif "vram memory use" in line_lower:
+                multipliers = {"b": 1, "kb": 1024, "mb": 1024**2, "gb": 1024**3, "tb": 1024**4}
+                v_bytes = int(val * multipliers.get(unit, 1))
+                metrics[hardware_id]["memory_used_mb"] = int(v_bytes / (1024 * 1024))
+            elif "vram total memory" in line_lower:
+                multipliers = {"b": 1, "kb": 1024, "mb": 1024**2, "gb": 1024**3, "tb": 1024**4}
+                v_bytes = int(val * multipliers.get(unit, 1))
+                metrics[hardware_id]["memory_total_mb"] = int(v_bytes / (1024 * 1024))
 
         return metrics
 
