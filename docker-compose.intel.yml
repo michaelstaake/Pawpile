@@ -12,6 +12,8 @@ services:
       - ./models:/app/models
       - ./logs:/app/logs
       - /dev/dri:/dev/dri
+    device_cgroup_rules:
+      - 'c 226:* rwm'
     expose:
       - "8100"
     healthcheck:
