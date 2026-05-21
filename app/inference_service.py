@@ -12,6 +12,7 @@ from pathlib import Path
 import httpx
 import psutil
 from fastapi import FastAPI, HTTPException
+from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
 
 from app.core.config import get_settings
@@ -127,6 +128,19 @@ class InferenceRuntime:
             response = await client.post(url, json=payload)
         response.raise_for_status()
         return response.json()
+
+    async def stream_chat_completion(self, model_id: int, payload: dict):
+        running = self._running.get(model_id)
+        if not running:
+            raise RuntimeError("Model is not active")
+
+        url = f"http://{self.settings.llama_host}:{running.port}/v1/chat/completions"
+        async with httpx.AsyncClient(timeout=self.settings.llama_request_timeout_seconds) as client:
+            async with client.stream("POST", url, json=payload) as response:
+                response.raise_for_status()
+                async for chunk in response.aiter_bytes():
+                    if chunk:
+                        yield chunk
 
     def _resolve_llama_server_path(self) -> str:
         configured_path = Path(self.settings.llama_server_path)
@@ -621,8 +635,13 @@ async def model_health(model_id: int) -> dict:
 
 
 @app.post("/runtime/models/{model_id}/chat/completions")
-async def chat_completion(model_id: int, payload: dict) -> dict:
+async def chat_completion(model_id: int, payload: dict):
     try:
+        if payload.get("stream"):
+            return StreamingResponse(
+                runtime.stream_chat_completion(model_id, payload),
+                media_type="text/event-stream",
+            )
         return await runtime.chat_completion(model_id, payload)
     except RuntimeError as exc:
         raise HTTPException(status_code=404, detail=str(exc)) from exc
