@@ -2,7 +2,7 @@ import { FormEvent, useEffect, useState } from "react";
 import { useAuth } from "../context/AuthContext";
 
 export default function ProfilePage() {
-  const { logout, updateProfile, user } = useAuth();
+  const { updateProfile, user } = useAuth();
   const [email, setEmail] = useState(user?.email ?? "");
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
@@ -86,25 +86,8 @@ export default function ProfilePage() {
   return (
     <section className="grid gap-4">
       <article className="overflow-hidden rounded-3xl border border-black/10 bg-[linear-gradient(135deg,rgba(17,24,39,0.96),rgba(56,189,248,0.84))] p-6 text-white shadow-sm">
-        <div className="flex flex-col gap-6 lg:flex-row lg:items-end lg:justify-between">
-          <div>
-            <p className="text-xs font-semibold uppercase tracking-[0.24em] text-white/65">Profile</p>
-            <h1 className="mt-3 font-display text-3xl leading-tight">Welcome back, {user?.username ?? "there"}</h1>
-            <p className="mt-2 max-w-2xl text-sm text-white/75">Manage the email address tied to this account and keep your password current.</p>
-          </div>
-          <div className="rounded-2xl border border-white/20 bg-white/10 px-4 py-3 text-sm backdrop-blur-sm">
-            <p className="font-semibold text-white">{roleLabel} account</p>
-            <p className="mt-1 text-white/70">{user?.email ?? "No email available"}</p>
-          </div>
-        </div>
-        <div className="mt-5 flex flex-wrap items-center gap-3">
-          <span className="rounded-full border border-white/20 bg-white/10 px-3 py-1 text-xs font-semibold uppercase tracking-[0.2em] text-white/80">
-            {roleLabel}
-          </span>
-          <button className="rounded-xl border border-white/20 bg-white/10 px-4 py-2 font-semibold text-white transition hover:bg-white/15" type="button" onClick={logout}>
-            Sign Out
-          </button>
-        </div>
+        <p className="text-xs font-semibold uppercase tracking-[0.24em] text-white/65">{roleLabel}</p>
+        <h1 className="mt-3 font-display text-3xl leading-tight">Welcome back, {user?.username ?? "there"}</h1>
       </article>
 
       <div className="grid gap-4 xl:grid-cols-2">
