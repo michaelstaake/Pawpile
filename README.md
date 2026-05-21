@@ -1,6 +1,6 @@
 # Pawpile
 
-Pawpile is a mostly vibe-coded self-hosted AI platform designed to run completely in Docker on Ubuntu. It gives you a web UI where you can manege devices, models, users, and auth to get a web chat or expose an OpenAI-compatible API to your local network.
+Pawpile is a mostly vibe-coded self-hosted AI platform designed to run completely in Docker on Ubuntu. It gives you a web UI where you can manage devices, models, users, and auth for web chat or to expose an OpenAI-compatible API to your local network.
 
 ## The Problem Pawpile Solves
 
@@ -38,13 +38,39 @@ cd Pawpile
 cp .env.example .env
 ```
 
-3. Run it! The base stack always starts the CPU inference runtime. Add one or more vendor runtime overlays depending on what hardware you have in the host. You can mix different hardware types.
+3. Run it. The base stack always starts the CPU inference runtime. Add one or more vendor runtime overlays depending on the hardware in the host. You can mix different hardware types.
 
-- CPU only: `docker compose up -d --build`
-- NVIDIA: `docker compose -f docker-compose.yml -f docker-compose.nvidia.yml up -d --build`
-- AMD (ROCm): `docker compose -f docker-compose.yml -f docker-compose.amd.yml up -d --build`
-- Intel (oneAPI / Level Zero): `docker compose -f docker-compose.yml -f docker-compose.intel.yml up -d --build`
-- Mixed vendor example with NVIDIA and AMD: `docker compose -f docker-compose.yml -f docker-compose.nvidia.yml -f docker-compose.amd.yml up -d --build`
+Choose one of these commands:
+
+CPU only:
+
+```bash
+docker compose up -d --build
+```
+
+NVIDIA:
+
+```bash
+docker compose -f docker-compose.yml -f docker-compose.nvidia.yml up -d --build
+```
+
+AMD (ROCm):
+
+```bash
+docker compose -f docker-compose.yml -f docker-compose.amd.yml up -d --build
+```
+
+Intel (oneAPI / Level Zero):
+
+```bash
+docker compose -f docker-compose.yml -f docker-compose.intel.yml up -d --build
+```
+
+Mixed vendor example with NVIDIA and AMD:
+
+```bash
+docker compose -f docker-compose.yml -f docker-compose.nvidia.yml -f docker-compose.amd.yml up -d --build
+```
 
 The backend stores its SQLite database in a Docker-managed volume. Model files stay in `models/` and runtime logs stay in `logs/` on the host.
 
@@ -56,7 +82,7 @@ The backend stores its SQLite database in a Docker-managed volume. Model files s
 
 7. On a new install you will be redirected to the setup page. Once you have created your initial admin user and selected a device and model to start with, you can use Pawpile.
 
-8. Next time you run Pawpile, run it without --build to speed up initialization. After setup is complete, Pawpile is typically ready within 30 seconds.
+8. Next time you run Pawpile, run it without --build to speed up initialization.
 
 ## Interacting with the AI Models
 
@@ -134,7 +160,7 @@ Use this in your OpenCode config file to connect to Pawpile's OpenAI-compatible 
 
 - **Device not detected**:
   - Check vendor tooling is installed on the host system:
-    - Ubuntu 26.04: `nvidia-smi`, `rocm-smi` (AMD), or `sycl-ls` (Intel Arc)
+    - Ubuntu 26.04: `nvidia-smi` (NVIDIA), `rocm-smi` (AMD), or `sycl-ls` (Intel Arc)
   - Ensure the appropriate GPU Docker runtime is configured and accessible to the environment.
   - Restart the application after installing drivers on the host.
 
