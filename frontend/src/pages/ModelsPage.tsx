@@ -1,5 +1,4 @@
 import { type DragEvent, type FormEvent, useEffect, useRef, useState } from "react";
-import Modal from "../components/ui/Modal";
 import { apiGet, apiPatch, apiPost, apiPostFormWithProgress } from "../lib/api";
 import { useAuth } from "../context/AuthContext";
 import { DeviceRecord, ModelRecord, ModelUpdateResponse, ScanResponse, UploadResponse } from "../lib/records";
@@ -360,8 +359,6 @@ export default function ModelsPage({ setupMode = false, onComplete }: ModelsPage
   const activeModels = models.filter((model) => model.activated).length;
   const uploadTotal = uploadProgress.total || selectedFile?.size || 0;
   const uploadPercent = uploadTotal > 0 ? Math.min(100, Math.round((uploadProgress.loaded / uploadTotal) * 100)) : 0;
-  const activeModel = activeModelId === null ? null : models.find((model) => model.id === activeModelId) ?? null;
-
   return (
     <section className="grid gap-4">
       <article className="rounded-2xl border border-black/10 bg-white/80 p-5 shadow-sm backdrop-blur">
@@ -403,7 +400,7 @@ export default function ModelsPage({ setupMode = false, onComplete }: ModelsPage
           {models.map((model) => (
             <article
               key={model.id}
-              className={`rounded-2xl border border-black/10 bg-[#fffdf7] p-4 transition-shadow ${draggedModelId === model.id ? "shadow-lg ring-2 ring-amber/60" : ""}`}
+              className={`rounded-2xl border border-black/10 bg-[#fffdf7] p-4 transition-shadow ${draggedModelId === model.id ? "shadow-lg ring-2 ring-amber/60" : ""} ${activeModelId === model.id ? "shadow-md ring-1 ring-black/10" : ""}`}
               draggable={!isReordering}
               onDragStart={() => handleDragStart(model.id)}
               onDragOver={handleDragOver}
@@ -419,8 +416,14 @@ export default function ModelsPage({ setupMode = false, onComplete }: ModelsPage
                   <span className={`rounded-full px-3 py-1 text-xs font-semibold ${model.activated ? "bg-emerald-100 text-emerald-800" : "bg-black/5 text-black/55"}`}>
                     {model.activated ? "Enabled" : "Disabled"}
                   </span>
-                  <button className="rounded-xl border border-black/15 bg-white px-4 py-2 text-sm font-semibold text-black" type="button" onClick={() => setActiveModelId(model.id)}>
-                    Configure
+                  <button
+                    className="rounded-xl border border-black/15 bg-white px-4 py-2 text-sm font-semibold text-black"
+                    type="button"
+                    aria-expanded={activeModelId === model.id}
+                    aria-controls={`model-config-${model.id}`}
+                    onClick={() => setActiveModelId((current) => (current === model.id ? null : model.id))}
+                  >
+                    {activeModelId === model.id ? "Hide Configuration" : "Configure"}
                   </button>
                 </div>
               </div>
@@ -432,96 +435,94 @@ export default function ModelsPage({ setupMode = false, onComplete }: ModelsPage
                   </p>
                 ) : null}
               </div>
+
+              {activeModelId === model.id ? (
+                <div id={`model-config-${model.id}`} className="mt-4 border-t border-black/10 pt-4">
+                  <div className="flex flex-wrap items-start justify-between gap-3">
+                    <div>
+                      <p className="text-xs font-semibold uppercase tracking-[0.2em] text-black/45">Model Settings</p>
+                      <h4 className="mt-2 font-display text-lg">{model.alias}</h4>
+                      <p className="mt-1 text-sm text-black/70">{model.file_name}</p>
+                    </div>
+                    <button className="rounded-xl border border-black/15 bg-white px-4 py-2 text-sm font-semibold text-black" type="button" onClick={() => setActiveModelId(null)}>
+                      Collapse
+                    </button>
+                  </div>
+
+                  <div className="mt-5 grid gap-3 md:grid-cols-2">
+                    <label className="grid gap-1 text-sm text-black/70">
+                      Name
+                      <input className="rounded-xl border border-black/15 bg-white px-3 py-2 text-sm" value={model.alias} onChange={(event) => updateModelDraft(model.id, { alias: event.target.value })} />
+                    </label>
+                    <label className="flex items-center gap-2 rounded-xl border border-black/10 bg-white px-3 py-2 text-sm text-black/70 md:self-end">
+                      <input type="checkbox" checked={model.activated} onChange={(event) => updateModelDraft(model.id, { activated: event.target.checked })} />
+                      Enabled
+                    </label>
+                    <label className="flex items-center gap-2 rounded-xl border border-black/10 bg-white px-3 py-2 text-sm text-black/70 md:self-end">
+                      <input type="checkbox" checked={model.tool_calling_enabled} onChange={(event) => updateModelDraft(model.id, { tool_calling_enabled: event.target.checked })} />
+                      Tool Calling Enabled
+                    </label>
+                    <label className="grid gap-1 text-sm text-black/70 md:col-span-2">
+                      Description
+                      <input className="rounded-xl border border-black/15 bg-white px-3 py-2 text-sm" value={model.description} onChange={(event) => updateModelDraft(model.id, { description: event.target.value })} />
+                    </label>
+                    <label className="grid gap-1 text-sm text-black/70">
+                      Context Length
+                      <input className="rounded-xl border border-black/15 bg-white px-3 py-2 text-sm" type="number" min={256} value={model.context_length} onChange={(event) => updateModelDraft(model.id, { context_length: Number(event.target.value) || 256 })} />
+                    </label>
+                    <label className="grid gap-1 text-sm text-black/70">
+                      Threads
+                      <input className="rounded-xl border border-black/15 bg-white px-3 py-2 text-sm" type="number" min={1} value={model.threads} onChange={(event) => updateModelDraft(model.id, { threads: Number(event.target.value) || 1 })} />
+                    </label>
+                    <label className="grid gap-1 text-sm text-black/70">
+                      GPU Layers
+                      <input className="rounded-xl border border-black/15 bg-white px-3 py-2 text-sm" type="number" value={model.gpu_layers} onChange={(event) => updateModelDraft(model.id, { gpu_layers: Number(event.target.value) || 0 })} />
+                    </label>
+                    <label className="grid gap-1 text-sm text-black/70">
+                      Assignment Mode
+                      <select className="rounded-xl border border-black/15 bg-white px-3 py-2 text-sm" value={model.assignment_mode} onChange={(event) => updateModelDraft(model.id, { assignment_mode: event.target.value, pinned_device_id: event.target.value === "pinned" ? model.pinned_device_id : null })}>
+                        {ASSIGNMENT_MODE_OPTIONS.map((option) => (
+                          <option key={option.value} value={option.value}>
+                            {option.label}
+                          </option>
+                        ))}
+                      </select>
+                    </label>
+                  </div>
+
+                  <label className="mt-3 grid gap-1 text-sm text-black/70">
+                    Pinned Device
+                    <select className="rounded-xl border border-black/15 bg-white px-3 py-2 text-sm disabled:bg-black/5" value={model.pinned_device_id ?? ""} onChange={(event) => updateModelDraft(model.id, { pinned_device_id: event.target.value ? Number(event.target.value) : null })} disabled={model.assignment_mode !== "pinned"}>
+                      <option value="">Choose a device</option>
+                      {devices.filter((device) => device.enabled).map((device) => (
+                        <option key={device.id} value={device.id}>
+                          {device.name} ({device.vendor})
+                        </option>
+                      ))}
+                    </select>
+                  </label>
+
+                  <label className="mt-3 grid gap-1 text-sm text-black/70">
+                    System Prompt
+                    <textarea className="min-h-24 rounded-xl border border-black/15 bg-white px-3 py-2 text-sm" value={model.system_prompt} onChange={(event) => updateModelDraft(model.id, { system_prompt: event.target.value })} />
+                  </label>
+
+                  <label className="mt-3 grid gap-1 text-sm text-black/70">
+                    Chat Template
+                    <textarea className="min-h-24 rounded-xl border border-black/15 bg-white px-3 py-2 text-sm" value={model.chat_template} onChange={(event) => updateModelDraft(model.id, { chat_template: event.target.value })} />
+                  </label>
+
+                  <div className="mt-4 flex flex-wrap items-center justify-between gap-3 border-t border-black/10 pt-4">
+                    <p className="text-sm text-black/55">
+                      {isReordering ? "Saving order..." : savingModelIds.includes(model.id) ? "Saving settings..." : pendingModelIds.includes(model.id) ? "Saving changes..." : "Changes save automatically."}
+                    </p>
+                  </div>
+                </div>
+              ) : null}
             </article>
           ))}
           {models.length === 0 ? <p className="rounded-2xl border border-dashed border-black/15 bg-sand/60 px-4 py-6 text-sm text-black/60">No models registered yet.</p> : null}
         </div>
-
-        {activeModel ? (
-          <Modal open={!!activeModel} onClose={() => setActiveModelId(null)} labelledBy="model-config-title" panelClassName="max-h-[min(92vh,960px)] max-w-5xl">
-            <article className="max-h-[min(92vh,960px)] overflow-y-auto p-5 sm:p-6">
-              <div className="flex flex-wrap items-start justify-between gap-3">
-                <div>
-                  <p className="text-xs font-semibold uppercase tracking-[0.2em] text-black/45">Model Settings</p>
-                  <h3 id="model-config-title" className="mt-2 font-display text-xl">{activeModel.alias}</h3>
-                  <p className="mt-1 text-sm text-black/70">{activeModel.file_name}</p>
-                </div>
-                <button className="rounded-xl border border-black/15 bg-white px-4 py-2 text-sm font-semibold text-black" type="button" onClick={() => setActiveModelId(null)}>
-                  Close
-                </button>
-              </div>
-
-              <div className="mt-5 grid gap-3 md:grid-cols-2">
-                <label className="grid gap-1 text-sm text-black/70">
-                  Name
-                  <input className="rounded-xl border border-black/15 bg-white px-3 py-2 text-sm" value={activeModel.alias} onChange={(event) => updateModelDraft(activeModel.id, { alias: event.target.value })} />
-                </label>
-                <label className="flex items-center gap-2 rounded-xl border border-black/10 bg-white px-3 py-2 text-sm text-black/70 md:self-end">
-                  <input type="checkbox" checked={activeModel.activated} onChange={(event) => updateModelDraft(activeModel.id, { activated: event.target.checked })} />
-                  Enabled
-                </label>
-                <label className="flex items-center gap-2 rounded-xl border border-black/10 bg-white px-3 py-2 text-sm text-black/70 md:self-end">
-                  <input type="checkbox" checked={activeModel.tool_calling_enabled} onChange={(event) => updateModelDraft(activeModel.id, { tool_calling_enabled: event.target.checked })} />
-                  Tool Calling Enabled
-                </label>
-                <label className="grid gap-1 text-sm text-black/70 md:col-span-2">
-                  Description
-                  <input className="rounded-xl border border-black/15 bg-white px-3 py-2 text-sm" value={activeModel.description} onChange={(event) => updateModelDraft(activeModel.id, { description: event.target.value })} />
-                </label>
-                <label className="grid gap-1 text-sm text-black/70">
-                  Context Length
-                  <input className="rounded-xl border border-black/15 bg-white px-3 py-2 text-sm" type="number" min={256} value={activeModel.context_length} onChange={(event) => updateModelDraft(activeModel.id, { context_length: Number(event.target.value) || 256 })} />
-                </label>
-                <label className="grid gap-1 text-sm text-black/70">
-                  Threads
-                  <input className="rounded-xl border border-black/15 bg-white px-3 py-2 text-sm" type="number" min={1} value={activeModel.threads} onChange={(event) => updateModelDraft(activeModel.id, { threads: Number(event.target.value) || 1 })} />
-                </label>
-                <label className="grid gap-1 text-sm text-black/70">
-                  GPU Layers
-                  <input className="rounded-xl border border-black/15 bg-white px-3 py-2 text-sm" type="number" value={activeModel.gpu_layers} onChange={(event) => updateModelDraft(activeModel.id, { gpu_layers: Number(event.target.value) || 0 })} />
-                </label>
-                <label className="grid gap-1 text-sm text-black/70">
-                  Assignment Mode
-                  <select className="rounded-xl border border-black/15 bg-white px-3 py-2 text-sm" value={activeModel.assignment_mode} onChange={(event) => updateModelDraft(activeModel.id, { assignment_mode: event.target.value, pinned_device_id: event.target.value === "pinned" ? activeModel.pinned_device_id : null })}>
-                    {ASSIGNMENT_MODE_OPTIONS.map((option) => (
-                      <option key={option.value} value={option.value}>
-                        {option.label}
-                      </option>
-                    ))}
-                  </select>
-                </label>
-              </div>
-
-              <label className="mt-3 grid gap-1 text-sm text-black/70">
-                Pinned Device
-                <select className="rounded-xl border border-black/15 bg-white px-3 py-2 text-sm disabled:bg-black/5" value={activeModel.pinned_device_id ?? ""} onChange={(event) => updateModelDraft(activeModel.id, { pinned_device_id: event.target.value ? Number(event.target.value) : null })} disabled={activeModel.assignment_mode !== "pinned"}>
-                  <option value="">Choose a device</option>
-                  {devices.filter((device) => device.enabled).map((device) => (
-                    <option key={device.id} value={device.id}>
-                      {device.name} ({device.vendor})
-                    </option>
-                  ))}
-                </select>
-              </label>
-
-              <label className="mt-3 grid gap-1 text-sm text-black/70">
-                System Prompt
-                <textarea className="min-h-24 rounded-xl border border-black/15 bg-white px-3 py-2 text-sm" value={activeModel.system_prompt} onChange={(event) => updateModelDraft(activeModel.id, { system_prompt: event.target.value })} />
-              </label>
-
-              <label className="mt-3 grid gap-1 text-sm text-black/70">
-                Chat Template
-                <textarea className="min-h-24 rounded-xl border border-black/15 bg-white px-3 py-2 text-sm" value={activeModel.chat_template} onChange={(event) => updateModelDraft(activeModel.id, { chat_template: event.target.value })} />
-              </label>
-
-              <div className="mt-4 flex flex-wrap items-center justify-between gap-3 border-t border-black/10 pt-4">
-                <p className="text-sm text-black/55">
-                  {isReordering ? "Saving order..." : savingModelIds.includes(activeModel.id) ? "Saving settings..." : pendingModelIds.includes(activeModel.id) ? "Saving changes..." : "Changes save automatically."}
-                </p>
-              </div>
-            </article>
-          </Modal>
-        ) : null}
 
         {setupMode ? (
           <div className="mt-5 flex items-center justify-between gap-3 rounded-2xl border border-black/10 bg-sand/60 px-4 py-4 text-sm text-black/70">
