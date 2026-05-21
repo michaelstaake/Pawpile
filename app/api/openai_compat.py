@@ -17,7 +17,7 @@ router = APIRouter(prefix="/v1", tags=["openai"])
 
 
 @router.get("/models")
-def v1_models(_: User | None = Depends(require_api_access), db: Session = Depends(get_db)) -> dict:
+def v1_models(_: User = Depends(require_api_access), db: Session = Depends(get_db)) -> dict:
     models = (
         db.query(ModelConfig)
         .filter(ModelConfig.activated.is_(True))
@@ -39,7 +39,7 @@ def v1_models(_: User | None = Depends(require_api_access), db: Session = Depend
 
 
 @router.post("/chat/completions")
-async def v1_chat_completions(payload: OpenAIChatRequest, _: User | None = Depends(require_api_access), db: Session = Depends(get_db)):
+async def v1_chat_completions(payload: OpenAIChatRequest, _: User = Depends(require_api_access), db: Session = Depends(get_db)):
     inference: InferenceManager = router.inference_manager  # type: ignore[attr-defined]
     model = (
         db.query(ModelConfig)

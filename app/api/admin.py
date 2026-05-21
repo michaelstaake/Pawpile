@@ -16,7 +16,6 @@ router = APIRouter(prefix="/api/admin", tags=["admin"])
 def get_settings(_: User = Depends(get_admin_user), db: Session = Depends(get_db)) -> AppSettingsResponse:
     settings = get_or_create_app_settings(db)
     return AppSettingsResponse(
-        allow_anonymous_chat=settings.allow_anonymous_chat,
         users_can_register=settings.users_can_register,
         auto_load_enabled_models_on_startup=settings.auto_load_enabled_models_on_startup,
         sitename=settings.sitename,
@@ -27,8 +26,6 @@ def get_settings(_: User = Depends(get_admin_user), db: Session = Depends(get_db
 def update_settings(payload: AppSettingsUpdateRequest, _: User = Depends(get_admin_user), db: Session = Depends(get_db)) -> AppSettingsResponse:
     settings = get_or_create_app_settings(db)
 
-    if payload.allow_anonymous_chat is not None:
-        settings.allow_anonymous_chat = payload.allow_anonymous_chat
     if payload.users_can_register is not None:
         settings.users_can_register = payload.users_can_register
     if payload.auto_load_enabled_models_on_startup is not None:
@@ -40,7 +37,6 @@ def update_settings(payload: AppSettingsUpdateRequest, _: User = Depends(get_adm
     db.commit()
     db.refresh(settings)
     return AppSettingsResponse(
-        allow_anonymous_chat=settings.allow_anonymous_chat,
         users_can_register=settings.users_can_register,
         auto_load_enabled_models_on_startup=settings.auto_load_enabled_models_on_startup,
         sitename=settings.sitename,

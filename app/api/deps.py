@@ -46,8 +46,5 @@ def get_admin_user(current_user: User = Depends(get_current_user)) -> User:
     return current_user
 
 
-def require_api_access(credentials: HTTPAuthorizationCredentials | None = Depends(bearer_scheme), db: Session = Depends(get_db)) -> User | None:
-    settings = get_settings()
-    if not settings.openai_api_auth_required:
-        return None
+def require_api_access(credentials: HTTPAuthorizationCredentials | None = Depends(bearer_scheme), db: Session = Depends(get_db)) -> User:
     return get_current_user(credentials, db)

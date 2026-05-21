@@ -10,7 +10,6 @@ type AuthContextValue = {
   bootstrapError: string | null;
   isBootstrapping: boolean;
   isAuthenticating: boolean;
-  allowAnonymousChat: boolean;
   usersCanRegister: boolean;
   sitename: string;
   refreshAuthState: () => Promise<void>;
@@ -31,7 +30,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [bootstrapError, setBootstrapError] = useState<string | null>(null);
   const [isBootstrapping, setIsBootstrapping] = useState(true);
   const [isAuthenticating, setIsAuthenticating] = useState(false);
-  const [allowAnonymousChat, setAllowAnonymousChat] = useState(true);
   const [usersCanRegister, setUsersCanRegister] = useState(false);
   const [sitename, setSitename] = useState("Pawpile");
 
@@ -56,7 +54,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       setBootstrapError(null);
       setSetupStatus(bootstrap);
       setRequiresSetup(bootstrap.requires_setup);
-      setAllowAnonymousChat(bootstrap.allow_anonymous_chat);
       setUsersCanRegister(bootstrap.users_can_register);
       setSitename(bootstrap.sitename || "Pawpile");
 
@@ -78,7 +75,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       setUser(null);
       setSetupStatus(null);
       setRequiresSetup(false);
-      setAllowAnonymousChat(true);
       setUsersCanRegister(false);
       setSitename("Pawpile");
       setBootstrapError(error instanceof Error ? error.message : "Unable to load installation state");
@@ -116,7 +112,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       setUser(currentUser);
       setSetupStatus(bootstrap);
       setRequiresSetup(bootstrap.requires_setup);
-      setAllowAnonymousChat(bootstrap.allow_anonymous_chat);
       setUsersCanRegister(bootstrap.users_can_register);
       setSitename(bootstrap.sitename || "Pawpile");
       setBootstrapError(null);
@@ -169,7 +164,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         bootstrapError,
         isBootstrapping,
         isAuthenticating,
-        allowAnonymousChat,
         usersCanRegister,
         sitename,
         refreshAuthState,

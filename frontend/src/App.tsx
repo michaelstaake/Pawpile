@@ -55,7 +55,7 @@ function RequireUser({ children }: { children: JSX.Element }) {
 }
 
 function HomeRoute() {
-  const { allowAnonymousChat, isBootstrapping, requiresSetup, user } = useAuth();
+  const { isBootstrapping, requiresSetup, user } = useAuth();
 
   if (isBootstrapping) {
     return <section className="rounded-2xl border border-black/10 bg-white/80 p-5 text-sm text-black/60 shadow-sm">Loading your workspace...</section>;
@@ -63,7 +63,7 @@ function HomeRoute() {
   if (requiresSetup) {
     return <Navigate to="/setup" replace />;
   }
-  if (!allowAnonymousChat && !user) {
+  if (!user) {
     return <Navigate to="/login" replace />;
   }
   return <ChatPage />;

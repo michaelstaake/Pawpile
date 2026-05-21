@@ -14,7 +14,6 @@ const settingsLinks = [
 export default function ConfigurationPage() {
   const { refreshAuthState, token } = useAuth();
   const [settings, setSettings] = useState<AppSettingsRecord>({
-    allow_anonymous_chat: true,
     users_can_register: false,
     auto_load_enabled_models_on_startup: false,
     sitename: "Pawpile",
@@ -157,21 +156,6 @@ export default function ConfigurationPage() {
         <h2 className="mt-2 font-display text-xl">Access control</h2>
 
         <div className="mt-5 grid gap-3">
-          <label className="flex items-start justify-between gap-4 rounded-2xl border border-black/10 bg-[#fffdf7] px-4 py-4">
-            <div>
-              <div className="text-sm font-semibold text-black">Allow anonymous chat</div>
-              <p className="mt-1 text-sm text-black/65">
-                If enabled, users can access the web UI and use or view chat without logging in. If disabled, the home page redirects to login for signed-out visitors.
-              </p>
-            </div>
-            <input
-              type="checkbox"
-              checked={settings.allow_anonymous_chat}
-              disabled={isLoading || isSaving === "allow_anonymous_chat"}
-              onChange={(event) => void updateSetting("allow_anonymous_chat", event.target.checked)}
-            />
-          </label>
-
           <label className="flex items-start justify-between gap-4 rounded-2xl border border-black/10 bg-[#fffdf7] px-4 py-4">
             <div>
               <div className="text-sm font-semibold text-black">Users can register</div>
