@@ -42,25 +42,25 @@ cp .env.example .env
 
 Choose one of these commands:
 
-#### CPU only:
+#### CPU:
 
 ```bash
 docker compose up -d --build
 ```
 
-#### NVIDIA:
+#### CPU + NVIDIA:
 
 ```bash
 docker compose -f docker-compose.yml -f docker-compose.nvidia.yml up -d --build
 ```
 
-#### AMD (ROCm):
+#### CPU + AMD:
 
 ```bash
 docker compose -f docker-compose.yml -f docker-compose.amd.yml up -d --build
 ```
 
-#### Intel (oneAPI / Level Zero):
+#### CPU + Intel:
 
 ```bash
 docker compose -f docker-compose.yml -f docker-compose.intel.yml up -d --build
