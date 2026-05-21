@@ -18,7 +18,7 @@ If it works on other operating systems, awesome, but supporting that is outside 
 
 - **NVIDIA**: CUDA 11.8+ and cuDNN, available on Linux
 - **AMD ROCm**: Rrequires `/dev/kfd` and `/dev/dri` access
-- **Intel Arc**: Requires Intel GPU drivers
+- **Intel Arc (discrete, A-series / Alchemist)**: Requires the `xe` kernel driver (default on Ubuntu 26.04 with kernel 6.11+) and `/dev/dri` access. Note: `xe` is the driver for discrete Arc GPUs — `i915` is for Intel integrated graphics and is unrelated.
 
 ## Features
 
@@ -112,8 +112,10 @@ Pawpile automatically detects devices from the running runtimes and routes model
 You can combine overlay files. Pawpile now routes models to the inference runtime that matches the selected device vendor.
 
 AMD and Intel overrides require the corresponding kernel modules
-loaded (`amdgpu` and `i915` respectively) and pass `/dev/kfd` / `/dev/dri` into the
-inference container.
+loaded (`amdgpu` and `xe` respectively) and pass `/dev/kfd` / `/dev/dri` into the
+inference container. On Ubuntu 26.04 with kernel 6.11+, `xe` is loaded by default
+for Arc Alchemist (A-series) discrete GPUs. Verify with `lsmod | grep xe` on the host
+before starting the Intel overlay.
 
 To target a specific AMD GPU architecture and shrink build time, override the
 `AMDGPU_TARGETS` build arg, e.g. `--build-arg AMDGPU_TARGETS=gfx1100` for an
