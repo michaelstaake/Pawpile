@@ -202,7 +202,7 @@ export default function ConfigurationPage() {
 
       <article className="rounded-2xl border border-black/10 bg-white/80 p-5 shadow-sm backdrop-blur">
         <p className="text-xs font-semibold uppercase tracking-[0.24em] text-black/45">About</p>
-        <h2 className="mt-2 font-display text-xl">Pawpile Version v{__APP_VERSION__}</h2>
+        <h2 className="mt-2 font-display text-xl">Pawpile v{__APP_VERSION__}</h2>
         <div className="mt-4 text-sm text-black/65">
           <p className="mt-2">
             Learn more, get help, and contribute on {" "}
