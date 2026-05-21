@@ -36,7 +36,7 @@ RUN git clone --depth 1 https://github.com/ggerganov/llama.cpp.git /opt/llama.cp
         -DCMAKE_BUILD_TYPE=Release \
         -DGGML_SYCL_F16=ON \
         -DCMAKE_CXX_FLAGS='-Wno-error=maybe-uninitialized -Wno-error=unused-variable' && \
-    cmake --build /opt/llama.cpp/build --config Release --target llama-server -j$(nproc)"
+    cmake --build /opt/llama.cpp/build --config Release --target llama-server -j2"
 
 COPY app ./app
 

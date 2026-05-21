@@ -39,7 +39,7 @@ RUN git clone --depth 1 https://github.com/ggerganov/llama.cpp.git /opt/llama.cp
         -DCMAKE_CXX_COMPILER=/opt/rocm/llvm/bin/clang++ \
         -DCMAKE_BUILD_TYPE=Release \
         $( [ -n "$AMDGPU_TARGETS" ] && echo "-DGPU_TARGETS=$AMDGPU_TARGETS" ) \
-    && cmake --build /opt/llama.cpp/build --config Release --target llama-server -j$(nproc)
+    && cmake --build /opt/llama.cpp/build --config Release --target llama-server -j2
 
 COPY app ./app
 
