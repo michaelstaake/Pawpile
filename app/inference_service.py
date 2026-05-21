@@ -2,6 +2,7 @@ import asyncio
 import logging
 import os
 import subprocess
+import time
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -100,8 +101,9 @@ class InferenceRuntime:
 
         url = f"http://{self.settings.llama_host}:{running.port}/health"
         timeout = self.settings.llama_health_timeout_seconds
+        deadline = time.monotonic() + max(timeout, self.settings.llama_startup_timeout_seconds)
 
-        for _ in range(20):
+        while time.monotonic() < deadline:
             try:
                 async with httpx.AsyncClient(timeout=timeout) as client:
                     response = await client.get(url)

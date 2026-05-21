@@ -8,6 +8,7 @@ services:
       INFERENCE_SERVICE_URL: http://inference-cpu:8100
       INFERENCE_RUNTIME_URLS: cpu=http://inference-cpu:8100,nvidia=http://inference-nvidia:8100,amd=http://inference-amd:8100,intel=http://inference-intel:8100
       SUPPORTED_DEVICES: ""
+      LLAMA_STARTUP_TIMEOUT_SECONDS: ${LLAMA_STARTUP_TIMEOUT_SECONDS:-120}
     volumes:
       - ./models:/app/models
       - pawpile-data:/app/data
@@ -45,6 +46,7 @@ services:
     environment:
       SUPPORTED_DEVICES: cpu
       LLAMA_SERVER_PATH: /opt/llama.cpp/build/bin/llama-server
+      LLAMA_STARTUP_TIMEOUT_SECONDS: ${LLAMA_STARTUP_TIMEOUT_SECONDS:-120}
     volumes:
       - ./models:/app/models
       - ./logs:/app/logs

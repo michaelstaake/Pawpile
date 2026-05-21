@@ -7,6 +7,7 @@ services:
     environment:
       SUPPORTED_DEVICES: amd
       LLAMA_SERVER_PATH: /opt/llama.cpp/build/bin/llama-server
+      LLAMA_STARTUP_TIMEOUT_SECONDS: ${LLAMA_STARTUP_TIMEOUT_SECONDS:-120}
     volumes:
       - ./models:/app/models
       - ./logs:/app/logs

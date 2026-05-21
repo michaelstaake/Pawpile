@@ -34,6 +34,7 @@ class Settings(BaseSettings):
     llama_host: str = "127.0.0.1"
     llama_base_port: int = 9100
     llama_health_timeout_seconds: int = 5
+    llama_startup_timeout_seconds: int = 120
     llama_request_timeout_seconds: int = 300
 
     default_context_length: int = 8192

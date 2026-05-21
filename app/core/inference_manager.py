@@ -1,4 +1,5 @@
 import asyncio
+import time
 import logging
 from dataclasses import dataclass
 import json
@@ -105,8 +106,9 @@ class InferenceManager:
 
         url = f"{running.base_url}/runtime/models/{model_id}/health"
         timeout = self.settings.llama_health_timeout_seconds
+        deadline = time.monotonic() + max(timeout, self.settings.llama_startup_timeout_seconds)
 
-        for _ in range(20):
+        while time.monotonic() < deadline:
             try:
                 async with httpx.AsyncClient(timeout=timeout) as client:
                     response = await client.get(url)
