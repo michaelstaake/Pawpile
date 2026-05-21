@@ -17,8 +17,8 @@ If it works on other operating systems, awesome, but supporting that is outside 
 ### Hardware Acceleration (Optional)
 
 - **NVIDIA**: CUDA 11.8+ and cuDNN, available on Linux
-- **AMD ROCm**: Rrequires `/dev/kfd` and `/dev/dri` access
-- **Intel Arc (discrete, A-series / Alchemist)**: Requires the `xe` kernel driver (default on Ubuntu 26.04 with kernel 6.11+) and `/dev/dri` access. Note: `xe` is the driver for discrete Arc GPUs — `i915` is for Intel integrated graphics and is unrelated.
+- **AMD**: ROCm - requires `/dev/kfd` and `/dev/dri` access
+- **Intel Arc**: Requires the `xe` kernel driver (default on Ubuntu 26.04 with kernel 6.11+) and `/dev/dri` access. Note: `xe` is the driver for Arc GPUs — `i915` is for Intel integrated graphics and is unrelated.
 
 ## Features
 
