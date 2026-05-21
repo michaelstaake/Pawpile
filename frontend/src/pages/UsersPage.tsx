@@ -1,4 +1,5 @@
 import { FormEvent, useEffect, useState } from "react";
+import Modal from "../components/ui/Modal";
 import { apiGet, apiPatch, apiPost } from "../lib/api";
 import { useAuth } from "../context/AuthContext";
 import { UserRecord, UserUpdateResponse } from "../lib/records";
@@ -15,6 +16,7 @@ export default function UsersPage() {
   const { token } = useAuth();
   const [users, setUsers] = useState<UserRecord[]>([]);
   const [newUser, setNewUser] = useState<CreateUserPayload>({ username: "", email: "", password: "", is_admin: false, is_active: true });
+  const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [isCreatingUser, setIsCreatingUser] = useState(false);
   const [savingUserId, setSavingUserId] = useState<number | null>(null);
@@ -58,6 +60,7 @@ export default function UsersPage() {
       const response = await apiPost<CreateUserPayload, UserUpdateResponse>("/api/admin/users", newUser, token);
       setUsers((current) => [...current, { ...response.user, password: "" }].sort((left, right) => left.username.localeCompare(right.username)));
       setNewUser({ username: "", email: "", password: "", is_admin: false, is_active: true });
+      setIsCreateModalOpen(false);
       setSuccessMessage(`Created user ${response.user.username}.`);
     } catch (error) {
       setErrorMessage(error instanceof Error ? error.message : "User creation failed");
@@ -96,50 +99,53 @@ export default function UsersPage() {
     }
   }
 
+  const adminCount = users.filter((user) => user.is_admin).length;
+  const activeCount = users.filter((user) => user.is_active).length;
+
   return (
     <section className="grid gap-4">
-      <article className="rounded-2xl border border-black/10 bg-white/80 p-5 shadow-sm backdrop-blur">
-        <div className="flex flex-wrap items-start justify-between gap-4">
-          <div>
-            <h2 className="font-display text-xl">Users</h2>
+      <article className="overflow-hidden rounded-3xl border border-black/10 bg-[linear-gradient(140deg,rgba(17,24,39,0.96),rgba(53,83,56,0.88)_55%,rgba(245,158,11,0.74))] p-6 text-white shadow-sm">
+        <div className="flex flex-wrap items-start justify-between gap-5">
+          <div className="max-w-2xl">
+            <p className="text-xs font-semibold uppercase tracking-[0.24em] text-white/65">Directory</p>
+            <h1 className="mt-3 font-display text-3xl leading-tight">Manage who can sign in and what level of access they keep.</h1>
+            <p className="mt-3 text-sm text-white/78">Create users in a dedicated modal, then edit roles and account status directly from the roster.</p>
           </div>
+          <button className="rounded-xl bg-white px-4 py-3 text-sm font-semibold text-ink" type="button" onClick={() => setIsCreateModalOpen(true)}>
+            Add user
+          </button>
         </div>
 
-        {errorMessage ? <p className="mt-4 rounded-xl border border-rose-200 bg-rose-50 px-3 py-2 text-sm text-rose-700">{errorMessage}</p> : null}
-        {successMessage ? <p className="mt-4 rounded-xl border border-emerald-200 bg-emerald-50 px-3 py-2 text-sm text-emerald-700">{successMessage}</p> : null}
+        <div className="mt-6 grid gap-3 sm:grid-cols-3">
+          <div className="rounded-2xl border border-white/15 bg-white/10 p-4 backdrop-blur">
+            <p className="text-xs uppercase tracking-[0.24em] text-white/60">Total users</p>
+            <p className="mt-3 font-display text-3xl">{users.length}</p>
+          </div>
+          <div className="rounded-2xl border border-white/15 bg-white/10 p-4 backdrop-blur">
+            <p className="text-xs uppercase tracking-[0.24em] text-white/60">Admins</p>
+            <p className="mt-3 font-display text-3xl">{adminCount}</p>
+          </div>
+          <div className="rounded-2xl border border-white/15 bg-white/10 p-4 backdrop-blur">
+            <p className="text-xs uppercase tracking-[0.24em] text-white/60">Active accounts</p>
+            <p className="mt-3 font-display text-3xl">{activeCount}</p>
+          </div>
+        </div>
+      </article>
 
-        <form className="mt-5 grid gap-3 rounded-2xl border border-dashed border-black/15 bg-sand/70 p-4" onSubmit={handleCreateUser}>
-          <h3 className="font-display text-base">Create User</h3>
-          <div className="grid gap-3 md:grid-cols-2">
-            <label className="grid gap-1 text-sm text-black/70">
-              Username
-              <input className="rounded-xl border border-black/15 bg-white px-3 py-2 text-sm" value={newUser.username} onChange={(event) => setNewUser((current) => ({ ...current, username: event.target.value }))} />
-            </label>
-            <label className="grid gap-1 text-sm text-black/70">
-              Email
-              <input className="rounded-xl border border-black/15 bg-white px-3 py-2 text-sm" type="email" value={newUser.email} onChange={(event) => setNewUser((current) => ({ ...current, email: event.target.value }))} />
-            </label>
-            <label className="grid gap-1 text-sm text-black/70">
-              Password
-              <input className="rounded-xl border border-black/15 bg-white px-3 py-2 text-sm" type="password" value={newUser.password} onChange={(event) => setNewUser((current) => ({ ...current, password: event.target.value }))} />
-            </label>
-            <div className="flex flex-wrap gap-3 rounded-xl border border-black/10 bg-white px-3 py-2 text-sm text-black/70 md:self-end">
-              <label className="flex items-center gap-2">
-                <input type="checkbox" checked={newUser.is_admin} onChange={(event) => setNewUser((current) => ({ ...current, is_admin: event.target.checked }))} />
-                Admin
-              </label>
-              <label className="flex items-center gap-2">
-                <input type="checkbox" checked={newUser.is_active} onChange={(event) => setNewUser((current) => ({ ...current, is_active: event.target.checked }))} />
-                Active
-              </label>
-            </div>
-          </div>
+      {errorMessage ? <p className="rounded-xl border border-rose-200 bg-rose-50 px-3 py-2 text-sm text-rose-700">{errorMessage}</p> : null}
+      {successMessage ? <p className="rounded-xl border border-emerald-200 bg-emerald-50 px-3 py-2 text-sm text-emerald-700">{successMessage}</p> : null}
+
+      <article className="rounded-3xl border border-black/10 bg-white/85 p-5 shadow-sm backdrop-blur">
+        <div className="flex flex-wrap items-start justify-between gap-4">
           <div>
-            <button className="rounded-xl bg-ink px-4 py-2 text-sm font-semibold text-white disabled:cursor-not-allowed disabled:opacity-60" type="submit" disabled={isCreatingUser}>
-              {isCreatingUser ? "Creating..." : "Create User"}
-            </button>
+            <p className="text-xs font-semibold uppercase tracking-[0.24em] text-black/45">Roster</p>
+            <h2 className="mt-2 font-display text-2xl">Users</h2>
+            <p className="mt-2 text-sm text-black/70">Update account details in place. Password fields stay empty until you intentionally reset one.</p>
           </div>
-        </form>
+          <button className="rounded-xl border border-black/15 bg-white px-4 py-3 text-sm font-semibold text-black" type="button" onClick={() => setIsCreateModalOpen(true)}>
+            Add user
+          </button>
+        </div>
 
         <div className="mt-5 space-y-4">
           {users.map((user) => (
@@ -151,6 +157,11 @@ export default function UsersPage() {
                 void handleSaveUser(user);
               }}
             >
+              <div className="mb-4 flex flex-wrap items-center gap-2">
+                <h3 className="font-display text-lg text-black">{user.username}</h3>
+                {user.is_admin ? <span className="rounded-full bg-amber-100 px-2.5 py-1 text-xs font-semibold text-amber-800">Admin</span> : null}
+                {!user.is_active ? <span className="rounded-full bg-black/10 px-2.5 py-1 text-xs font-semibold text-black/60">Inactive</span> : null}
+              </div>
               <div className="grid gap-3 md:grid-cols-2">
                 <label className="grid gap-1 text-sm text-black/70">
                   Username
@@ -182,9 +193,60 @@ export default function UsersPage() {
               </div>
             </form>
           ))}
-          {users.length === 0 ? <p className="rounded-2xl border border-dashed border-black/15 bg-sand/60 px-4 py-6 text-sm text-black/60">No users created yet.</p> : null}
+          {isLoading ? <p className="rounded-2xl border border-black/10 bg-white px-4 py-6 text-sm text-black/60">Loading users...</p> : null}
+          {!isLoading && users.length === 0 ? <p className="rounded-2xl border border-dashed border-black/15 bg-sand/60 px-4 py-6 text-sm text-black/60">No users created yet.</p> : null}
         </div>
       </article>
+
+      <Modal open={isCreateModalOpen} onClose={() => setIsCreateModalOpen(false)} labelledBy="user-create-title" panelClassName="max-h-[min(92vh,860px)] max-w-3xl">
+        <article className="max-h-[min(92vh,860px)] overflow-y-auto p-5 sm:p-6">
+          <div className="flex flex-wrap items-start justify-between gap-3">
+            <div>
+              <p className="text-xs font-semibold uppercase tracking-[0.24em] text-black/45">Create</p>
+              <h2 id="user-create-title" className="mt-2 font-display text-2xl">Add user</h2>
+              <p className="mt-2 text-sm text-black/70">Create an account, then refine details later from the roster.</p>
+            </div>
+            <button className="rounded-xl border border-black/15 bg-white px-4 py-2 text-sm font-semibold text-black" type="button" onClick={() => setIsCreateModalOpen(false)}>
+              Close
+            </button>
+          </div>
+
+          <form className="mt-5 grid gap-3" onSubmit={handleCreateUser}>
+            <div className="grid gap-3 md:grid-cols-2">
+              <label className="grid gap-1 text-sm text-black/70">
+                Username
+                <input className="rounded-xl border border-black/15 bg-white px-3 py-2 text-sm" value={newUser.username} onChange={(event) => setNewUser((current) => ({ ...current, username: event.target.value }))} />
+              </label>
+              <label className="grid gap-1 text-sm text-black/70">
+                Email
+                <input className="rounded-xl border border-black/15 bg-white px-3 py-2 text-sm" type="email" value={newUser.email} onChange={(event) => setNewUser((current) => ({ ...current, email: event.target.value }))} />
+              </label>
+              <label className="grid gap-1 text-sm text-black/70 md:col-span-2">
+                Password
+                <input className="rounded-xl border border-black/15 bg-white px-3 py-2 text-sm" type="password" value={newUser.password} onChange={(event) => setNewUser((current) => ({ ...current, password: event.target.value }))} />
+              </label>
+              <div className="flex flex-wrap gap-3 rounded-xl border border-black/10 bg-white px-3 py-2 text-sm text-black/70 md:col-span-2">
+                <label className="flex items-center gap-2">
+                  <input type="checkbox" checked={newUser.is_admin} onChange={(event) => setNewUser((current) => ({ ...current, is_admin: event.target.checked }))} />
+                  Admin
+                </label>
+                <label className="flex items-center gap-2">
+                  <input type="checkbox" checked={newUser.is_active} onChange={(event) => setNewUser((current) => ({ ...current, is_active: event.target.checked }))} />
+                  Active
+                </label>
+              </div>
+            </div>
+            <div className="rounded-2xl border border-dashed border-black/15 bg-sand/60 p-4 text-sm text-black/65">
+              New users appear in the roster immediately after creation so you can refine role, email, or password reset details in place.
+            </div>
+            <div>
+              <button className="rounded-xl bg-ink px-4 py-2 text-sm font-semibold text-white disabled:cursor-not-allowed disabled:opacity-60" type="submit" disabled={isCreatingUser}>
+                {isCreatingUser ? "Creating..." : "Create User"}
+              </button>
+            </div>
+          </form>
+        </article>
+      </Modal>
     </section>
   );
 }
