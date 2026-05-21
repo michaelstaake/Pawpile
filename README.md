@@ -146,6 +146,10 @@ R9700. Pawpile forwards that value to llama.cpp's `GPU_TARGETS` build option.
 
 ## OpenAI Compatible Example
 
+OpenAI-compatible endpoints require authentication by default.
+Provide a valid bearer token, which can be either a JWT access token or an API key.
+To disable this behavior (not recommended), set OPENAI_API_AUTH_REQUIRED=false.
+
 ```bash
 curl http://localhost:8000/v1/chat/completions \
   -H "Authorization: Bearer YOUR_KEY_OR_JWT" \

@@ -9,6 +9,7 @@ services:
       INFERENCE_RUNTIME_URLS: cpu=http://inference-cpu:8100,nvidia=http://inference-nvidia:8100,amd=http://inference-amd:8100,intel=http://inference-intel:8100
       SUPPORTED_DEVICES: ""
       LLAMA_STARTUP_TIMEOUT_SECONDS: ${LLAMA_STARTUP_TIMEOUT_SECONDS:-120}
+      OPENAI_API_AUTH_REQUIRED: ${OPENAI_API_AUTH_REQUIRED:-true}
     volumes:
       - ./models:/app/models
       - pawpile-data:/app/data
