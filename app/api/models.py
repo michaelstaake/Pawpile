@@ -226,8 +226,10 @@ async def _resolve_device_for_model(db: Session, model: ModelConfig, inference: 
             )
         if device and model_size_mb > 0:
             metrics = memory_metrics.get(device.hardware_id, {})
+            total_mb = metrics.get("total_mb", 0)
             available_mb = metrics.get("available_mb", 0)
-            if available_mb > 0 and model_size_mb > available_mb:
+            # Only reject if we have valid total metrics (total=0 means metrics unavailable)
+            if total_mb > 0 and model_size_mb > available_mb:
                 raise HTTPException(
                     status_code=409,
                     detail=(
@@ -255,17 +257,29 @@ async def _resolve_device_for_model(db: Session, model: ModelConfig, inference: 
     # Try GPUs first
     if gpu_candidates:
         if model_size_mb > 0 and memory_metrics:
-            gpu_with_available = [
-                (gpu, memory_metrics.get(gpu.hardware_id, {}).get("available_mb", 0))
-                for gpu in gpu_candidates
-            ]
-            fitting = [(gpu, avail) for gpu, avail in gpu_with_available if avail >= model_size_mb]
+            # Separate into GPUs with valid metrics vs unknown (total=0 means metrics unavailable)
+            fitting: list[tuple[Device, int]] = []
+            unknown: list[Device] = []
+            for gpu in gpu_candidates:
+                metrics = memory_metrics.get(gpu.hardware_id, {})
+                total_mb = metrics.get("total_mb", 0)
+                available_mb = metrics.get("available_mb", 0)
+                if total_mb == 0:
+                    unknown.append(gpu)  # No metrics — treat as potentially compatible
+                elif available_mb >= model_size_mb:
+                    fitting.append((gpu, available_mb))
+
             if fitting:
+                # Pick the GPU with the most available VRAM
                 fitting.sort(key=lambda x: x[1], reverse=True)
                 return fitting[0][0]
-            # No GPU fits — fall through to CPU
+            if unknown:
+                # No metrics available for these GPUs — fall back to priority ordering
+                unknown.sort(key=lambda g: (g.priority, g.id))
+                return unknown[0]
+            # All GPUs have metrics but none fit — fall through to CPU
         else:
-            # No memory info available; pick best GPU by priority
+            # No memory info or model size unknown; pick best GPU by priority
             gpu_candidates.sort(key=lambda g: (g.priority, g.id))
             return gpu_candidates[0]
 
@@ -274,8 +288,9 @@ async def _resolve_device_for_model(db: Session, model: ModelConfig, inference: 
         cpu = sorted(cpu_candidates, key=lambda c: (c.priority, c.id))[0]
         if model_size_mb > 0 and memory_metrics:
             metrics = memory_metrics.get(cpu.hardware_id, {})
+            total_mb = metrics.get("total_mb", 0)
             available_mb = metrics.get("available_mb", 0)
-            if available_mb > 0 and model_size_mb > available_mb:
+            if total_mb > 0 and model_size_mb > available_mb:
                 if gpu_candidates:
                     best_gpu_avail = max(
                         memory_metrics.get(g.hardware_id, {}).get("available_mb", 0)
@@ -294,6 +309,20 @@ async def _resolve_device_for_model(db: Session, model: ModelConfig, inference: 
                     detail=f"Model requires ~{model_size_mb} MB but CPU only has {available_mb} MB available",
                 )
         return cpu
+
+    # GPUs exist but none fit and there is no CPU to fall back to
+    if gpu_candidates:
+        best_gpu_avail = max(
+            memory_metrics.get(g.hardware_id, {}).get("available_mb", 0)
+            for g in gpu_candidates
+        )
+        raise HTTPException(
+            status_code=409,
+            detail=(
+                f"Model requires ~{model_size_mb} MB but no GPU has sufficient free VRAM "
+                f"(best available: {best_gpu_avail} MB) and no CPU device is enabled"
+            ),
+        )
 
     return None
 
