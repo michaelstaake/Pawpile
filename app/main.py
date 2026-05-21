@@ -40,7 +40,7 @@ async def lifespan(_: FastAPI):
             )
             for model in activated_models:
                 try:
-                    device = models._resolve_device_for_model(db, model, inference_manager)
+                    device = await models._resolve_device_for_model(db, model, inference_manager)
                     if device is None:
                         raise RuntimeError("No enabled device available for model")
                     await inference_manager.activate_model(model, device)

@@ -53,6 +53,44 @@ class InferenceManager:
     def has_runtime_for_vendor(self, vendor: str) -> bool:
         return self.runtime_url_for_vendor(vendor) is not None
 
+    async def get_device_memory_mb(self) -> dict[str, dict]:
+        """Fetch current memory metrics from all configured runtimes.
+
+        Returns a mapping of hardware_id -> {"total_mb", "used_mb", "available_mb"}.
+        Returns an empty dict if no runtimes are reachable.
+        """
+        result: dict[str, dict] = {}
+        seen_urls: set[str] = set()
+        runtime_map = self.settings.inference_runtime_url_map()
+        timeout = self.settings.inference_service_timeout_seconds
+
+        for base_url in runtime_map.values():
+            if base_url in seen_urls:
+                continue
+            seen_urls.add(base_url)
+            try:
+                async with httpx.AsyncClient(timeout=timeout) as client:
+                    response = await client.get(f"{base_url}/runtime/status")
+                    response.raise_for_status()
+                data = response.json()
+            except Exception:
+                logger.warning("Failed to fetch runtime status from %s for device memory check", base_url)
+                continue
+
+            for device in data.get("devices", []):
+                hardware_id = device.get("hardware_id")
+                if not hardware_id:
+                    continue
+                total = int(device.get("memory_total_mb") or 0)
+                used = int(device.get("memory_used_mb") or 0)
+                result[hardware_id] = {
+                    "total_mb": total,
+                    "used_mb": used,
+                    "available_mb": max(0, total - used),
+                }
+
+        return result
+
     async def activate_model(self, model: ModelConfig, device: Device) -> None:
         if model.id in self._running:
             return

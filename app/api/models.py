@@ -181,7 +181,7 @@ async def activate_model(model_id: int, _: User = Depends(get_admin_user), db: S
     if not model:
         raise HTTPException(status_code=404, detail="Model not found")
 
-    device = _resolve_device_for_model(db, model, inference)
+    device = await _resolve_device_for_model(db, model, inference)
     if not device:
         raise HTTPException(status_code=409, detail="No enabled device available for model")
 
@@ -208,8 +208,10 @@ def deactivate_model(model_id: int, _: User = Depends(get_admin_user), db: Sessi
     return {"status": "ok"}
 
 
-def _resolve_device_for_model(db: Session, model: ModelConfig, inference: InferenceManager) -> Device | None:
+async def _resolve_device_for_model(db: Session, model: ModelConfig, inference: InferenceManager) -> Device | None:
     supported_vendors = [vendor for vendor in ["cpu", "nvidia", "amd", "intel"] if is_supported_vendor(vendor)]
+    model_size_mb = _estimate_model_size_mb(model.file_path)
+    memory_metrics = await inference.get_device_memory_mb()
 
     if model.assignment_mode == "pinned" and model.pinned_device_id:
         device = (
@@ -222,23 +224,85 @@ def _resolve_device_for_model(db: Session, model: ModelConfig, inference: Infere
                 status_code=409,
                 detail=f"No inference runtime configured for pinned device vendor: {device.vendor}",
             )
+        if device and model_size_mb > 0:
+            metrics = memory_metrics.get(device.hardware_id, {})
+            available_mb = metrics.get("available_mb", 0)
+            if available_mb > 0 and model_size_mb > available_mb:
+                raise HTTPException(
+                    status_code=409,
+                    detail=(
+                        f"Model requires ~{model_size_mb} MB but {device.name} only has "
+                        f"{available_mb} MB available"
+                    ),
+                )
         return device
 
+    # AUTO mode — prefer GPUs, fall back to CPU
     candidates = (
         db.query(Device)
         .filter(Device.enabled.is_(True), Device.vendor.in_(supported_vendors))
-        .order_by(Device.priority.asc(), Device.id.asc())
         .all()
     )
 
-    for candidate in candidates:
-        if inference.has_runtime_for_vendor(candidate.vendor):
-            return candidate
+    gpu_candidates = [c for c in candidates if c.vendor != "cpu" and inference.has_runtime_for_vendor(c.vendor)]
+    cpu_candidates = [c for c in candidates if c.vendor == "cpu" and inference.has_runtime_for_vendor(c.vendor)]
 
-    if candidates:
-        raise HTTPException(status_code=409, detail="No inference runtime configured for any enabled device")
+    if not gpu_candidates and not cpu_candidates:
+        if candidates:
+            raise HTTPException(status_code=409, detail="No inference runtime configured for any enabled device")
+        return None
+
+    # Try GPUs first
+    if gpu_candidates:
+        if model_size_mb > 0 and memory_metrics:
+            gpu_with_available = [
+                (gpu, memory_metrics.get(gpu.hardware_id, {}).get("available_mb", 0))
+                for gpu in gpu_candidates
+            ]
+            fitting = [(gpu, avail) for gpu, avail in gpu_with_available if avail >= model_size_mb]
+            if fitting:
+                fitting.sort(key=lambda x: x[1], reverse=True)
+                return fitting[0][0]
+            # No GPU fits — fall through to CPU
+        else:
+            # No memory info available; pick best GPU by priority
+            gpu_candidates.sort(key=lambda g: (g.priority, g.id))
+            return gpu_candidates[0]
+
+    # CPU fallback
+    if cpu_candidates:
+        cpu = sorted(cpu_candidates, key=lambda c: (c.priority, c.id))[0]
+        if model_size_mb > 0 and memory_metrics:
+            metrics = memory_metrics.get(cpu.hardware_id, {})
+            available_mb = metrics.get("available_mb", 0)
+            if available_mb > 0 and model_size_mb > available_mb:
+                if gpu_candidates:
+                    best_gpu_avail = max(
+                        memory_metrics.get(g.hardware_id, {}).get("available_mb", 0)
+                        for g in gpu_candidates
+                    )
+                    raise HTTPException(
+                        status_code=409,
+                        detail=(
+                            f"Model requires ~{model_size_mb} MB. "
+                            f"Best GPU has {best_gpu_avail} MB available and "
+                            f"CPU has {available_mb} MB available — no device can fit this model"
+                        ),
+                    )
+                raise HTTPException(
+                    status_code=409,
+                    detail=f"Model requires ~{model_size_mb} MB but CPU only has {available_mb} MB available",
+                )
+        return cpu
 
     return None
+
+
+def _estimate_model_size_mb(file_path: str) -> int:
+    try:
+        return int(os.path.getsize(file_path) / (1024 * 1024))
+    except OSError:
+        return 0
 
 
 def _serialize_model(model: ModelConfig) -> dict:
