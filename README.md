@@ -152,7 +152,7 @@ To disable this behavior (not recommended), set OPENAI_API_AUTH_REQUIRED=false.
 
 ```bash
 curl http://localhost:8000/v1/chat/completions \
-  -H "Authorization: Bearer YOUR_KEY_OR_JWT" \
+  -H "Authorization: Bearer YOUR_API_KEY" \
   -H "Content-Type: application/json" \
   -d '{
     "model": "my-model-alias",
@@ -163,7 +163,7 @@ curl http://localhost:8000/v1/chat/completions \
 
 ## OpenCode Config Example
 
-Use this in your OpenCode config file to connect to Pawpile's OpenAI-compatible endpoint.
+Use this in your OpenCode config file to connect to Pawpile's OpenAI-compatible endpoint. If OPENAI_API_AUTH_REQUIRED=false, apiKey is optional and can be omitted or set to any placeholder value.
 
 ```json
 {
@@ -174,6 +174,7 @@ Use this in your OpenCode config file to connect to Pawpile's OpenAI-compatible 
       "npm": "@ai-sdk/openai-compatible",
       "options": {
         "baseURL": "http://192.168.1.40:8000/v1",
+        "apiKey": "YOUR_API_KEY",
         "timeout": 7200000
       },
       "models": {
