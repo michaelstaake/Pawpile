@@ -281,19 +281,12 @@ export default function ChatPage() {
               ? "No messages yet"
               : `${messages.length} message${messages.length === 1 ? "" : "s"}`}
           </div>
-          <button
-            type="button"
-            onClick={() => void loadModels()}
-            className="w-full rounded-lg border border-black/15 bg-white px-3 py-2 text-left text-xs text-black/60 hover:bg-black/5"
-          >
-            Refresh models
-          </button>
         </div>
       </aside>
       <main className="rounded-2xl border border-black/10 bg-white/80 p-4 shadow-sm">
         <div className="mb-4 flex items-center justify-between gap-2">
           <div>
-            <h2 className="font-display text-lg">Conversation</h2>
+            <h2 className="font-display text-lg">Chat</h2>
             {user ? <p className="text-xs font-semibold uppercase tracking-[0.2em] text-black/45">Signed in as {user.username}</p> : null}
           </div>
           <select
