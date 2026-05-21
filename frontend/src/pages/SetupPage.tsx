@@ -294,7 +294,7 @@ export default function SetupPage() {
         <h2 className="font-display text-xl">Pawpile Setup</h2>
 
         <div className="mt-5 grid gap-3 md:grid-cols-3">
-          {["Create admin", "Configure standard device", "Configure primary model"].map((label, index) => {
+          {["Create admin", "Configure a device", "Configure a model"].map((label, index) => {
             const stepNumber = index + 1;
             const isCurrent = step === stepNumber;
             const isDone = step > stepNumber;
@@ -343,7 +343,7 @@ export default function SetupPage() {
       {step === 2 ? (
         <article className="rounded-2xl border border-black/10 bg-white/80 p-5 shadow-sm backdrop-blur">
           <div className="flex items-center justify-between">
-            <h3 className="font-display text-lg">Step 2: Choose active device</h3>
+            <h3 className="font-display text-lg">Step 2: Configure a device</h3>
             <button className="rounded-xl border border-black/15 bg-[#fffdf7] px-3 py-1.5 text-xs font-semibold text-black/70 hover:bg-black/5" onClick={() => changeStep(1)}>
               Back
             </button>
@@ -422,7 +422,7 @@ export default function SetupPage() {
       {step === 3 ? (
         <article className="rounded-2xl border border-black/10 bg-white/80 p-5 shadow-sm backdrop-blur">
           <div className="flex items-center justify-between">
-            <h3 className="font-display text-lg">Step 3: Register primary model</h3>
+            <h3 className="font-display text-lg">Step 3: Configure a model</h3>
             <button className="rounded-xl border border-black/15 bg-[#fffdf7] px-3 py-1.5 text-xs font-semibold text-black/70 hover:bg-black/5" onClick={() => changeStep(2)}>
               Back
             </button>
