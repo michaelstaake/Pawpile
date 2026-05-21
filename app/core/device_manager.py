@@ -266,13 +266,38 @@ class DeviceManager:
     def _detect_intel(self) -> list[DetectedDevice]:
         output = self._run("sycl-ls")
         devices: list[DetectedDevice] = []
-        idx = 0
+        names_in_order: list[str] = []
+        preferred_counts: dict[str, int] = {}
+        fallback_counts: dict[str, int] = {}
+
         for line in output.splitlines():
-            if "gpu" in line.lower() and "intel" in line.lower():
+            line_lower = line.lower()
+            if "gpu" not in line_lower or "intel" not in line_lower:
+                continue
+
+            raw_name = line.split(",", 1)[-1].strip() if "," in line else line.strip()
+            name_match = re.search(r"(Intel\(R\).*?Graphics)\b", raw_name)
+            name = name_match.group(1) if name_match else re.sub(r"\s*\[.*?\]\s*$", "", raw_name)
+            name = re.sub(r"\s+", " ", name).strip()[:120]
+            if not name:
+                continue
+
+            if name not in preferred_counts and name not in fallback_counts:
+                names_in_order.append(name)
+
+            if "level_zero:gpu" in line_lower or "level-zero" in line_lower:
+                preferred_counts[name] = preferred_counts.get(name, 0) + 1
+            else:
+                fallback_counts[name] = fallback_counts.get(name, 0) + 1
+
+        idx = 0
+        for name in names_in_order:
+            count = max(preferred_counts.get(name, 0), fallback_counts.get(name, 0))
+            for _ in range(count):
                 devices.append(
                     DetectedDevice(
                         hardware_id=f"intel:{idx}",
-                        name=line.strip()[:120],
+                        name=name,
                         vendor="intel",
                         device_type="gpu",
                         memory_mb=0,

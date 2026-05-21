@@ -203,6 +203,11 @@ Use this in your OpenCode config file to connect to Pawpile's OpenAI-compatible 
   - Check available disk space
   - Run `docker system prune` to clean up old images
 
+- **Docker Desktop**:
+  - If you have Docker Desktop installed, ensure Pawpile is running in the system's context not Docker Desktop's context
+  - Run `docker context use default` to clean up old images
+
+
 ### Device Detection Issues
 
 - **Device not detected**:
@@ -226,4 +231,4 @@ Use this in your OpenCode config file to connect to Pawpile's OpenAI-compatible 
 
 ## License
 
-GPL-3.0 license 
+GPL-3.0 license
