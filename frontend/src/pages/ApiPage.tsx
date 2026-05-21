@@ -125,14 +125,6 @@ export default function ApiPage() {
             <h1 className="mt-3 font-display text-3xl leading-tight">Manage the keys your clients use to reach Pawpile.</h1>
             <p className="mt-3 text-sm text-white/78">Review active keys, create a named credential for each client, and revoke access without leaving this page.</p>
           </div>
-          <button
-            className="rounded-xl border border-white/20 bg-white/10 px-4 py-2 text-sm font-semibold text-white backdrop-blur disabled:cursor-not-allowed disabled:opacity-60"
-            type="button"
-            onClick={() => token && void refreshApiKeys(token)}
-            disabled={!token || isLoadingKeys}
-          >
-            {isLoadingKeys ? "Refreshing..." : "Refresh Keys"}
-          </button>
         </div>
 
         <div className="mt-6 grid gap-3 sm:grid-cols-3">

@@ -273,9 +273,6 @@ export default function ModelsPage({ setupMode = false, onComplete }: ModelsPage
             <h2 className="mt-2 font-display text-xl">{setupMode ? "Step 3: Models" : "Models"}</h2>
             {setupMode ? <p className="mt-2 max-w-3xl text-sm text-black/70">Register and activate at least one model to complete setup.</p> : null}
           </div>
-          <button className="rounded-xl border border-black/15 px-4 py-2 text-sm font-semibold text-black disabled:cursor-not-allowed disabled:opacity-60" type="button" onClick={() => token && void refreshData(token)} disabled={!token || isLoading}>
-            {isLoading ? "Refreshing..." : "Refresh Models"}
-          </button>
         </div>
 
         {errorMessage ? <p className="mt-4 rounded-xl border border-rose-200 bg-rose-50 px-3 py-2 text-sm text-rose-700">{errorMessage}</p> : null}

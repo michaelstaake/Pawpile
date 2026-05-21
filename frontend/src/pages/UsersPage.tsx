@@ -103,9 +103,6 @@ export default function UsersPage() {
           <div>
             <h2 className="font-display text-xl">Users</h2>
           </div>
-          <button className="rounded-xl border border-black/15 px-4 py-2 text-sm font-semibold text-black disabled:cursor-not-allowed disabled:opacity-60" type="button" onClick={() => token && void refreshUsers(token)} disabled={!token || isLoading}>
-            {isLoading ? "Refreshing..." : "Refresh Users"}
-          </button>
         </div>
 
         {errorMessage ? <p className="mt-4 rounded-xl border border-rose-200 bg-rose-50 px-3 py-2 text-sm text-rose-700">{errorMessage}</p> : null}
