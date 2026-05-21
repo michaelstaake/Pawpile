@@ -202,11 +202,10 @@ export default function ConfigurationPage() {
 
       <article className="rounded-2xl border border-black/10 bg-white/80 p-5 shadow-sm backdrop-blur">
         <p className="text-xs font-semibold uppercase tracking-[0.24em] text-black/45">About</p>
-        <h2 className="mt-2 font-display text-xl">Pawpile</h2>
+        <h2 className="mt-2 font-display text-xl">Pawpile Version v{__APP_VERSION__}</h2>
         <div className="mt-4 text-sm text-black/65">
-          <p>Version v{__APP_VERSION__}</p>
           <p className="mt-2">
-            Visit our source repository and contribute at{" "}
+            Learn more, get help, and contribute on {" "}
             <a
               href="https://github.com/michaelstaake/Pawpile"
               target="_blank"
