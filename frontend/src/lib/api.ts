@@ -1,10 +1,17 @@
 const BASE_URL = import.meta.env.VITE_API_BASE_URL ?? "";
 
-async function parseError(response: Response): Promise<Error> {
-  const bodyText = await response.text();
+type ApiErrorPayload = {
+  detail?: string | { msg?: string } | Array<{ msg?: string }>;
+};
 
+type UploadProgress = {
+  loaded: number;
+  total: number;
+};
+
+function buildApiError(status: number, statusText: string, bodyText: string): Error {
   try {
-    const payload = JSON.parse(bodyText) as { detail?: string | { msg?: string } | Array<{ msg?: string }> };
+    const payload = JSON.parse(bodyText) as ApiErrorPayload;
     if (typeof payload.detail === "string" && payload.detail) {
       return new Error(payload.detail);
     }
@@ -20,11 +27,16 @@ async function parseError(response: Response): Promise<Error> {
 
   const text = bodyText.trim();
   if (text && !text.startsWith("<!DOCTYPE") && !text.startsWith("<html")) {
-    return new Error(`Request failed: ${response.status} (${text.slice(0, 220)})`);
+    return new Error(`Request failed: ${status} (${text.slice(0, 220)})`);
   }
 
-  const statusText = response.statusText ? ` ${response.statusText}` : "";
-  return new Error(`Request failed: ${response.status}${statusText}`);
+  const readableStatusText = statusText ? ` ${statusText}` : "";
+  return new Error(`Request failed: ${status}${readableStatusText}`);
+}
+
+async function parseError(response: Response): Promise<Error> {
+  const bodyText = await response.text();
+  return buildApiError(response.status, response.statusText, bodyText);
 }
 
 export async function apiGet<T>(path: string, token?: string): Promise<T> {
@@ -106,4 +118,57 @@ export async function apiPostForm<TResponse>(path: string, formData: FormData, t
   }
 
   return response.json() as Promise<TResponse>;
+}
+
+export async function apiPostFormWithProgress<TResponse>(
+  path: string,
+  formData: FormData,
+  token?: string,
+  onProgress?: (progress: UploadProgress) => void,
+): Promise<TResponse> {
+  return new Promise<TResponse>((resolve, reject) => {
+    const request = new XMLHttpRequest();
+    request.open("POST", `${BASE_URL}${path}`);
+    request.responseType = "text";
+
+    if (token) {
+      request.setRequestHeader("Authorization", `Bearer ${token}`);
+    }
+
+    request.upload.addEventListener("progress", (event) => {
+      if (!onProgress) {
+        return;
+      }
+
+      onProgress({
+        loaded: event.loaded,
+        total: event.lengthComputable ? event.total : 0,
+      });
+    });
+
+    request.addEventListener("load", () => {
+      const responseText = request.responseText ?? "";
+
+      if (request.status < 200 || request.status >= 300) {
+        reject(buildApiError(request.status, request.statusText, responseText));
+        return;
+      }
+
+      try {
+        resolve(JSON.parse(responseText) as TResponse);
+      } catch {
+        reject(new Error("Request succeeded but returned invalid JSON"));
+      }
+    });
+
+    request.addEventListener("error", () => {
+      reject(new Error("Network error during upload"));
+    });
+
+    request.addEventListener("abort", () => {
+      reject(new Error("Upload aborted"));
+    });
+
+    request.send(formData);
+  });
 }

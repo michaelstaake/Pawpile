@@ -1,5 +1,5 @@
 import { FormEvent, useEffect, useState } from "react";
-import { apiGet, apiPatch, apiPost, apiPostForm } from "../lib/api";
+import { apiGet, apiPatch, apiPost, apiPostFormWithProgress } from "../lib/api";
 import { useAuth } from "../context/AuthContext";
 import { DeviceRecord, ModelRecord, ModelUpdateResponse, ScanResponse, UploadResponse } from "../lib/records";
 
@@ -13,11 +13,34 @@ type ModelsPageProps = {
   onComplete?: () => void;
 };
 
+type UploadProgressState = {
+  loaded: number;
+  total: number;
+};
+
+function formatFileSize(bytes: number): string {
+  if (bytes < 1024) {
+    return `${bytes} B`;
+  }
+
+  const units = ["KB", "MB", "GB", "TB"];
+  let value = bytes / 1024;
+  let unitIndex = 0;
+
+  while (value >= 1024 && unitIndex < units.length - 1) {
+    value /= 1024;
+    unitIndex += 1;
+  }
+
+  return `${value.toFixed(value >= 10 ? 0 : 1)} ${units[unitIndex]}`;
+}
+
 export default function ModelsPage({ setupMode = false, onComplete }: ModelsPageProps) {
   const { token, refreshAuthState } = useAuth();
   const [models, setModels] = useState<ModelRecord[]>([]);
   const [devices, setDevices] = useState<DeviceRecord[]>([]);
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
+  const [uploadProgress, setUploadProgress] = useState<UploadProgressState>({ loaded: 0, total: 0 });
   const [isLoading, setIsLoading] = useState(false);
   const [isUploading, setIsUploading] = useState(false);
   const [isScanning, setIsScanning] = useState(false);
@@ -66,15 +89,22 @@ export default function ModelsPage({ setupMode = false, onComplete }: ModelsPage
     setErrorMessage("");
     setSuccessMessage("");
     setIsUploading(true);
+    setUploadProgress({ loaded: 0, total: selectedFile.size });
 
     try {
-      const response = await apiPostForm<UploadResponse>("/api/models/upload", formData, token);
+      const response = await apiPostFormWithProgress<UploadResponse>("/api/models/upload", formData, token, (progress) => {
+        setUploadProgress({
+          loaded: progress.loaded,
+          total: progress.total || selectedFile.size,
+        });
+      });
       setModels((current) => [response.model, ...current.filter((model) => model.id !== response.model.id)].sort((left, right) => left.alias.localeCompare(right.alias)));
       setSelectedFile(null);
       const input = document.getElementById("model-upload-input") as HTMLInputElement | null;
       if (input) {
         input.value = "";
       }
+      setUploadProgress({ loaded: selectedFile.size, total: selectedFile.size });
       setSuccessMessage(`Uploaded ${response.model.file_name}.`);
     } catch (error) {
       setErrorMessage(error instanceof Error ? error.message : "Upload failed");
@@ -155,6 +185,8 @@ export default function ModelsPage({ setupMode = false, onComplete }: ModelsPage
   }
 
   const activeModels = models.filter((model) => model.activated).length;
+  const uploadTotal = uploadProgress.total || selectedFile?.size || 0;
+  const uploadPercent = uploadTotal > 0 ? Math.min(100, Math.round((uploadProgress.loaded / uploadTotal) * 100)) : 0;
 
   return (
     <section className="grid gap-4">
@@ -178,6 +210,17 @@ export default function ModelsPage({ setupMode = false, onComplete }: ModelsPage
         <form className="mt-5 grid gap-3 rounded-2xl border border-dashed border-black/15 bg-sand/70 p-4" onSubmit={handleUpload}>
           <h3 className="font-display text-base">Upload GGUF Model</h3>
           <input id="model-upload-input" className="block w-full rounded-xl border border-black/15 bg-white px-3 py-2 text-sm file:mr-3 file:rounded-lg file:border-0 file:bg-amber file:px-3 file:py-2 file:font-semibold" type="file" accept=".gguf" onChange={(event) => setSelectedFile(event.target.files?.[0] ?? null)} />
+          {isUploading && uploadTotal > 0 ? (
+            <div className="grid gap-2 rounded-xl border border-black/10 bg-white/70 px-3 py-3">
+              <div className="flex items-center justify-between gap-3 text-sm text-black/70">
+                <span>{uploadPercent}%</span>
+                <span>{formatFileSize(uploadProgress.loaded)} / {formatFileSize(uploadTotal)}</span>
+              </div>
+              <div className="h-2 overflow-hidden rounded-full bg-black/10">
+                <div className="h-full rounded-full bg-amber transition-[width] duration-150" style={{ width: `${uploadPercent}%` }} />
+              </div>
+            </div>
+          ) : null}
           <div className="flex flex-wrap gap-2">
             <button className="rounded-xl bg-amber px-4 py-2 text-sm font-semibold text-black disabled:cursor-not-allowed disabled:opacity-60" type="submit" disabled={isUploading || !selectedFile}>
               {isUploading ? "Uploading..." : "Upload Model"}
