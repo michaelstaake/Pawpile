@@ -272,22 +272,23 @@ export default function ChatPage() {
             </div>
           ) : (
             <div className="rounded-lg bg-black/5 p-2 text-xs text-black/60">
-              Sign in via the <a className="font-semibold underline" href="/auth">Auth</a>{" "}
+              Sign in via the <a className="font-semibold underline" href="/login">Login</a>{" "}
               page to save your chat history.
             </div>
           )}
-          <div className="rounded-lg bg-black/5 p-2">
-            {messages.length === 0
-              ? "No messages yet"
-              : `${messages.length} message${messages.length === 1 ? "" : "s"}`}
-          </div>
+          {user ? (
+            <div className="rounded-lg bg-black/5 p-2">
+              {messages.length === 0
+                ? "No messages yet"
+                : `${messages.length} message${messages.length === 1 ? "" : "s"}`}
+            </div>
+          ) : null}
         </div>
       </aside>
       <main className="rounded-2xl border border-black/10 bg-white/80 p-4 shadow-sm">
         <div className="mb-4 flex items-center justify-between gap-2">
           <div>
             <h2 className="font-display text-lg">Chat</h2>
-            {user ? <p className="text-xs font-semibold uppercase tracking-[0.2em] text-black/45">Signed in as {user.username}</p> : null}
           </div>
           <select
             value={selectedModel}

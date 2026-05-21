@@ -32,7 +32,7 @@ function RequireAdmin({ children }: { children: JSX.Element }) {
     return <Navigate to="/setup" replace />;
   }
   if (!user?.is_admin) {
-    return <Navigate to="/auth" replace />;
+    return <Navigate to="/login" replace />;
   }
   return children;
 }
@@ -47,7 +47,7 @@ function RequireUser({ children }: { children: JSX.Element }) {
     return <Navigate to="/setup" replace />;
   }
   if (!user) {
-    return <Navigate to="/auth" replace />;
+    return <Navigate to="/login" replace />;
   }
   return children;
 }
@@ -62,7 +62,7 @@ function SetupRoute() {
     return <section className="rounded-2xl border border-rose-200 bg-rose-50 p-5 text-sm text-rose-700 shadow-sm">Unable to check installation state. Confirm the backend is running and reload after resolving the API error.</section>;
   }
   if (!requiresSetup) {
-    return <Navigate to="/auth" replace />;
+    return <Navigate to="/login" replace />;
   }
   return <SetupPage />;
 }
@@ -72,7 +72,7 @@ export default function App() {
   const location = useLocation();
   const [openMenu, setOpenMenu] = useState<HeaderMenu | null>(null);
   const showMainNav = !isBootstrapping && !requiresSetup;
-  const authRouteActive = location.pathname === "/auth";
+  const authRouteActive = location.pathname === "/login";
   const adminMenuActive = !!user?.is_admin && adminNavItems.some((item) => location.pathname === item.to);
   const userMenuActive = !!user && location.pathname === "/profile";
 
@@ -138,7 +138,7 @@ export default function App() {
                 </details>
               ) : null}
               {!user ? (
-                <NavLink to="/auth" className={() => `rounded-lg px-3 py-2 text-sm ${authRouteActive ? "bg-ink text-white" : "bg-black/5"}`}>Login</NavLink>
+                <NavLink to="/login" className={() => `rounded-lg px-3 py-2 text-sm ${authRouteActive ? "bg-ink text-white" : "bg-black/5"}`}>Login</NavLink>
               ) : (
                 <details open={openMenu === "user"} className="group relative z-50">
                   <summary onClick={handleMenuToggle("user")} className={`list-none cursor-pointer rounded-lg px-3 py-2 text-sm ${userMenuActive ? "bg-ink text-white" : "bg-black/5"}`}>
@@ -175,7 +175,8 @@ export default function App() {
           <Route path="/devices" element={<RequireAdmin><DevicesPage /></RequireAdmin>} />
           <Route path="/models" element={<RequireAdmin><ModelsPage /></RequireAdmin>} />
           <Route path="/users" element={<RequireAdmin><UsersPage /></RequireAdmin>} />
-          <Route path="/auth" element={<AuthPage />} />
+          <Route path="/login" element={<AuthPage />} />
+          <Route path="/auth" element={<Navigate to="/login" replace />} />
           <Route path="/profile" element={<RequireUser><ProfilePage /></RequireUser>} />
           <Route path="/api" element={<RequireUser><ApiPage /></RequireUser>} />
           <Route path="/setup" element={<SetupRoute />} />

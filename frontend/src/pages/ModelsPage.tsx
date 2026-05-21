@@ -333,7 +333,7 @@ export default function ModelsPage({ setupMode = false, onComplete }: ModelsPage
                 </label>
                 <label className="flex items-center gap-2 rounded-xl border border-black/10 bg-white px-3 py-2 text-sm text-black/70 md:self-end">
                   <input type="checkbox" checked={model.activated} onChange={(event) => updateModelDraft(model.id, { activated: event.target.checked })} />
-                  Enabled for chats
+                  Enabled
                 </label>
                 <label className="grid gap-1 text-sm text-black/70">
                   Description

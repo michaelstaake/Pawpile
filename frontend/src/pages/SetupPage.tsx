@@ -15,7 +15,7 @@ export default function SetupPage() {
 
   useEffect(() => {
     if (setupStatus?.has_active_model) {
-      navigate("/auth", { replace: true });
+      navigate("/login", { replace: true });
       return;
     }
     if (setupStatus?.has_enabled_device) {
@@ -95,7 +95,7 @@ export default function SetupPage() {
       ) : null}
 
       {step === 2 ? <DevicesPage setupMode onContinue={() => setStep(3)} /> : null}
-      {step === 3 ? <ModelsPage setupMode onComplete={() => navigate("/auth", { replace: true })} /> : null}
+      {step === 3 ? <ModelsPage setupMode onComplete={() => navigate("/login", { replace: true })} /> : null}
     </section>
   );
 }
