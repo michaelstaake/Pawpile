@@ -200,7 +200,7 @@ export default function App() {
           <Route path="/login" element={<AuthPage />} />
           <Route path="/register" element={<RegisterPage />} />
           <Route path="/auth" element={<Navigate to="/login" replace />} />
-          <Route path="/status" element={<StatusPage />} />
+          <Route path="/status" element={<RequireUser><StatusPage /></RequireUser>} />
           <Route path="/profile" element={<RequireUser><ProfilePage /></RequireUser>} />
           <Route path="/api" element={<Navigate to="/apikeys" replace />} />
           <Route path="/apikeys" element={<RequireUser><ApiPage /></RequireUser>} />

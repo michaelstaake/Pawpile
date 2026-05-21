@@ -73,7 +73,6 @@ To disable this behavior (not recommended), set OPENAI_API_AUTH_REQUIRED=false.
 Pawpile currently supports `/v1/models` and `/v1/chat/completions`.
 Tool-calling fields on chat-completions requests are forwarded to the active runtime, including `tools`, `tool_choice`, `parallel_tool_calls`, and the legacy `functions` / `function_call` fields.
 Tool-bearing requests are rejected unless tool calling is enabled for that model in the model settings.
-OpenAI Responses API endpoints and `/v1/files` are not implemented.
 
 ```bash
 curl http://localhost:8000/v1/chat/completions \

@@ -4,17 +4,21 @@ import { DeviceStatusRecord, StatusModelRecord, StatusResponse } from "../lib/re
 import { useAuth } from "../context/AuthContext";
 
 const POLL_INTERVAL_MS = 5000;
-const MODEL_COLORS = [
-  "#d97706",
-  "#0f766e",
+const PRIMARY_MODEL_COLORS = [
+  "#dc2626",
+  "#ea580c",
+  "#ca8a04",
+  "#16a34a",
   "#2563eb",
-  "#be123c",
-  "#7c3aed",
-  "#15803d",
-  "#c2410c",
-  "#1d4ed8",
-  "#9f1239",
-  "#4338ca",
+  "#9333ea",
+];
+const FALLBACK_MODEL_COLORS = [
+  "#5b5b5b",
+  "#737373",
+  "#8a8a8a",
+  "#a3a3a3",
+  "#bdbdbd",
+  "#d4d4d4",
 ];
 
 const numberFormatter = new Intl.NumberFormat();
@@ -35,13 +39,12 @@ function formatMemory(memoryMb: number) {
   return `${numberFormatter.format(memoryMb)} MB`;
 }
 
-function colorForModel(model: StatusModelRecord) {
-  let hash = 0;
-  const key = `${model.model_id}:${model.alias}`;
-  for (let index = 0; index < key.length; index += 1) {
-    hash = (hash * 31 + key.charCodeAt(index)) >>> 0;
+function colorForModel(index: number) {
+  if (index < PRIMARY_MODEL_COLORS.length) {
+    return PRIMARY_MODEL_COLORS[index];
   }
-  return MODEL_COLORS[hash % MODEL_COLORS.length];
+
+  return FALLBACK_MODEL_COLORS[(index - PRIMARY_MODEL_COLORS.length) % FALLBACK_MODEL_COLORS.length];
 }
 
 function usageLabel(device: DeviceStatusRecord) {
@@ -82,7 +85,7 @@ function DeviceCard({ device }: { device: DeviceStatusRecord }) {
             </div>
             <div className="mt-4 h-4 overflow-hidden rounded-full bg-black/10">
               <div
-                className={`h-full rounded-full transition-[width] duration-500 ${hasUsage ? "bg-blue-600" : "bg-black/25"}`}
+                className={`h-full rounded-full transition-[width] duration-500 ${hasUsage ? "bg-amber-800" : "bg-black/25"}`}
                 style={{ width: hasUsage ? `${usagePercent}%` : "100%" }}
               />
             </div>
@@ -97,13 +100,13 @@ function DeviceCard({ device }: { device: DeviceStatusRecord }) {
               <p className="font-display text-2xl text-ink">{memoryPercent.toFixed(1)}%</p>
             </div>
             <div className="mt-4 flex h-5 overflow-hidden rounded-full bg-black/10">
-              {device.models.map((model) => (
+              {device.models.map((model, index) => (
                 <div
                   key={`${device.id}-memory-${model.model_id}`}
                   className="h-full first:rounded-l-full last:rounded-r-full"
                   style={{
                     width: `${clampPercent((model.memory_used_mb / Math.max(1, device.memory_total_mb)) * 100)}%`,
-                    backgroundColor: colorForModel(model),
+                    backgroundColor: colorForModel(index),
                   }}
                   title={`${model.alias}: ${formatMemory(model.memory_used_mb)}`}
                 />
@@ -117,11 +120,11 @@ function DeviceCard({ device }: { device: DeviceStatusRecord }) {
           <p className="text-xs font-semibold uppercase tracking-[0.24em] text-black/45">Loaded Models</p>
 
           <div className="mt-4 space-y-3">
-            {device.models.length > 0 ? device.models.map((model) => (
+            {device.models.length > 0 ? device.models.map((model, index) => (
               <div key={`${device.id}-legend-${model.model_id}`} className="rounded-2xl border border-black/10 bg-white px-3 py-3">
                 <div className="flex items-center justify-between gap-3">
                   <div className="flex items-center gap-3">
-                    <span className="h-3 w-3 rounded-full" style={{ backgroundColor: colorForModel(model) }} />
+                    <span className="h-3 w-3 rounded-full" style={{ backgroundColor: colorForModel(index) }} />
                     <div>
                       <p className="text-sm font-semibold text-ink">{model.alias}</p>
                       <p className="text-xs text-black/50">Model #{model.model_id}{model.pid ? ` · PID ${model.pid}` : ""}</p>
