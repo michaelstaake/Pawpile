@@ -2,6 +2,7 @@ from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 
 from app.api.deps import get_admin_user
+from app.core.config import get_settings
 from app.core.db import get_db
 from app.core.device_manager import DeviceManager, get_supported_vendors
 from app.models.device import Device
@@ -16,10 +17,12 @@ device_manager = DeviceManager()
 def list_devices(_: User = Depends(get_admin_user), db: Session = Depends(get_db)) -> list[dict]:
     rows = db.query(Device).order_by(Device.priority.asc(), Device.id.asc()).all()
     supported_vendors = get_supported_vendors()
+    settings = get_settings()
     has_cpu_row = any(row.hardware_id == "cpu:0" and row.vendor == "cpu" for row in rows)
     has_supported_rows = any(row.vendor in supported_vendors for row in rows)
+    uses_runtime_discovery = any(vendor != "default" for vendor in settings.inference_runtime_url_map())
 
-    if not rows or ("cpu" in supported_vendors and not has_cpu_row) or not has_supported_rows:
+    if uses_runtime_discovery or not rows or ("cpu" in supported_vendors and not has_cpu_row) or not has_supported_rows:
         rows = device_manager.sync_detected_devices(db)
     return [_serialize_device(d) for d in rows]
 
