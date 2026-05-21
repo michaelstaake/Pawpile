@@ -15,20 +15,12 @@ function formatCreatedAt(value: string | null): string {
   }).format(new Date(value));
 }
 
-function maskApiKey(value: string): string {
-  if (value.length <= 14) {
-    return value;
-  }
-
-  return `${value.slice(0, 10)}...${value.slice(-4)}`;
-}
 
 export default function ApiPage() {
   const { token, user } = useAuth();
   const [apiKeys, setApiKeys] = useState<ApiKeyRecord[]>([]);
   const [newKeyName, setNewKeyName] = useState("");
   const [latestApiKey, setLatestApiKey] = useState("");
-  const [showLatestApiKey, setShowLatestApiKey] = useState(false);
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
   const [copyState, setCopyState] = useState<"idle" | "copied" | "failed">("idle");
   const [isLoadingKeys, setIsLoadingKeys] = useState(false);
@@ -71,7 +63,6 @@ export default function ApiPage() {
       const response = await apiPost<{ name: string }, ApiKeyCreateResponse>("/api/auth/api-keys", { name: newKeyName }, token);
       setApiKeys((current) => [response.api_key, ...current]);
       setLatestApiKey(response.plain_text_key);
-      setShowLatestApiKey(true);
       setCopyState("idle");
       setNewKeyName("");
       setIsCreateModalOpen(true);
@@ -112,13 +103,28 @@ export default function ApiPage() {
       await navigator.clipboard.writeText(latestApiKey);
       setCopyState("copied");
     } catch {
-      setCopyState("failed");
+      // Fallback for non-secure (HTTP) contexts
+      const textarea = document.createElement("textarea");
+      textarea.value = latestApiKey;
+      textarea.style.position = "fixed";
+      textarea.style.opacity = "0";
+      document.body.appendChild(textarea);
+      textarea.focus();
+      textarea.select();
+      try {
+        document.execCommand("copy");
+        setCopyState("copied");
+      } catch {
+        setCopyState("failed");
+      } finally {
+        document.body.removeChild(textarea);
+      }
     }
   }
 
   function closeCreateModal() {
     setIsCreateModalOpen(false);
-    setShowLatestApiKey(false);
+    setLatestApiKey("");
     setCopyState("idle");
   }
 
@@ -170,67 +176,52 @@ export default function ApiPage() {
         </div>
       </article>
 
-      <Modal open={isCreateModalOpen} onClose={closeCreateModal} labelledBy="api-key-create-title" panelClassName="max-h-[min(92vh,820px)] max-w-2xl">
-        <article className="max-h-[min(92vh,820px)] overflow-y-auto p-5 sm:p-6">
-          <div className="flex flex-wrap items-start justify-between gap-3">
-            <div>
-              <h2 id="api-key-create-title" className="font-display text-2xl">Add API key</h2>
-            </div>
+      <Modal open={isCreateModalOpen} onClose={closeCreateModal} labelledBy="api-key-create-title" panelClassName="max-w-lg">
+        <article className="p-5 sm:p-6">
+          <div className="flex items-center justify-between gap-3">
+            <h2 id="api-key-create-title" className="font-display text-2xl">Add API key</h2>
             <button className="rounded-xl border border-black/15 bg-white px-4 py-2 text-sm font-semibold text-black" type="button" onClick={closeCreateModal}>
               Close
             </button>
           </div>
 
-          <form className="mt-5 grid gap-4" onSubmit={handleCreateApiKey}>
-            <label className="grid gap-2 text-sm text-black/70">
-              <span className="font-semibold text-black">Key name</span>
-              <input
-                className="rounded-2xl border border-black/10 bg-white px-4 py-3 text-sm outline-none transition focus:border-black/25"
-                value={newKeyName}
-                onChange={(event) => setNewKeyName(event.target.value)}
-                placeholder="Desktop client"
-                maxLength={80}
-              />
-            </label>
-
-            <div className="rounded-2xl border border-dashed border-black/15 bg-sand/60 p-4 text-sm text-black/65">
-              New keys are shown only once after creation. Store them in your client or secret manager before closing this modal.
-            </div>
-
-            <div>
-              <button
-                className="rounded-xl bg-ink px-4 py-3 text-sm font-semibold text-white disabled:cursor-not-allowed disabled:opacity-60"
-                type="submit"
-                disabled={isCreatingKey || !newKeyName.trim()}
-              >
-                {isCreatingKey ? "Creating..." : "Create API Key"}
-              </button>
-            </div>
-          </form>
-
-          {latestApiKey ? (
-            <div className="mt-5 rounded-2xl border border-amber-300 bg-amber-50 p-4 text-amber-950">
-              <div className="flex flex-wrap items-start justify-between gap-3">
-                <div>
-                  <p className="text-xs font-semibold uppercase tracking-[0.24em] text-amber-700">New key</p>
-                  <h3 className="mt-2 font-display text-lg">Save this secret now</h3>
-                </div>
-                <button className="rounded-xl border border-amber-300 px-3 py-2 text-sm font-semibold text-amber-900" type="button" onClick={() => setShowLatestApiKey((current) => !current)}>
-                  {showLatestApiKey ? "Hide value" : "Reveal value"}
+          {!latestApiKey ? (
+            <form className="mt-5 grid gap-4" onSubmit={handleCreateApiKey}>
+              <label className="grid gap-2 text-sm text-black/70">
+                <span className="font-semibold text-black">Key name</span>
+                <input
+                  className="rounded-2xl border border-black/10 bg-white px-4 py-3 text-sm outline-none transition focus:border-black/25"
+                  value={newKeyName}
+                  onChange={(event) => setNewKeyName(event.target.value)}
+                  placeholder="Desktop client"
+                  maxLength={80}
+                  autoFocus
+                />
+              </label>
+              <div>
+                <button
+                  className="rounded-xl bg-ink px-4 py-3 text-sm font-semibold text-white disabled:cursor-not-allowed disabled:opacity-60"
+                  type="submit"
+                  disabled={isCreatingKey || !newKeyName.trim()}
+                >
+                  {isCreatingKey ? "Creating..." : "Create API key"}
                 </button>
               </div>
-              <div className="mt-4 rounded-2xl bg-black px-4 py-3 font-mono text-sm text-white">
-                {showLatestApiKey ? latestApiKey : maskApiKey(latestApiKey)}
+            </form>
+          ) : (
+            <div className="mt-5 grid gap-4">
+              <div className="break-all rounded-2xl bg-black px-4 py-3 font-mono text-sm text-white">
+                {latestApiKey}
               </div>
-              <div className="mt-4 flex flex-wrap items-center gap-3">
-                <button className="rounded-xl bg-amber-500 px-4 py-2 text-sm font-semibold text-amber-950" type="button" onClick={() => void handleCopyLatestApiKey()}>
+              <div className="flex items-center gap-3">
+                <button className="rounded-xl bg-ink px-4 py-2 text-sm font-semibold text-white" type="button" onClick={() => void handleCopyLatestApiKey()}>
                   Copy key
                 </button>
                 {copyState === "copied" ? <p className="text-sm text-emerald-700">Copied to clipboard.</p> : null}
-                {copyState === "failed" ? <p className="text-sm text-rose-700">Clipboard copy failed. Copy it manually.</p> : null}
+                {copyState === "failed" ? <p className="text-sm text-rose-700">Copy failed — select and copy manually.</p> : null}
               </div>
             </div>
-          ) : null}
+          )}
         </article>
       </Modal>
     </section>
