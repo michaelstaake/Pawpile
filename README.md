@@ -8,15 +8,13 @@ Hardware to run AI locally is expensive, but cloud AI solution pricing keeps goi
 
 ## System Requirements
 
-### Recommended Operating System
+### Ubuntu 26.04
 
-- **Ubuntu 26.04**
-
-If it works on other operating systems, awesome, but supporting that is outside the scope of this project.
+If it works on other operating systems, cool, but supporting that is outside the scope of this project.
 
 ### Docker
 
-Ensure Docker is running in the system context.
+Ensure Docker is installed and running in the system context.
 
 ### Supported Devices
 
@@ -25,7 +23,7 @@ Ensure Docker is running in the system context.
 - **AMD**: ROCm
 - **Intel Arc**: Note: `xe` is the correct driver for supported Arc GPUs — `i915` is not supported.
 
-### Setup Steps
+### Quick Start
 
 1. Clone or download the repository.
 
@@ -52,11 +50,13 @@ The backend stores its SQLite database in a Docker-managed volume. Model files s
 
 4. Add your AI models GGUF files under the `models/` directory or do this later using the Web UI.
 
-5. Initial setup will take a long time.Wait for services to become healthy (typically 30-60 seconds).
+5. Initial setup will take a long time as we are building llama-cpp based on your selected devices.
 
-6. Open in your browser: http://localhost:5173 or replace localhost with your server's local IP.
+6. Once Docker reports the containers are healthy and started, open the Pawpile web interface: http://localhost:5173 or replace localhost with your server's local IP.
 
 7. On a new install you will be redirected to the setup page. Once you have created your initial admin user and selected a device and model to start with, you can use Pawpile.
+
+8. Next time you run Pawpile, run it without --build to speed up initialization. After setup is complete, Pawpile is typically ready within 30 seconds.
 
 ## Interacting with the AI Models
 
