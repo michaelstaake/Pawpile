@@ -6,133 +6,177 @@ export default function ProfilePage() {
   const [email, setEmail] = useState(user?.email ?? "");
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
-  const [errorMessage, setErrorMessage] = useState<string | null>(null);
-  const [successMessage, setSuccessMessage] = useState<string | null>(null);
-  const [isSaving, setIsSaving] = useState(false);
+  const [emailError, setEmailError] = useState<string | null>(null);
+  const [emailSuccess, setEmailSuccess] = useState<string | null>(null);
+  const [passwordError, setPasswordError] = useState<string | null>(null);
+  const [passwordSuccess, setPasswordSuccess] = useState<string | null>(null);
+  const [isSavingEmail, setIsSavingEmail] = useState(false);
+  const [isSavingPassword, setIsSavingPassword] = useState(false);
 
   useEffect(() => {
     setEmail(user?.email ?? "");
   }, [user?.email]);
 
-  async function handleSubmit(event: FormEvent<HTMLFormElement>) {
+  async function handleEmailSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    setErrorMessage(null);
-    setSuccessMessage(null);
+    setEmailError(null);
+    setEmailSuccess(null);
 
     const trimmedEmail = email.trim();
-    const nextPassword = password.trim();
 
     if (!trimmedEmail) {
-      setErrorMessage("Email is required.");
+      setEmailError("Email is required.");
       return;
     }
 
-    if (nextPassword && nextPassword.length < 8) {
-      setErrorMessage("Password must be at least 8 characters.");
+    if (trimmedEmail === (user?.email ?? "")) {
+      setEmailError("No email changes to save.");
       return;
     }
 
-    if (nextPassword !== confirmPassword.trim()) {
-      setErrorMessage("Password confirmation does not match.");
-      return;
-    }
-
-    if (trimmedEmail === (user?.email ?? "") && !nextPassword) {
-      setErrorMessage("No profile changes to save.");
-      return;
-    }
-
-    setIsSaving(true);
+    setIsSavingEmail(true);
     try {
-      await updateProfile({
-        email: trimmedEmail === (user?.email ?? "") ? undefined : trimmedEmail,
-        password: nextPassword || undefined,
-      });
-      setPassword("");
-      setConfirmPassword("");
-      setSuccessMessage("Profile updated.");
+      await updateProfile({ email: trimmedEmail });
+      setEmailSuccess("Email updated.");
     } catch (error) {
-      setErrorMessage(error instanceof Error ? error.message : "Unable to update profile.");
+      setEmailError(error instanceof Error ? error.message : "Unable to update email.");
     } finally {
-      setIsSaving(false);
+      setIsSavingEmail(false);
     }
   }
 
+  async function handlePasswordSubmit(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    setPasswordError(null);
+    setPasswordSuccess(null);
+
+    const nextPassword = password.trim();
+    const nextConfirmPassword = confirmPassword.trim();
+
+    if (!nextPassword) {
+      setPasswordError("New password is required.");
+      return;
+    }
+
+    if (nextPassword.length < 8) {
+      setPasswordError("Password must be at least 8 characters.");
+      return;
+    }
+
+    if (nextPassword !== nextConfirmPassword) {
+      setPasswordError("Password confirmation does not match.");
+      return;
+    }
+
+    setIsSavingPassword(true);
+    try {
+      await updateProfile({ password: nextPassword });
+      setPassword("");
+      setConfirmPassword("");
+      setPasswordSuccess("Password updated.");
+    } catch (error) {
+      setPasswordError(error instanceof Error ? error.message : "Unable to update password.");
+    } finally {
+      setIsSavingPassword(false);
+    }
+  }
+
+  const roleLabel = user?.is_admin ? "Admin" : "Standard";
+
   return (
-    <section className="grid gap-4 xl:grid-cols-[0.95fr_1.05fr]">
-      <article className="rounded-2xl border border-black/10 bg-white/80 p-5 shadow-sm backdrop-blur">
-        <p className="text-xs font-semibold uppercase tracking-[0.24em] text-black/45">Profile</p>
-        <h2 className="mt-2 font-display text-xl">Account details</h2>
-        <p className="mt-2 text-sm text-black/70">Review the signed-in account and end the current browser session from here.</p>
-
-        {user ? (
-          <div className="mt-5 rounded-2xl border border-black/10 bg-[#fffdf7] p-4 text-sm text-black/70">
-            <p className="font-semibold text-black">{user.username}</p>
-            <p>{user.email}</p>
-            <p className="mt-1 text-xs uppercase tracking-[0.2em] text-black/45">{user.is_admin ? "Admin" : "User"}</p>
-            <button className="mt-4 rounded-xl border border-black/15 px-4 py-2 font-semibold text-black" type="button" onClick={logout}>
-              Sign Out
-            </button>
+    <section className="grid gap-4">
+      <article className="overflow-hidden rounded-3xl border border-black/10 bg-[linear-gradient(135deg,rgba(17,24,39,0.96),rgba(56,189,248,0.84))] p-6 text-white shadow-sm">
+        <div className="flex flex-col gap-6 lg:flex-row lg:items-end lg:justify-between">
+          <div>
+            <p className="text-xs font-semibold uppercase tracking-[0.24em] text-white/65">Profile</p>
+            <h1 className="mt-3 font-display text-3xl leading-tight">Welcome back, {user?.username ?? "there"}</h1>
+            <p className="mt-2 max-w-2xl text-sm text-white/75">Manage the email address tied to this account and keep your password current.</p>
           </div>
-        ) : null}
-      </article>
-
-      <article className="rounded-2xl border border-black/10 bg-white/80 p-5 shadow-sm backdrop-blur">
-        <p className="text-xs font-semibold uppercase tracking-[0.24em] text-black/45">Access</p>
-        <h2 className="mt-2 font-display text-xl">Web account</h2>
-        <p className="mt-2 text-sm text-black/70">Update your email address or set a new password for this browser account.</p>
-
-        <form className="mt-5 space-y-4" onSubmit={handleSubmit}>
-          <label className="block text-sm text-black/70">
-            <span className="mb-2 block font-semibold text-black">Username</span>
-            <input
-              className="w-full rounded-xl border border-black/10 bg-black/5 px-4 py-3 text-black/55 outline-none"
-              type="text"
-              value={user?.username ?? ""}
-              disabled
-              readOnly
-            />
-          </label>
-          <label className="block text-sm text-black/70">
-            <span className="mb-2 block font-semibold text-black">Email</span>
-            <input
-              className="w-full rounded-xl border border-black/10 bg-white px-4 py-3 outline-none transition focus:border-black/25"
-              type="email"
-              value={email}
-              onChange={(event) => setEmail(event.target.value)}
-              autoComplete="email"
-              required
-            />
-          </label>
-          <label className="block text-sm text-black/70">
-            <span className="mb-2 block font-semibold text-black">New password</span>
-            <input
-              className="w-full rounded-xl border border-black/10 bg-white px-4 py-3 outline-none transition focus:border-black/25"
-              type="password"
-              value={password}
-              onChange={(event) => setPassword(event.target.value)}
-              autoComplete="new-password"
-              placeholder="Leave blank to keep the current password"
-            />
-          </label>
-          <label className="block text-sm text-black/70">
-            <span className="mb-2 block font-semibold text-black">Confirm new password</span>
-            <input
-              className="w-full rounded-xl border border-black/10 bg-white px-4 py-3 outline-none transition focus:border-black/25"
-              type="password"
-              value={confirmPassword}
-              onChange={(event) => setConfirmPassword(event.target.value)}
-              autoComplete="new-password"
-              placeholder="Repeat the new password"
-            />
-          </label>
-          {errorMessage ? <p className="rounded-xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700">{errorMessage}</p> : null}
-          {successMessage ? <p className="rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-700">{successMessage}</p> : null}
-          <button className="rounded-xl bg-ink px-4 py-3 font-semibold text-white disabled:cursor-not-allowed disabled:opacity-60" type="submit" disabled={isSaving}>
-            {isSaving ? "Saving..." : "Save profile"}
+          <div className="rounded-2xl border border-white/20 bg-white/10 px-4 py-3 text-sm backdrop-blur-sm">
+            <p className="font-semibold text-white">{roleLabel} account</p>
+            <p className="mt-1 text-white/70">{user?.email ?? "No email available"}</p>
+          </div>
+        </div>
+        <div className="mt-5 flex flex-wrap items-center gap-3">
+          <span className="rounded-full border border-white/20 bg-white/10 px-3 py-1 text-xs font-semibold uppercase tracking-[0.2em] text-white/80">
+            {roleLabel}
+          </span>
+          <button className="rounded-xl border border-white/20 bg-white/10 px-4 py-2 font-semibold text-white transition hover:bg-white/15" type="button" onClick={logout}>
+            Sign Out
           </button>
-        </form>
+        </div>
       </article>
+
+      <div className="grid gap-4 xl:grid-cols-2">
+        <article className="rounded-2xl border border-black/10 bg-white/80 p-5 shadow-sm backdrop-blur">
+          <p className="text-xs font-semibold uppercase tracking-[0.24em] text-black/45">Update Email</p>
+          <h2 className="mt-2 font-display text-xl">Change your email address</h2>
+          <p className="mt-2 text-sm text-black/70">Use the email you want this account to sign in and receive account notices with.</p>
+
+          <form className="mt-5 space-y-4" onSubmit={handleEmailSubmit}>
+            <label className="block text-sm text-black/70">
+              <span className="mb-2 block font-semibold text-black">Email</span>
+              <input
+                className="w-full rounded-xl border border-black/10 bg-white px-4 py-3 outline-none transition focus:border-black/25"
+                type="email"
+                value={email}
+                onChange={(event) => setEmail(event.target.value)}
+                autoComplete="email"
+                required
+              />
+            </label>
+            {emailError ? <p className="rounded-xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700">{emailError}</p> : null}
+            {emailSuccess ? <p className="rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-700">{emailSuccess}</p> : null}
+            <button
+              className="rounded-xl bg-ink px-4 py-3 font-semibold text-white disabled:cursor-not-allowed disabled:opacity-60"
+              type="submit"
+              disabled={isSavingEmail}
+            >
+              {isSavingEmail ? "Saving..." : "Update email"}
+            </button>
+          </form>
+        </article>
+
+        <article className="rounded-2xl border border-black/10 bg-white/80 p-5 shadow-sm backdrop-blur">
+          <p className="text-xs font-semibold uppercase tracking-[0.24em] text-black/45">Update Password</p>
+          <h2 className="mt-2 font-display text-xl">Set a new password</h2>
+          <p className="mt-2 text-sm text-black/70">Choose a password with at least 8 characters, then confirm it before saving.</p>
+
+          <form className="mt-5 space-y-4" onSubmit={handlePasswordSubmit}>
+            <label className="block text-sm text-black/70">
+              <span className="mb-2 block font-semibold text-black">New password</span>
+              <input
+                className="w-full rounded-xl border border-black/10 bg-white px-4 py-3 outline-none transition focus:border-black/25"
+                type="password"
+                value={password}
+                onChange={(event) => setPassword(event.target.value)}
+                autoComplete="new-password"
+                placeholder="Enter a new password"
+              />
+            </label>
+            <label className="block text-sm text-black/70">
+              <span className="mb-2 block font-semibold text-black">Confirm new password</span>
+              <input
+                className="w-full rounded-xl border border-black/10 bg-white px-4 py-3 outline-none transition focus:border-black/25"
+                type="password"
+                value={confirmPassword}
+                onChange={(event) => setConfirmPassword(event.target.value)}
+                autoComplete="new-password"
+                placeholder="Repeat the new password"
+              />
+            </label>
+            {passwordError ? <p className="rounded-xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700">{passwordError}</p> : null}
+            {passwordSuccess ? <p className="rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-700">{passwordSuccess}</p> : null}
+            <button
+              className="rounded-xl bg-ink px-4 py-3 font-semibold text-white disabled:cursor-not-allowed disabled:opacity-60"
+              type="submit"
+              disabled={isSavingPassword}
+            >
+              {isSavingPassword ? "Saving..." : "Update password"}
+            </button>
+          </form>
+        </article>
+      </div>
     </section>
   );
 }
