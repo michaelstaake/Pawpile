@@ -349,7 +349,7 @@ export default function SetupPage() {
             </button>
           </div>
           <p className="mt-2 text-sm text-black/70">
-            Select the primary system device you want Pawpile to use for running inference. All other background devices will be disabled.
+            Enable your first device. You can add more devices later.
           </p>
 
           {isDevicesLoading ? (
@@ -428,7 +428,7 @@ export default function SetupPage() {
             </button>
           </div>
           <p className="mt-2 text-sm text-black/70">
-            A GGUF format model needs to be added and activated before Pawpile can answer chat requests. Scan your existing models folder or upload a new model file now.
+            Pawpile requires GGUF format models. Upload a model through your browser or place it in the models folder and then scan the directory.
           </p>
 
           <div className="mt-5 grid gap-5 md:grid-cols-2">
@@ -478,9 +478,9 @@ export default function SetupPage() {
               </form>
             </div>
 
-            <div>
-              <form className="grid gap-4" onSubmit={handleCompleteSetup}>
-                <label className="grid gap-1 text-sm text-black/70">
+            <div className="min-w-0">
+              <form className="grid min-w-0 gap-4" onSubmit={handleCompleteSetup}>
+                <label className="grid min-w-0 gap-1 text-sm text-black/70">
                   Select Active Model
                   {isModelsLoading ? (
                     <span className="text-xs text-black/45">Loading available models...</span>
@@ -490,7 +490,7 @@ export default function SetupPage() {
                     </span>
                   ) : null}
                   <select
-                    className="rounded-xl border border-black/15 bg-white px-3 py-2 text-sm disabled:cursor-not-allowed disabled:opacity-50"
+                    className="w-full min-w-0 rounded-xl border border-black/15 bg-white px-3 py-2 text-sm disabled:cursor-not-allowed disabled:opacity-50"
                     value={selectedModelId ?? ""}
                     onChange={(e) => handleModelChange(Number(e.target.value))}
                     disabled={models.length === 0}
@@ -508,10 +508,10 @@ export default function SetupPage() {
                   <div className="rounded-2xl border border-black/10 bg-[#fffdf7] p-4 text-sm text-black/75">
                     <p className="font-display font-semibold text-base mb-1">Model Config</p>
                     <p className="text-xs text-black/45 break-all font-mono mb-2">{activeModel.file_name}</p>
-                    <label className="grid gap-1 text-sm text-black/70 mt-3">
+                    <label className="grid min-w-0 gap-1 text-sm text-black/70 mt-3">
                       Model Friendly Alias
                       <input
-                        className="rounded-xl border border-black/15 bg-white px-3 py-2 text-sm"
+                        className="w-full min-w-0 rounded-xl border border-black/15 bg-white px-3 py-2 text-sm"
                         value={modelAlias}
                         onChange={(e) => setModelAlias(e.target.value)}
                       />
