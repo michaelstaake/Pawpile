@@ -18,6 +18,7 @@ def get_settings(_: User = Depends(get_admin_user), db: Session = Depends(get_db
     return AppSettingsResponse(
         allow_anonymous_chat=settings.allow_anonymous_chat,
         users_can_register=settings.users_can_register,
+        auto_load_enabled_models_on_startup=settings.auto_load_enabled_models_on_startup,
     )
 
 
@@ -29,6 +30,8 @@ def update_settings(payload: AppSettingsUpdateRequest, _: User = Depends(get_adm
         settings.allow_anonymous_chat = payload.allow_anonymous_chat
     if payload.users_can_register is not None:
         settings.users_can_register = payload.users_can_register
+    if payload.auto_load_enabled_models_on_startup is not None:
+        settings.auto_load_enabled_models_on_startup = payload.auto_load_enabled_models_on_startup
 
     db.add(settings)
     db.commit()
@@ -36,6 +39,7 @@ def update_settings(payload: AppSettingsUpdateRequest, _: User = Depends(get_adm
     return AppSettingsResponse(
         allow_anonymous_chat=settings.allow_anonymous_chat,
         users_can_register=settings.users_can_register,
+        auto_load_enabled_models_on_startup=settings.auto_load_enabled_models_on_startup,
     )
 
 

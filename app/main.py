@@ -1,19 +1,23 @@
 from contextlib import asynccontextmanager
+import logging
 from pathlib import Path
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from app.api import admin, auth, chat, devices, models, openai_compat, status
+from app.core.app_settings import get_or_create_app_settings
 from app.core.config import get_settings
 from app.core.db import Base, SessionLocal, engine
 from app.core.device_manager import DeviceManager
 from app.core.inference_manager import InferenceManager
 from app.core.logging import configure_logging
+from app.models.model_config import ModelConfig
 
 settings = get_settings()
 device_manager = DeviceManager()
 inference_manager = InferenceManager()
+logger = logging.getLogger(__name__)
 
 
 @asynccontextmanager
@@ -26,6 +30,25 @@ async def lifespan(_: FastAPI):
     db = SessionLocal()
     try:
         device_manager.sync_detected_devices(db)
+        app_settings = get_or_create_app_settings(db)
+        if app_settings.auto_load_enabled_models_on_startup:
+            activated_models = (
+                db.query(ModelConfig)
+                .filter(ModelConfig.activated.is_(True))
+                .order_by(ModelConfig.priority.asc(), ModelConfig.id.asc())
+                .all()
+            )
+            for model in activated_models:
+                try:
+                    device = models._resolve_device_for_model(db, model, inference_manager)
+                    if device is None:
+                        raise RuntimeError("No enabled device available for model")
+                    await inference_manager.activate_model(model, device)
+                except Exception:
+                    logger.exception("Failed to auto-load model %s during startup", model.alias)
+                    model.activated = False
+                    db.add(model)
+            db.commit()
     finally:
         db.close()
 

@@ -16,6 +16,7 @@ export default function ConfigurationPage() {
   const [settings, setSettings] = useState<AppSettingsRecord>({
     allow_anonymous_chat: true,
     users_can_register: false,
+    auto_load_enabled_models_on_startup: false,
   });
   const [isLoading, setIsLoading] = useState(true);
   const [isSaving, setIsSaving] = useState<keyof AppSettingsRecord | null>(null);
@@ -100,6 +101,19 @@ export default function ConfigurationPage() {
               checked={settings.users_can_register}
               disabled={isLoading || isSaving === "users_can_register"}
               onChange={(event) => void updateSetting("users_can_register", event.target.checked)}
+            />
+          </label>
+
+          <label className="flex items-start justify-between gap-4 rounded-2xl border border-black/10 bg-[#fffdf7] px-4 py-4">
+            <div>
+              <div className="text-sm font-semibold text-black">Auto-load activated models on startup</div>
+              <p className="mt-1 text-sm text-black/65">If enabled, Pawpile will automatically restart models that were left activated before the backend last shut down.</p>
+            </div>
+            <input
+              type="checkbox"
+              checked={settings.auto_load_enabled_models_on_startup}
+              disabled={isLoading || isSaving === "auto_load_enabled_models_on_startup"}
+              onChange={(event) => void updateSetting("auto_load_enabled_models_on_startup", event.target.checked)}
             />
           </label>
         </div>
