@@ -3,6 +3,8 @@ services:
     build:
       context: .
       dockerfile: Dockerfile.inference.amd
+      args:
+        AMDGPU_TARGETS: ${AMDGPU_TARGETS:-}
     container_name: pawpile-inference-amd
     environment:
       SUPPORTED_DEVICES: amd

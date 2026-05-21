@@ -117,8 +117,8 @@ inference container.
 
 To target a specific AMD GPU architecture and shrink build time, override the
 `AMDGPU_TARGETS` build arg, e.g. `--build-arg AMDGPU_TARGETS=gfx1100` for an
-RX 7900 series card. Pawpile forwards that value to llama.cpp's `GPU_TARGETS`
-build option.
+RX 7900 series card or `--build-arg AMDGPU_TARGETS=gfx1201` for a Radeon AI PRO
+R9700. Pawpile forwards that value to llama.cpp's `GPU_TARGETS` build option.
 
 ## Docker Containers
 
