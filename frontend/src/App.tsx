@@ -12,11 +12,11 @@ import SetupPage from "./pages/SetupPage";
 import { useAuth } from "./context/AuthContext";
 
 const adminNavItems = [
-  { to: "/api", label: "API" },
   { to: "/configuration", label: "Configuration" },
   { to: "/devices", label: "Devices" },
   { to: "/models", label: "Models" },
   { to: "/users", label: "Users" },
+  { to: "/api", label: "API" },
 ] as const;
 
 const appVersionLabel = `v${__APP_VERSION__}`;
@@ -151,6 +151,8 @@ export default function App() {
                     ))}
                   </div>
                 </details>
+              ) : user ? (
+                <NavLink to="/api" className={({ isActive }) => `rounded-lg px-3 py-2 text-sm ${isActive ? "bg-ink text-white" : "bg-black/5"}`}>API</NavLink>
               ) : null}
               {!user ? (
                 <NavLink to="/login" className={() => `rounded-lg px-3 py-2 text-sm ${authRouteActive ? "bg-ink text-white" : "bg-black/5"}`}>Login</NavLink>
