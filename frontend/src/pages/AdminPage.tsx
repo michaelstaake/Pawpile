@@ -93,21 +93,15 @@ type UploadProgressState = {
   total: number;
 };
 
-function formatFileSize(bytes: number): string {
-  if (bytes < 1024) {
-    return `${bytes} B`;
+function formatUploadSize(bytes: number, totalBytes: number): string {
+  const isLargeFile = totalBytes >= 1024 * 1024 * 1024;
+  if (isLargeFile) {
+    const gb = bytes / (1024 * 1024 * 1024);
+    return `${gb.toFixed(2)} GB`;
   }
 
-  const units = ["KB", "MB", "GB", "TB"];
-  let value = bytes / 1024;
-  let unitIndex = 0;
-
-  while (value >= 1024 && unitIndex < units.length - 1) {
-    value /= 1024;
-    unitIndex += 1;
-  }
-
-  return `${value.toFixed(value >= 10 ? 0 : 1)} ${units[unitIndex]}`;
+  const mb = bytes / (1024 * 1024);
+  return `${mb.toFixed(0)} MB`;
 }
 
 const ADMIN_TOKEN_KEY = "pawpile.adminToken";
@@ -730,7 +724,7 @@ export default function SettingsPage() {
                   <div className="grid gap-2 rounded-xl border border-black/10 bg-white/70 px-3 py-3">
                     <div className="flex items-center justify-between gap-3 text-sm text-black/70">
                       <span>{uploadPercent}%</span>
-                      <span>{formatFileSize(uploadProgress.loaded)} / {formatFileSize(uploadTotal)}</span>
+                      <span>{formatUploadSize(uploadProgress.loaded, uploadTotal)} / {formatUploadSize(uploadTotal, uploadTotal)}</span>
                     </div>
                     <div className="h-2 overflow-hidden rounded-full bg-black/10">
                       <div className="h-full rounded-full bg-amber transition-[width] duration-150" style={{ width: `${uploadPercent}%` }} />
