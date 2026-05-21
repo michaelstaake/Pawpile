@@ -155,7 +155,6 @@ function DeviceCard({ device }: { device: DeviceStatusRecord }) {
 export default function StatusPage() {
   const { token } = useAuth();
   const [devices, setDevices] = useState<DeviceStatusRecord[]>([]);
-  const [runtimeErrors, setRuntimeErrors] = useState<StatusResponse["runtime_errors"]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [errorMessage, setErrorMessage] = useState("");
 
@@ -173,7 +172,6 @@ export default function StatusPage() {
           return;
         }
         setDevices(response.devices);
-        setRuntimeErrors(response.runtime_errors);
         setErrorMessage("");
       } catch (error) {
         if (!isMounted) {
@@ -245,7 +243,6 @@ export default function StatusPage() {
       </article>
 
       {errorMessage ? <p className="rounded-2xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700">{errorMessage}</p> : null}
-      {runtimeErrors.length > 0 ? <p className="rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">Some runtimes did not respond, so telemetry may be partial.</p> : null}
 
       {isLoading ? (
         <div className="rounded-2xl border border-black/10 bg-white/80 px-4 py-8 text-sm text-black/55 shadow-sm">Loading live device telemetry...</div>
