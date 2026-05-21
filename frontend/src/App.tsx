@@ -1,12 +1,18 @@
-import { NavLink, Navigate, Route, Routes } from "react-router-dom";
+import { NavLink, Navigate, Route, Routes, useLocation } from "react-router-dom";
 import ChatPage from "./pages/ChatPage";
 import DevicesPage from "./pages/DevicesPage";
 import ModelsPage from "./pages/ModelsPage";
 import UsersPage from "./pages/UsersPage";
 import AuthPage from "./pages/AuthPage";
 import SetupPage from "./pages/SetupPage";
-import SettingsPage from "./pages/SettingsPage";
 import { useAuth } from "./context/AuthContext";
+
+const adminNavItems = [
+  { to: "/auth", label: "API" },
+  { to: "/devices", label: "Devices" },
+  { to: "/models", label: "Models" },
+  { to: "/users", label: "Users" },
+] as const;
 
 function RequireAdmin({ children }: { children: JSX.Element }) {
   const { isBootstrapping, requiresSetup, user } = useAuth();
@@ -40,7 +46,9 @@ function SetupRoute() {
 
 export default function App() {
   const { bootstrapError, isBootstrapping, requiresSetup, user } = useAuth();
+  const location = useLocation();
   const showMainNav = !isBootstrapping && !requiresSetup;
+  const adminMenuActive = adminNavItems.some((item) => location.pathname === item.to);
 
   if (!isBootstrapping && bootstrapError) {
     return (
@@ -69,18 +77,36 @@ export default function App() {
           {showMainNav ? (
             <nav className="flex flex-wrap gap-2">
               <NavLink to="/" className={({ isActive }) => `rounded-lg px-3 py-2 text-sm ${isActive ? "bg-ink text-white" : "bg-black/5"}`}>Chat</NavLink>
-              <NavLink to="/auth" className={({ isActive }) => `rounded-lg px-3 py-2 text-sm ${isActive ? "bg-ink text-white" : "bg-black/5"}`}>API Keys</NavLink>
-              {user?.is_admin ? <NavLink to="/settings" className={({ isActive }) => `rounded-lg px-3 py-2 text-sm ${isActive ? "bg-ink text-white" : "bg-black/5"}`}>Settings</NavLink> : null}
-              {user?.is_admin ? <NavLink to="/devices" className={({ isActive }) => `rounded-lg px-3 py-2 text-sm ${isActive ? "bg-ink text-white" : "bg-black/5"}`}>Devices</NavLink> : null}
-              {user?.is_admin ? <NavLink to="/models" className={({ isActive }) => `rounded-lg px-3 py-2 text-sm ${isActive ? "bg-ink text-white" : "bg-black/5"}`}>Models</NavLink> : null}
-              {user?.is_admin ? <NavLink to="/users" className={({ isActive }) => `rounded-lg px-3 py-2 text-sm ${isActive ? "bg-ink text-white" : "bg-black/5"}`}>Users</NavLink> : null}
+              {user?.is_admin ? (
+                <details className="group relative">
+                  <summary className={`list-none rounded-lg px-3 py-2 text-sm cursor-pointer ${adminMenuActive ? "bg-ink text-white" : "bg-black/5"}`}>
+                    <span className="flex items-center gap-2">
+                      Settings
+                      <span className="text-xs transition group-open:rotate-180">▾</span>
+                    </span>
+                  </summary>
+                  <div className="absolute right-0 top-full z-10 mt-2 min-w-40 rounded-xl border border-black/10 bg-white/95 p-2 shadow-lg backdrop-blur">
+                    {adminNavItems.map((item) => (
+                      <NavLink
+                        key={item.to}
+                        to={item.to}
+                        className={({ isActive }) => `block rounded-lg px-3 py-2 text-sm ${isActive ? "bg-ink text-white" : "text-black/70 hover:bg-black/5"}`}
+                      >
+                        {item.label}
+                      </NavLink>
+                    ))}
+                  </div>
+                </details>
+              ) : (
+                <NavLink to="/auth" className={({ isActive }) => `rounded-lg px-3 py-2 text-sm ${isActive ? "bg-ink text-white" : "bg-black/5"}`}>API Keys</NavLink>
+              )}
             </nav>
           ) : null}
         </header>
 
         <Routes>
           <Route path="/" element={requiresSetup ? <Navigate to="/setup" replace /> : <ChatPage />} />
-          <Route path="/settings" element={<RequireAdmin><SettingsPage /></RequireAdmin>} />
+          <Route path="/settings" element={<RequireAdmin><Navigate to="/devices" replace /></RequireAdmin>} />
           <Route path="/devices" element={<RequireAdmin><DevicesPage /></RequireAdmin>} />
           <Route path="/models" element={<RequireAdmin><ModelsPage /></RequireAdmin>} />
           <Route path="/users" element={<RequireAdmin><UsersPage /></RequireAdmin>} />

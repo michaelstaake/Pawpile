@@ -174,7 +174,7 @@ export default function ChatPage() {
       return;
     }
     if (!selectedModel) {
-      setErrorMessage("Activate a model in Settings before chatting.");
+      setErrorMessage("Activate a model on the Models page before chatting.");
       return;
     }
 
@@ -323,8 +323,8 @@ export default function ChatPage() {
         {!isLoadingModels && models.length === 0 && (
           <div className="mb-3 rounded-lg border border-amber/40 bg-amber/10 px-3 py-2 text-sm text-black/70">
             No models are active yet. Open the{" "}
-            <a className="font-semibold underline" href="/settings">
-              Settings
+            <a className="font-semibold underline" href="/models">
+              Models
             </a>{" "}
             page to scan and activate one.
           </div>
