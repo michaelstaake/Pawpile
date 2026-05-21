@@ -26,7 +26,7 @@ RUN git clone --depth 1 https://github.com/ggerganov/llama.cpp.git /opt/llama.cp
             -DCMAKE_C_COMPILER=icx \
             -DCMAKE_CXX_COMPILER=icpx \
             -DCMAKE_BUILD_TYPE=Release \
-        && cmake --build /opt/llama.cpp/build --config Release --target llama-server -j2"
+        && cmake --build /opt/llama.cpp/build --config Release --target llama-server -j$(nproc)"
 
 COPY app ./app
 
