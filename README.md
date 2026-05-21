@@ -105,9 +105,9 @@ The base stack always starts the CPU inference runtime. Add one or more vendor r
 Pawpile automatically detects devices from the running runtimes and routes models to the matching vendor. The overlay choice is still needed at container startup time because NVIDIA, AMD, and Intel use different images, libraries, and device mappings.
 
 - NVIDIA: `docker compose -f docker-compose.yml -f docker-compose.nvidia.yml up -d --build`
-- AMD (ROCm, Linux host): `docker compose -f docker-compose.yml -f docker-compose.amd.yml up -d --build`
-- Intel (oneAPI / Level Zero, Linux host): `docker compose -f docker-compose.yml -f docker-compose.intel.yml up -d --build`
-- Mixed vendor example: `docker compose -f docker-compose.yml -f docker-compose.nvidia.yml -f docker-compose.amd.yml up -d --build`
+- AMD (ROCm): `docker compose -f docker-compose.yml -f docker-compose.amd.yml up -d --build`
+- Intel (oneAPI / Level Zero): `docker compose -f docker-compose.yml -f docker-compose.intel.yml up -d --build`
+- Mixed vendor with NVIDIA and AMD example: `docker compose -f docker-compose.yml -f docker-compose.nvidia.yml -f docker-compose.amd.yml up -d --build`
 
 You can combine overlay files. Pawpile now routes models to the inference runtime that matches the selected device vendor.
 
