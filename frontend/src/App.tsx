@@ -50,8 +50,9 @@ export default function App() {
   const { bootstrapError, isBootstrapping, logout, requiresSetup, user } = useAuth();
   const location = useLocation();
   const showMainNav = !isBootstrapping && !requiresSetup;
-  const adminMenuActive = adminNavItems.some((item) => location.pathname === item.to);
-  const userMenuActive = location.pathname === "/auth";
+  const authRouteActive = location.pathname === "/auth";
+  const adminMenuActive = !!user?.is_admin && adminNavItems.some((item) => location.pathname === item.to);
+  const userMenuActive = !!user && authRouteActive && !user.is_admin;
 
   if (!isBootstrapping && bootstrapError) {
     return (
@@ -81,7 +82,7 @@ export default function App() {
           </NavLink>
           {showMainNav ? (
             <nav className="relative z-50 flex flex-wrap items-center gap-2 overflow-visible">
-              <NavLink to="/" className={({ isActive }) => `rounded-lg px-3 py-2 text-sm ${isActive ? "bg-ink text-white" : "bg-black/5"}`}>Chat</NavLink>
+              <NavLink to="/" end className={({ isActive }) => `rounded-lg px-3 py-2 text-sm ${isActive ? "bg-ink text-white" : "bg-black/5"}`}>Chat</NavLink>
               {user?.is_admin ? (
                 <details className="group relative z-50">
                   <summary className={`list-none rounded-lg px-3 py-2 text-sm cursor-pointer ${adminMenuActive ? "bg-ink text-white" : "bg-black/5"}`}>
@@ -104,7 +105,7 @@ export default function App() {
                 </details>
               ) : null}
               {!user ? (
-                <NavLink to="/auth" className={({ isActive }) => `rounded-lg px-3 py-2 text-sm ${isActive ? "bg-ink text-white" : "bg-black/5"}`}>Login</NavLink>
+                <NavLink to="/auth" className={() => `rounded-lg px-3 py-2 text-sm ${authRouteActive ? "bg-ink text-white" : "bg-black/5"}`}>Login</NavLink>
               ) : (
                 <details className="group relative z-50">
                   <summary className={`list-none cursor-pointer rounded-lg px-3 py-2 text-sm ${userMenuActive ? "bg-ink text-white" : "bg-black/5"}`}>
