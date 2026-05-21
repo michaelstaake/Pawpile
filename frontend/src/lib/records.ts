@@ -70,6 +70,11 @@ export type UserUpdateResponse = {
   user: UserRecord;
 };
 
+export type AppSettingsRecord = {
+  allow_anonymous_chat: boolean;
+  users_can_register: boolean;
+};
+
 export type ApiKeyCreateResponse = {
   status: string;
   api_key: ApiKeyRecord;

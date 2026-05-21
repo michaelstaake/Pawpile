@@ -3,9 +3,12 @@ import { Navigate } from "react-router-dom";
 import { useAuth } from "../context/AuthContext";
 
 export default function AuthPage() {
-  const { user, requiresSetup, isBootstrapping, isAuthenticating, login } = useAuth();
+  const { user, requiresSetup, isBootstrapping, isAuthenticating, login, register, usersCanRegister } = useAuth();
   const [loginUsername, setLoginUsername] = useState("");
   const [loginPassword, setLoginPassword] = useState("");
+  const [registerUsername, setRegisterUsername] = useState("");
+  const [registerEmail, setRegisterEmail] = useState("");
+  const [registerPassword, setRegisterPassword] = useState("");
   const [errorMessage, setErrorMessage] = useState("");
   const [successMessage, setSuccessMessage] = useState("");
 
@@ -23,6 +26,20 @@ export default function AuthPage() {
     }
   }
 
+  async function handleRegister(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    setErrorMessage("");
+    setSuccessMessage("");
+
+    try {
+      await register(registerUsername, registerEmail, registerPassword);
+      setRegisterPassword("");
+      setSuccessMessage("Account created.");
+    } catch (error) {
+      setErrorMessage(error instanceof Error ? error.message : "Registration failed");
+    }
+  }
+
   if (!isBootstrapping && requiresSetup) {
     return <Navigate to="/setup" replace />;
   }
@@ -32,7 +49,8 @@ export default function AuthPage() {
   }
 
   return (
-    <section className="mx-auto max-w-xl rounded-2xl border border-black/10 bg-white/80 p-5 shadow-sm backdrop-blur">
+    <section className="mx-auto grid max-w-4xl gap-4 md:grid-cols-[minmax(0,1fr)_minmax(0,1fr)]">
+      <article className="rounded-2xl border border-black/10 bg-white/80 p-5 shadow-sm backdrop-blur">
         <p className="text-xs font-semibold uppercase tracking-[0.24em] text-black/45">Auth</p>
         <h2 className="mt-2 font-display text-xl">Sign in</h2>
         <p className="mt-2 text-sm text-black/70">Use your web account here to start a browser session. Profile and API key management have dedicated pages once you're signed in.</p>
@@ -54,6 +72,39 @@ export default function AuthPage() {
             </button>
           </div>
         </form>
+      </article>
+
+      <article className="rounded-2xl border border-black/10 bg-white/80 p-5 shadow-sm backdrop-blur">
+        <p className="text-xs font-semibold uppercase tracking-[0.24em] text-black/45">Registration</p>
+        <h2 className="mt-2 font-display text-xl">Create an account</h2>
+        <p className="mt-2 text-sm text-black/70">
+          {usersCanRegister
+            ? "Create a standard user account. Admin access still has to be granted separately."
+            : "Self-service registration is currently disabled. Ask an admin to create an account for you."}
+        </p>
+
+        {usersCanRegister ? (
+          <form className="mt-5 grid gap-3" onSubmit={handleRegister}>
+            <label className="grid gap-1 text-sm text-black/70">
+              Username
+              <input className="rounded-xl border border-black/15 bg-white px-3 py-2 text-sm" value={registerUsername} onChange={(event) => setRegisterUsername(event.target.value)} autoComplete="username" />
+            </label>
+            <label className="grid gap-1 text-sm text-black/70">
+              Email
+              <input className="rounded-xl border border-black/15 bg-white px-3 py-2 text-sm" type="email" value={registerEmail} onChange={(event) => setRegisterEmail(event.target.value)} autoComplete="email" />
+            </label>
+            <label className="grid gap-1 text-sm text-black/70">
+              Password
+              <input className="rounded-xl border border-black/15 bg-white px-3 py-2 text-sm" type="password" value={registerPassword} onChange={(event) => setRegisterPassword(event.target.value)} autoComplete="new-password" />
+            </label>
+            <div>
+              <button className="rounded-xl bg-ink px-4 py-2 text-sm font-semibold text-white disabled:cursor-not-allowed disabled:opacity-60" type="submit" disabled={isAuthenticating}>
+                {isAuthenticating ? "Creating..." : "Register"}
+              </button>
+            </div>
+          </form>
+        ) : null}
+      </article>
     </section>
   );
 }

@@ -10,9 +10,12 @@ type AuthContextValue = {
   bootstrapError: string | null;
   isBootstrapping: boolean;
   isAuthenticating: boolean;
+  allowAnonymousChat: boolean;
+  usersCanRegister: boolean;
   refreshAuthState: () => Promise<void>;
   updateProfile: (payload: { email?: string; password?: string }) => Promise<CurrentUser>;
   login: (username: string, password: string) => Promise<void>;
+  register: (username: string, email: string, password: string) => Promise<void>;
   bootstrapAdmin: (username: string, email: string, password: string) => Promise<void>;
   logout: () => void;
 };
@@ -27,6 +30,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [bootstrapError, setBootstrapError] = useState<string | null>(null);
   const [isBootstrapping, setIsBootstrapping] = useState(true);
   const [isAuthenticating, setIsAuthenticating] = useState(false);
+  const [allowAnonymousChat, setAllowAnonymousChat] = useState(true);
+  const [usersCanRegister, setUsersCanRegister] = useState(false);
 
   useEffect(() => {
     const onStorage = (event: StorageEvent) => {
@@ -49,6 +54,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       setBootstrapError(null);
       setSetupStatus(bootstrap);
       setRequiresSetup(bootstrap.requires_setup);
+      setAllowAnonymousChat(bootstrap.allow_anonymous_chat);
+      setUsersCanRegister(bootstrap.users_can_register);
 
       if (!token) {
         setUser(null);
@@ -68,6 +75,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       setUser(null);
       setSetupStatus(null);
       setRequiresSetup(false);
+      setAllowAnonymousChat(true);
+      setUsersCanRegister(false);
       setBootstrapError(error instanceof Error ? error.message : "Unable to load installation state");
     } finally {
       setIsBootstrapping(false);
@@ -103,7 +112,27 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       setUser(currentUser);
       setSetupStatus(bootstrap);
       setRequiresSetup(bootstrap.requires_setup);
+      setAllowAnonymousChat(bootstrap.allow_anonymous_chat);
+      setUsersCanRegister(bootstrap.users_can_register);
       setBootstrapError(null);
+    } finally {
+      setIsAuthenticating(false);
+    }
+  }
+
+  async function register(username: string, email: string, password: string) {
+    setIsAuthenticating(true);
+    try {
+      const response = await apiPost<{ username: string; email: string; password: string }, LoginResponse>("/api/auth/register", {
+        username,
+        email,
+        password,
+      });
+      storeToken(response.access_token);
+      setToken(response.access_token);
+      const currentUser = await apiGet<CurrentUser>("/api/auth/me", response.access_token);
+      setBootstrapError(null);
+      setUser(currentUser);
     } finally {
       setIsAuthenticating(false);
     }
@@ -135,9 +164,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         bootstrapError,
         isBootstrapping,
         isAuthenticating,
+        allowAnonymousChat,
+        usersCanRegister,
         refreshAuthState,
         updateProfile,
         login,
+        register,
         bootstrapAdmin,
         logout,
       }}

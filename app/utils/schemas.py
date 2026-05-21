@@ -43,12 +43,30 @@ class BootstrapStatusResponse(BaseModel):
     has_admin_user: bool = False
     has_enabled_device: bool = False
     has_active_model: bool = False
+    allow_anonymous_chat: bool = True
+    users_can_register: bool = False
 
 
 class BootstrapAdminRequest(BaseModel):
     username: str = Field(min_length=3, max_length=64)
     email: str = Field(min_length=3, max_length=255)
     password: str = Field(min_length=8, max_length=255)
+
+
+class UserRegistrationRequest(BaseModel):
+    username: str = Field(min_length=3, max_length=64)
+    email: str = Field(min_length=3, max_length=255)
+    password: str = Field(min_length=8, max_length=255)
+
+
+class AppSettingsResponse(BaseModel):
+    allow_anonymous_chat: bool = True
+    users_can_register: bool = False
+
+
+class AppSettingsUpdateRequest(BaseModel):
+    allow_anonymous_chat: bool | None = None
+    users_can_register: bool | None = None
 
 
 class UserCreateRequest(BaseModel):

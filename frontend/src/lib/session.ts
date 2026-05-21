@@ -6,6 +6,8 @@ export type BootstrapStatus = {
   has_admin_user: boolean;
   has_enabled_device: boolean;
   has_active_model: boolean;
+  allow_anonymous_chat: boolean;
+  users_can_register: boolean;
 };
 
 export type CurrentUser = {

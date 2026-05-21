@@ -2,13 +2,41 @@ from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 
 from app.api.deps import get_admin_user
+from app.core.app_settings import get_or_create_app_settings
 from app.core.db import get_db
 from app.core.security import generate_api_key, hash_api_key, hash_password
 from app.models.api_key import ApiKey
 from app.models.user import User
-from app.utils.schemas import ApiKeyCreateRequest, UserCreateRequest, UserUpdateRequest
+from app.utils.schemas import ApiKeyCreateRequest, AppSettingsResponse, AppSettingsUpdateRequest, UserCreateRequest, UserUpdateRequest
 
 router = APIRouter(prefix="/api/admin", tags=["admin"])
+
+
+@router.get("/settings", response_model=AppSettingsResponse)
+def get_settings(_: User = Depends(get_admin_user), db: Session = Depends(get_db)) -> AppSettingsResponse:
+    settings = get_or_create_app_settings(db)
+    return AppSettingsResponse(
+        allow_anonymous_chat=settings.allow_anonymous_chat,
+        users_can_register=settings.users_can_register,
+    )
+
+
+@router.patch("/settings", response_model=AppSettingsResponse)
+def update_settings(payload: AppSettingsUpdateRequest, _: User = Depends(get_admin_user), db: Session = Depends(get_db)) -> AppSettingsResponse:
+    settings = get_or_create_app_settings(db)
+
+    if payload.allow_anonymous_chat is not None:
+        settings.allow_anonymous_chat = payload.allow_anonymous_chat
+    if payload.users_can_register is not None:
+        settings.users_can_register = payload.users_can_register
+
+    db.add(settings)
+    db.commit()
+    db.refresh(settings)
+    return AppSettingsResponse(
+        allow_anonymous_chat=settings.allow_anonymous_chat,
+        users_can_register=settings.users_can_register,
+    )
 
 
 @router.get("/users")

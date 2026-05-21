@@ -52,6 +52,21 @@ function RequireUser({ children }: { children: JSX.Element }) {
   return children;
 }
 
+function HomeRoute() {
+  const { allowAnonymousChat, isBootstrapping, requiresSetup, user } = useAuth();
+
+  if (isBootstrapping) {
+    return <section className="rounded-2xl border border-black/10 bg-white/80 p-5 text-sm text-black/60 shadow-sm">Loading your workspace...</section>;
+  }
+  if (requiresSetup) {
+    return <Navigate to="/setup" replace />;
+  }
+  if (!allowAnonymousChat && !user) {
+    return <Navigate to="/login" replace />;
+  }
+  return <ChatPage />;
+}
+
 function SetupRoute() {
   const { bootstrapError, isBootstrapping, requiresSetup } = useAuth();
 
@@ -169,7 +184,7 @@ export default function App() {
         </header>
 
         <Routes>
-          <Route path="/" element={requiresSetup ? <Navigate to="/setup" replace /> : <ChatPage />} />
+          <Route path="/" element={<HomeRoute />} />
           <Route path="/settings" element={<RequireAdmin><Navigate to="/configuration" replace /></RequireAdmin>} />
           <Route path="/configuration" element={<RequireAdmin><ConfigurationPage /></RequireAdmin>} />
           <Route path="/devices" element={<RequireAdmin><DevicesPage /></RequireAdmin>} />

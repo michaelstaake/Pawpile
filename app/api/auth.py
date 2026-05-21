@@ -6,6 +6,7 @@ from sqlalchemy.exc import IntegrityError, OperationalError, SQLAlchemyError
 from sqlalchemy.orm import Session
 
 from app.api.deps import get_current_user
+from app.core.app_settings import get_or_create_app_settings
 from app.core.config import get_settings
 from app.core.db import get_db
 from app.core.security import create_access_token, generate_api_key, hash_api_key, hash_password, verify_password
@@ -13,7 +14,7 @@ from app.models.api_key import ApiKey
 from app.models.device import Device
 from app.models.model_config import ModelConfig
 from app.models.user import User
-from app.utils.schemas import ApiKeyCreateRequest, BootstrapAdminRequest, BootstrapStatusResponse, LoginRequest, LoginResponse, ProfileUpdateRequest, UserResponse
+from app.utils.schemas import ApiKeyCreateRequest, BootstrapAdminRequest, BootstrapStatusResponse, LoginRequest, LoginResponse, ProfileUpdateRequest, UserRegistrationRequest, UserResponse
 
 router = APIRouter(prefix="/api/auth", tags=["auth"])
 logger = logging.getLogger(__name__)
@@ -24,6 +25,7 @@ def bootstrap_status(db: Session = Depends(get_db)) -> BootstrapStatusResponse:
     has_admin_user = db.query(User.id).filter(User.is_admin.is_(True), User.is_active.is_(True)).first() is not None
     has_enabled_device = db.query(Device.id).filter(Device.enabled.is_(True)).first() is not None
     has_active_model = db.query(ModelConfig.id).filter(ModelConfig.activated.is_(True)).first() is not None
+    app_settings = get_or_create_app_settings(db)
     setup_complete = _setup_complete_path().exists()
 
     if not setup_complete and has_admin_user and has_enabled_device and has_active_model:
@@ -35,6 +37,8 @@ def bootstrap_status(db: Session = Depends(get_db)) -> BootstrapStatusResponse:
         has_admin_user=has_admin_user,
         has_enabled_device=has_enabled_device,
         has_active_model=has_active_model,
+        allow_anonymous_chat=app_settings.allow_anonymous_chat,
+        users_can_register=app_settings.users_can_register,
     )
 
 
@@ -88,6 +92,30 @@ def login(payload: LoginRequest, db: Session = Depends(get_db)) -> LoginResponse
     user = db.query(User).filter(User.username == payload.username, User.is_active.is_(True)).first()
     if not user or not verify_password(payload.password, user.password_hash):
         raise HTTPException(status_code=401, detail="Invalid username or password")
+    token = create_access_token(user.username)
+    return LoginResponse(access_token=token)
+
+
+@router.post("/register", response_model=LoginResponse)
+def register(payload: UserRegistrationRequest, db: Session = Depends(get_db)) -> LoginResponse:
+    app_settings = get_or_create_app_settings(db)
+    if not app_settings.users_can_register:
+        raise HTTPException(status_code=403, detail="User registration is disabled")
+
+    existing_user = db.query(User.id).filter((User.username == payload.username) | (User.email == payload.email)).first()
+    if existing_user is not None:
+        raise HTTPException(status_code=409, detail="Username or email already exists")
+
+    user = User(
+        username=payload.username,
+        email=payload.email,
+        password_hash=hash_password(payload.password),
+        is_admin=False,
+        is_active=True,
+    )
+    db.add(user)
+    db.commit()
+    db.refresh(user)
     token = create_access_token(user.username)
     return LoginResponse(access_token=token)
 
