@@ -20,6 +20,7 @@ class ModelConfig(Base):
     context_length: Mapped[int] = mapped_column(Integer, default=8192, nullable=False)
     gpu_layers: Mapped[int] = mapped_column(Integer, default=-1, nullable=False)
     threads: Mapped[int] = mapped_column(Integer, default=8, nullable=False)
+    tool_calling_enabled: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
     assignment_mode: Mapped[str] = mapped_column(String(32), default="auto", nullable=False)
     pinned_device_id: Mapped[int | None] = mapped_column(ForeignKey("devices.id"), nullable=True)
     activated: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)

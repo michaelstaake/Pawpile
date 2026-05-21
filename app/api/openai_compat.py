@@ -48,19 +48,23 @@ async def v1_chat_completions(payload: OpenAIChatRequest, _: User = Depends(requ
     if not model:
         raise HTTPException(status_code=404, detail="Model not found or not active")
 
-    request_payload = {
-        "model": payload.model,
-        "messages": [
-            {
-                "role": m.role,
-                "content": normalize_message_content(m.content),
-            }
-            for m in payload.messages
-        ],
-        "stream": payload.stream,
-        "temperature": payload.temperature,
-        "max_tokens": payload.max_tokens,
-    }
+    if payload.requests_tooling():
+        if not model.tool_calling_enabled:
+            raise HTTPException(
+                status_code=400,
+                detail="Tool calling is disabled for this model. Enable tool calling in the model settings before sending tool requests.",
+            )
+
+    request_payload = payload.model_dump(exclude_none=True)
+    request_payload["messages"] = [
+        {
+            key: value
+            for key, value in message.model_dump(exclude_none=True).items()
+            if key != "content" or value != ""
+        }
+        | {"content": normalize_message_content(message.content)}
+        for message in payload.messages
+    ]
 
     if payload.stream:
         async def event_stream():

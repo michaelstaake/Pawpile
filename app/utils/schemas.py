@@ -1,6 +1,6 @@
 from typing import Any
 
-from pydantic import BaseModel, Field, field_validator
+from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 
 def normalize_message_content(content: Any) -> str:
@@ -10,6 +10,9 @@ def normalize_message_content(content: Any) -> str:
     - string content
     - list of content parts (only text parts are kept)
     """
+    if content is None:
+        return ""
+
     if isinstance(content, str):
         return content
 
@@ -163,18 +166,33 @@ class ModelUpdateRequest(BaseModel):
     context_length: int | None = Field(default=None, ge=256)
     gpu_layers: int | None = None
     threads: int | None = Field(default=None, ge=1)
+    tool_calling_enabled: bool | None = None
     assignment_mode: str | None = None
     pinned_device_id: int | None = None
 
 
 class ChatMessageRequest(BaseModel):
+    model_config = ConfigDict(extra="allow")
+
     role: str
-    content: str | list[dict[str, Any]]
+    content: str | list[dict[str, Any]] | None = None
+    name: str | None = None
+    tool_call_id: str | None = None
+    tool_calls: list[dict[str, Any]] | None = None
+    function_call: dict[str, Any] | None = None
 
     @field_validator("content", mode="before")
     @classmethod
     def _normalize_content(cls, value: Any) -> str:
         return normalize_message_content(value)
+
+    def includes_tooling(self) -> bool:
+        return (
+            self.role == "tool"
+            or self.tool_call_id is not None
+            or bool(self.tool_calls)
+            or self.function_call is not None
+        )
 
 
 class ChatCreateRequest(BaseModel):
@@ -203,8 +221,26 @@ class ChatMessageAppendRequest(BaseModel):
 
 
 class OpenAIChatRequest(BaseModel):
+    model_config = ConfigDict(extra="allow")
+
     model: str
     messages: list[ChatMessageRequest]
     stream: bool = False
     temperature: float | None = 0.7
     max_tokens: int | None = 512
+    tools: list[dict[str, Any]] | None = None
+    tool_choice: str | dict[str, Any] | None = None
+    parallel_tool_calls: bool | None = None
+    functions: list[dict[str, Any]] | None = None
+    function_call: str | dict[str, Any] | None = None
+    response_format: dict[str, Any] | None = None
+
+    def requests_tooling(self) -> bool:
+        return (
+            bool(self.tools)
+            or self.tool_choice is not None
+            or self.parallel_tool_calls is not None
+            or bool(self.functions)
+            or self.function_call is not None
+            or any(message.includes_tooling() for message in self.messages)
+        )

@@ -30,6 +30,7 @@ function buildModelPayload(model: ModelRecord) {
     context_length: model.context_length,
     gpu_layers: model.gpu_layers,
     threads: model.threads,
+    tool_calling_enabled: model.tool_calling_enabled,
     assignment_mode: model.assignment_mode,
     pinned_device_id: model.assignment_mode === "pinned" ? model.pinned_device_id : null,
   };
@@ -248,7 +249,7 @@ export default function ModelsPage({ setupMode = false, onComplete }: ModelsPage
 
     try {
       if (configChanged) {
-        const response = await apiPatch<Record<string, string | number | null>, ModelUpdateResponse>(`/api/models/${model.id}`, buildModelPayload(model), token);
+        const response = await apiPatch<Record<string, string | number | boolean | null>, ModelUpdateResponse>(`/api/models/${model.id}`, buildModelPayload(model), token);
         savedConfigRef.current[model.id] = serializeModelConfig(response.model);
         if (!activationChanged) {
           savedActivationRef.current[model.id] = response.model.activated;
@@ -458,6 +459,10 @@ export default function ModelsPage({ setupMode = false, onComplete }: ModelsPage
                 <label className="flex items-center gap-2 rounded-xl border border-black/10 bg-white px-3 py-2 text-sm text-black/70 md:self-end">
                   <input type="checkbox" checked={activeModel.activated} onChange={(event) => updateModelDraft(activeModel.id, { activated: event.target.checked })} />
                   Enabled
+                </label>
+                <label className="flex items-center gap-2 rounded-xl border border-black/10 bg-white px-3 py-2 text-sm text-black/70 md:self-end">
+                  <input type="checkbox" checked={activeModel.tool_calling_enabled} onChange={(event) => updateModelDraft(activeModel.id, { tool_calling_enabled: event.target.checked })} />
+                  Tool Calling Enabled
                 </label>
                 <label className="grid gap-1 text-sm text-black/70 md:col-span-2">
                   Description

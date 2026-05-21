@@ -27,6 +27,7 @@ export type ModelRecord = {
   context_length: number;
   gpu_layers: number;
   threads: number;
+  tool_calling_enabled: boolean;
   assignment_mode: string;
   pinned_device_id: number | null;
   activated: boolean;
