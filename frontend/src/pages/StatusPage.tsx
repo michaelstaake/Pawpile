@@ -57,14 +57,13 @@ function DeviceCard({ device }: { device: DeviceStatusRecord }) {
   const memoryPercent = clampPercent((device.memory_used_mb / Math.max(1, device.memory_total_mb)) * 100);
   const modelMemoryTotal = device.models.reduce((sum, model) => sum + model.memory_used_mb, 0);
   const unassignedMemoryPercent = clampPercent(memoryPercent - clampPercent((modelMemoryTotal / Math.max(1, device.memory_total_mb)) * 100));
-  const occupancySegments = device.models.length > 0 ? device.models : Array.from({ length: Math.max(1, device.max_slots) }, (_, index) => ({ model_id: index, alias: "Open slot", memory_used_mb: 0, pid: null }));
 
   return (
     <article className="overflow-hidden rounded-[28px] border border-black/10 bg-white/80 p-5 shadow-sm backdrop-blur">
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div>
           <h3 className="font-display text-xl text-ink">{device.name}</h3>
-          <p className="mt-2 text-sm text-black/60">
+          <p className="mt-2 text-sm text-black/65">
             {device.vendor} {device.device_type} · {device.hardware_id}
           </p>
         </div>
@@ -82,19 +81,6 @@ function DeviceCard({ device }: { device: DeviceStatusRecord }) {
             </div>
             <div className="mt-4 h-4 overflow-hidden rounded-full bg-black/10">
               <div className="h-full rounded-full bg-blue-600 transition-[width] duration-500" style={{ width: `${usagePercent}%` }} />
-            </div>
-            <div className="mt-3 flex h-3 overflow-hidden rounded-full bg-black/8">
-              {occupancySegments.map((model) => (
-                <div
-                  key={`${device.id}-${model.model_id}-${model.alias}`}
-                  className="h-full first:rounded-l-full last:rounded-r-full"
-                  style={{
-                    width: `${100 / occupancySegments.length}%`,
-                    backgroundColor: device.models.length > 0 ? colorForModel(model) : "rgba(0,0,0,0.08)",
-                  }}
-                  title={device.models.length > 0 ? model.alias : "Open slot"}
-                />
-              ))}
             </div>
           </section>
 
@@ -223,11 +209,11 @@ export default function StatusPage() {
 
         <div className="mt-6 grid gap-3 md:grid-cols-4">
           <div className="rounded-2xl border border-black/10 bg-white/75 p-4">
-            <p className="text-xs font-semibold uppercase tracking-[0.24em] text-black/45">Devices Ready</p>
+            <p className="text-xs font-semibold uppercase tracking-[0.24em] text-black/45">Devices</p>
             <p className="mt-2 font-display text-3xl text-ink">{summary.onlineDevices}</p>
           </div>
           <div className="rounded-2xl border border-black/10 bg-white/75 p-4">
-            <p className="text-xs font-semibold uppercase tracking-[0.24em] text-black/45">Active Models</p>
+            <p className="text-xs font-semibold uppercase tracking-[0.24em] text-black/45">Loaded Models</p>
             <p className="mt-2 font-display text-3xl text-ink">{summary.activeModels}</p>
           </div>
           <div className="rounded-2xl border border-black/10 bg-white/75 p-4">
