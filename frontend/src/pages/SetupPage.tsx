@@ -52,7 +52,7 @@ export default function SetupPage() {
 
   useEffect(() => {
     if (setupStatus?.has_active_model) {
-      navigate("/login", { replace: true });
+      navigate("/configuration", { replace: true });
       return;
     }
     if (setupStatus?.has_enabled_device) {
@@ -275,7 +275,7 @@ export default function SetupPage() {
       }
 
       await refreshAuthState();
-      navigate("/login", { replace: true });
+      navigate("/configuration", { replace: true });
     } catch (err) {
       setErrorMessage(err instanceof Error ? err.message : "Failed to activate selected model");
     } finally {
