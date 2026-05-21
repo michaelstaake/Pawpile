@@ -148,11 +148,8 @@ export default function DevicesPage({ setupMode = false, onContinue }: DevicesPa
       <article className="rounded-2xl border border-black/10 bg-white/80 p-5 shadow-sm backdrop-blur">
         <div className="flex flex-wrap items-start justify-between gap-4">
           <div>
-            <p className="text-xs font-semibold uppercase tracking-[0.24em] text-black/45">Device Scheduler</p>
             <h2 className="mt-2 font-display text-xl">{setupMode ? "Step 2: Devices" : "Devices"}</h2>
-            <p className="mt-2 max-w-3xl text-sm text-black/70">
-              {setupMode ? "Enable at least one device so models have somewhere to run." : "Enable and tune the devices Pawpile can schedule models onto."}
-            </p>
+            {setupMode ? <p className="mt-2 max-w-3xl text-sm text-black/70">Enable at least one device so models have somewhere to run.</p> : null}
           </div>
           <button className="rounded-xl border border-black/15 px-4 py-2 text-sm font-semibold text-black disabled:cursor-not-allowed disabled:opacity-60" type="button" onClick={() => token && void refreshDevices(token)} disabled={!token || isLoading}>
             {isLoading ? "Refreshing..." : "Refresh Devices"}
@@ -207,9 +204,11 @@ export default function DevicesPage({ setupMode = false, onContinue }: DevicesPa
 
               <div className="mt-4 flex flex-wrap items-center justify-between gap-3">
                 <p className="break-all text-xs text-black/45">{device.hardware_id}</p>
-                <p className="text-sm text-black/55">
-                  {savingDeviceIds.includes(device.id) ? "Saving..." : pendingDeviceIds.includes(device.id) ? "Saving changes..." : "Changes auto-save."}
-                </p>
+                {savingDeviceIds.includes(device.id) || pendingDeviceIds.includes(device.id) ? (
+                  <p className="text-sm text-black/55">
+                    {savingDeviceIds.includes(device.id) ? "Saving..." : "Saving changes..."}
+                  </p>
+                ) : null}
               </div>
             </article>
           ))}

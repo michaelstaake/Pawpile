@@ -94,7 +94,6 @@ export default function ProfilePage() {
         <article className="rounded-2xl border border-black/10 bg-white/80 p-5 shadow-sm backdrop-blur">
           <p className="text-xs font-semibold uppercase tracking-[0.24em] text-black/45">Update Email</p>
           <h2 className="mt-2 font-display text-xl">Change your email address</h2>
-          <p className="mt-2 text-sm text-black/70">Use the email you want this account to sign in and receive account notices with.</p>
 
           <form className="mt-5 space-y-4" onSubmit={handleEmailSubmit}>
             <label className="block text-sm text-black/70">
@@ -123,7 +122,6 @@ export default function ProfilePage() {
         <article className="rounded-2xl border border-black/10 bg-white/80 p-5 shadow-sm backdrop-blur">
           <p className="text-xs font-semibold uppercase tracking-[0.24em] text-black/45">Update Password</p>
           <h2 className="mt-2 font-display text-xl">Set a new password</h2>
-          <p className="mt-2 text-sm text-black/70">Choose a password with at least 8 characters, then confirm it before saving.</p>
 
           <form className="mt-5 space-y-4" onSubmit={handlePasswordSubmit}>
             <label className="block text-sm text-black/70">

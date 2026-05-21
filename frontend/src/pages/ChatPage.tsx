@@ -276,13 +276,6 @@ export default function ChatPage() {
               page to save your chat history.
             </div>
           )}
-          {user ? (
-            <div className="rounded-lg bg-black/5 p-2">
-              {messages.length === 0
-                ? "No messages yet"
-                : `${messages.length} message${messages.length === 1 ? "" : "s"}`}
-            </div>
-          ) : null}
         </div>
       </aside>
       <main className="rounded-2xl border border-black/10 bg-white/80 p-4 shadow-sm">

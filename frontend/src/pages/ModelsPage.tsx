@@ -270,11 +270,8 @@ export default function ModelsPage({ setupMode = false, onComplete }: ModelsPage
       <article className="rounded-2xl border border-black/10 bg-white/80 p-5 shadow-sm backdrop-blur">
         <div className="flex flex-wrap items-start justify-between gap-4">
           <div>
-            <p className="text-xs font-semibold uppercase tracking-[0.24em] text-black/45">Model Intake</p>
             <h2 className="mt-2 font-display text-xl">{setupMode ? "Step 3: Models" : "Models"}</h2>
-            <p className="mt-2 max-w-3xl text-sm text-black/70">
-              {setupMode ? "Register and activate at least one model to complete setup." : "Upload, scan, assign, and activate the models your users can chat with."}
-            </p>
+            {setupMode ? <p className="mt-2 max-w-3xl text-sm text-black/70">Register and activate at least one model to complete setup.</p> : null}
           </div>
           <button className="rounded-xl border border-black/15 px-4 py-2 text-sm font-semibold text-black disabled:cursor-not-allowed disabled:opacity-60" type="button" onClick={() => token && void refreshData(token)} disabled={!token || isLoading}>
             {isLoading ? "Refreshing..." : "Refresh Models"}
@@ -386,10 +383,11 @@ export default function ModelsPage({ setupMode = false, onComplete }: ModelsPage
               </label>
 
               <div className="mt-4 flex flex-wrap items-center justify-between gap-3">
-                <p className="break-all text-xs text-black/45">{model.file_path}</p>
-                <p className="text-sm text-black/55">
-                  {savingModelIds.includes(model.id) ? "Saving..." : pendingModelIds.includes(model.id) ? "Saving changes..." : "Changes auto-save."}
-                </p>
+                {savingModelIds.includes(model.id) || pendingModelIds.includes(model.id) ? (
+                  <p className="text-sm text-black/55">
+                    {savingModelIds.includes(model.id) ? "Saving..." : "Saving changes..."}
+                  </p>
+                ) : null}
               </div>
             </article>
           ))}

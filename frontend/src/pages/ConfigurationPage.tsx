@@ -72,7 +72,6 @@ export default function ConfigurationPage() {
       <article className="rounded-2xl border border-black/10 bg-white/80 p-5 shadow-sm backdrop-blur">
         <p className="text-xs font-semibold uppercase tracking-[0.24em] text-black/45">Configuration</p>
         <h2 className="mt-2 font-display text-xl">Access Controls</h2>
-        <p className="mt-2 max-w-3xl text-sm text-black/70">Control whether the web chat is visible before login and whether standard users can create their own accounts.</p>
 
         {errorMessage ? <p className="mt-4 rounded-xl border border-rose-200 bg-rose-50 px-3 py-2 text-sm text-rose-700">{errorMessage}</p> : null}
         {successMessage ? <p className="mt-4 rounded-xl border border-emerald-200 bg-emerald-50 px-3 py-2 text-sm text-emerald-700">{successMessage}</p> : null}
@@ -108,7 +107,6 @@ export default function ConfigurationPage() {
 
       <article className="rounded-2xl border border-black/10 bg-white/80 p-5 shadow-sm backdrop-blur">
         <p className="text-xs font-semibold uppercase tracking-[0.24em] text-black/45">Other Settings</p>
-        <h2 className="mt-2 font-display text-xl">Jump to Section</h2>
         <div className="mt-4 flex flex-wrap gap-3">
           {settingsLinks.map((link) => (
             <Link key={link.to} to={link.to} className="rounded-xl border border-black/15 bg-[#fffdf7] px-4 py-2 text-sm font-semibold text-black transition hover:bg-black/5">
