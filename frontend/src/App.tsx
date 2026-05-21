@@ -1,3 +1,4 @@
+import { MouseEvent, useEffect, useState } from "react";
 import { NavLink, Navigate, Route, Routes, useLocation } from "react-router-dom";
 import ChatPage from "./pages/ChatPage";
 import DevicesPage from "./pages/DevicesPage";
@@ -15,6 +16,7 @@ const adminNavItems = [
 ] as const;
 
 const appVersionLabel = `v${__APP_VERSION__}`;
+type HeaderMenu = "admin" | "user";
 
 function RequireAdmin({ children }: { children: JSX.Element }) {
   const { isBootstrapping, requiresSetup, user } = useAuth();
@@ -49,10 +51,22 @@ function SetupRoute() {
 export default function App() {
   const { bootstrapError, isBootstrapping, logout, requiresSetup, user } = useAuth();
   const location = useLocation();
+  const [openMenu, setOpenMenu] = useState<HeaderMenu | null>(null);
   const showMainNav = !isBootstrapping && !requiresSetup;
   const authRouteActive = location.pathname === "/auth";
   const adminMenuActive = !!user?.is_admin && adminNavItems.some((item) => location.pathname === item.to);
   const userMenuActive = !!user && authRouteActive && !user.is_admin;
+
+  useEffect(() => {
+    setOpenMenu(null);
+  }, [location.pathname]);
+
+  function handleMenuToggle(menu: HeaderMenu) {
+    return (event: MouseEvent<HTMLElement>) => {
+      event.preventDefault();
+      setOpenMenu((currentMenu) => (currentMenu === menu ? null : menu));
+    };
+  }
 
   if (!isBootstrapping && bootstrapError) {
     return (
@@ -84,8 +98,8 @@ export default function App() {
             <nav className="relative z-50 flex flex-wrap items-center gap-2 overflow-visible">
               <NavLink to="/" end className={({ isActive }) => `rounded-lg px-3 py-2 text-sm ${isActive ? "bg-ink text-white" : "bg-black/5"}`}>Chat</NavLink>
               {user?.is_admin ? (
-                <details className="group relative z-50">
-                  <summary className={`list-none rounded-lg px-3 py-2 text-sm cursor-pointer ${adminMenuActive ? "bg-ink text-white" : "bg-black/5"}`}>
+                <details open={openMenu === "admin"} className="group relative z-50">
+                  <summary onClick={handleMenuToggle("admin")} className={`list-none rounded-lg px-3 py-2 text-sm cursor-pointer ${adminMenuActive ? "bg-ink text-white" : "bg-black/5"}`}>
                     <span className="flex items-center gap-2">
                       Settings
                       <span className="text-xs transition group-open:rotate-180">▾</span>
@@ -107,8 +121,8 @@ export default function App() {
               {!user ? (
                 <NavLink to="/auth" className={() => `rounded-lg px-3 py-2 text-sm ${authRouteActive ? "bg-ink text-white" : "bg-black/5"}`}>Login</NavLink>
               ) : (
-                <details className="group relative z-50">
-                  <summary className={`list-none cursor-pointer rounded-lg px-3 py-2 text-sm ${userMenuActive ? "bg-ink text-white" : "bg-black/5"}`}>
+                <details open={openMenu === "user"} className="group relative z-50">
+                  <summary onClick={handleMenuToggle("user")} className={`list-none cursor-pointer rounded-lg px-3 py-2 text-sm ${userMenuActive ? "bg-ink text-white" : "bg-black/5"}`}>
                     <span className="flex items-center gap-2">
                       {user.username}
                       <span className="text-xs transition group-open:rotate-180">▾</span>
