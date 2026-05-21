@@ -7,9 +7,11 @@ services:
     environment:
       SUPPORTED_DEVICES: intel
       LLAMA_SERVER_PATH: /opt/llama.cpp/build/bin/llama-server
+      GGML_SYCL_DEVICE: ${INTEL_DEVICE:-0}
     volumes:
       - ./models:/app/models
       - ./logs:/app/logs
+      - /dev/dri:/dev/dri
     expose:
       - "8100"
     healthcheck:
@@ -18,8 +20,6 @@ services:
       timeout: 5s
       retries: 5
       start_period: 20s
-    devices:
-      - /dev/dri
     group_add:
       - video
       - render
