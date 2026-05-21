@@ -50,6 +50,14 @@ type ChatCreateResponse = {
 
 const BASE_URL = import.meta.env.VITE_API_BASE_URL ?? "";
 
+type Attachment = {
+  name: string;
+  size: number;
+  type: string;
+  content?: string;
+  dataUrl?: string;
+};
+
 export default function ChatPage() {
   const { token, user } = useAuth();
   const [models, setModels] = useState<string[]>([]);
@@ -63,6 +71,9 @@ export default function ChatPage() {
   const [activeChatId, setActiveChatId] = useState<number | null>(null);
   const [isLoadingChats, setIsLoadingChats] = useState(false);
   const transcriptRef = useRef<HTMLDivElement | null>(null);
+  const inputRef = useRef<HTMLInputElement | null>(null);
+  const fileInputRef = useRef<HTMLInputElement | null>(null);
+  const [attachments, setAttachments] = useState<Attachment[]>([]);
 
   useEffect(() => {
     void loadModels();
@@ -79,6 +90,12 @@ export default function ChatPage() {
       transcriptRef.current.scrollTop = transcriptRef.current.scrollHeight;
     }
   }, [messages]);
+
+  useEffect(() => {
+    if (!isLoadingModels && models.length > 0 && !isSending) {
+      inputRef.current?.focus();
+    }
+  }, [isLoadingModels, models, isSending]);
 
   async function loadModels() {
     setIsLoadingModels(true);
@@ -112,6 +129,7 @@ export default function ChatPage() {
     setInput("");
     setErrorMessage("");
     setActiveChatId(null);
+    setAttachments([]);
   }
 
   async function openChat(chatId: number) {
@@ -124,6 +142,7 @@ export default function ChatPage() {
       setActiveChatId(detail.chat.id);
       setMessages(detail.messages.map((m) => ({ role: m.role, content: m.content, phase: "complete" })));
       setInput("");
+      setAttachments([]);
     } catch (error) {
       setErrorMessage(error instanceof Error ? error.message : "Failed to load chat");
     }
@@ -177,10 +196,79 @@ export default function ChatPage() {
     }
   }
 
+  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (!e.target.files) return;
+    const filesArray = Array.from(e.target.files);
+
+    filesArray.forEach((file) => {
+      const isText =
+        file.type.startsWith("text/") ||
+        file.name.endsWith(".json") ||
+        file.name.endsWith(".js") ||
+        file.name.endsWith(".ts") ||
+        file.name.endsWith(".tsx") ||
+        file.name.endsWith(".py") ||
+        file.name.endsWith(".md") ||
+        file.name.endsWith(".csv") ||
+        file.name.endsWith(".yaml") ||
+        file.name.endsWith(".yml") ||
+        file.name.endsWith(".html") ||
+        file.name.endsWith(".css") ||
+        file.name.endsWith(".ini") ||
+        file.name.endsWith(".conf") ||
+        file.name.endsWith(".sh");
+
+      if (isText) {
+        const reader = new FileReader();
+        reader.onload = (event) => {
+          setAttachments((prev) => [
+            ...prev,
+            {
+              name: file.name,
+              size: file.size,
+              type: file.type,
+              content: event.target?.result as string,
+            },
+          ]);
+        };
+        reader.readAsText(file);
+      } else if (file.type.startsWith("image/")) {
+        const reader = new FileReader();
+        reader.onload = (event) => {
+          setAttachments((prev) => [
+            ...prev,
+            {
+              name: file.name,
+              size: file.size,
+              type: file.type,
+              dataUrl: event.target?.result as string,
+            },
+          ]);
+        };
+        reader.readAsDataURL(file);
+      } else {
+        setAttachments((prev) => [
+          ...prev,
+          {
+            name: file.name,
+            size: file.size,
+            type: file.type,
+          },
+        ]);
+      }
+    });
+
+    e.target.value = "";
+  };
+
+  const removeAttachment = (index: number) => {
+    setAttachments((prev) => prev.filter((_, i) => i !== index));
+  };
+
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     const trimmed = input.trim();
-    if (!trimmed) {
+    if (!trimmed && attachments.length === 0) {
       return;
     }
     if (!selectedModel) {
@@ -188,21 +276,36 @@ export default function ChatPage() {
       return;
     }
 
+    let combinedContent = trimmed;
+    if (attachments.length > 0) {
+      const attachmentsText = attachments
+        .map((file) => {
+          if (file.content) {
+            return `\n\n[Attached File: ${file.name}]\n\`\`\`\n${file.content}\n\`\`\``;
+          } else {
+            return `\n\n[Attached File: ${file.name} (Binary/Image File, ${(file.size / 1024).toFixed(1)} KB)]`;
+          }
+        })
+        .join("");
+      combinedContent = (trimmed ? trimmed : "Analyze the attached file(s).") + attachmentsText;
+    }
+
     const nextMessages: ChatMessage[] = [
       ...messages,
-      { role: "user", content: trimmed, phase: "complete" },
+      { role: "user", content: combinedContent, phase: "complete" },
     ];
     setMessages([
       ...nextMessages,
       { role: "assistant", content: "", phase: "thinking", stats: null },
     ]);
     setInput("");
+    setAttachments([]);
     setErrorMessage("");
     setIsSending(true);
 
-    const chatId = await ensureChat(trimmed);
+    const chatId = await ensureChat(trimmed ? trimmed : "Sent attachments");
     if (chatId !== null) {
-      void persistMessage(chatId, "user", trimmed);
+      void persistMessage(chatId, "user", combinedContent);
     }
 
     let assistantBuffer = "";
@@ -364,7 +467,7 @@ export default function ChatPage() {
           className="min-h-[360px] max-h-[55vh] overflow-y-auto rounded-xl border border-dashed border-black/20 bg-sand p-4 text-sm text-black/80"
         >
           {messages.length === 0 ? (
-            <div className="text-black/50">Ask Pawpile anything to get started.</div>
+            <div className="text-black/50">Ask AI anything to get started.</div>
           ) : (
             <div className="space-y-3">
               {messages.map((message, index) => (
@@ -408,21 +511,79 @@ export default function ChatPage() {
           )}
         </div>
 
-        <form className="mt-4 flex gap-2" onSubmit={handleSubmit}>
-          <input
-            value={input}
-            onChange={(event) => setInput(event.target.value)}
-            disabled={isSending}
-            className="flex-1 rounded-xl border border-black/20 bg-white px-4 py-3 text-sm"
-            placeholder="Ask Pawpile..."
-          />
-          <button
-            type="submit"
-            disabled={isSending || !selectedModel || !input.trim()}
-            className="rounded-xl bg-amber px-4 py-3 text-sm font-semibold text-black disabled:opacity-50"
-          >
-            {isSending ? "Sending..." : "Send"}
-          </button>
+        <form className="mt-4 flex flex-col gap-2" onSubmit={handleSubmit}>
+          {attachments.length > 0 && (
+            <div className="flex flex-wrap gap-2 rounded-xl border border-black/10 bg-black/5 p-2">
+              {attachments.map((file, idx) => (
+                <div key={idx} className="relative flex items-center gap-2 rounded-lg bg-white p-2 shadow-sm pr-8 text-xs font-semibold text-black/70">
+                  {file.type.startsWith("image/") && file.dataUrl ? (
+                    <img src={file.dataUrl} alt={file.name} className="h-8 w-8 rounded object-cover" />
+                  ) : (
+                    <span className="text-xl">📄</span>
+                  )}
+                  <div className="truncate max-w-[150px]">
+                    <div className="truncate">{file.name}</div>
+                    <div className="text-[10px] text-black/40">{(file.size / 1024).toFixed(1)} KB</div>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => removeAttachment(idx)}
+                    className="absolute right-1 top-1 rounded-full p-1 text-black/40 hover:bg-black/5 hover:text-black/80"
+                    aria-label="Remove attachment"
+                  >
+                    ×
+                  </button>
+                </div>
+              ))}
+            </div>
+          )}
+
+          <div className="flex gap-2">
+            <button
+              type="button"
+              onClick={() => fileInputRef.current?.click()}
+              disabled={isSending}
+              className="flex h-12 w-12 items-center justify-center rounded-xl border border-black/20 bg-white hover:bg-black/5 text-black disabled:opacity-50"
+              title="Attach files"
+            >
+              <svg
+                xmlns="http://www.w3.org/2000/svg"
+                fill="none"
+                viewBox="0 0 24 24"
+                strokeWidth={1.5}
+                stroke="currentColor"
+                className="h-5 w-5"
+              >
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  d="M18.375 12.739l-7.693 7.693a4.5 4.5 0 01-6.364-6.364l10.94-10.94A3 3 0 1119.5 7.372L8.552 18.32m.009-.01l-.01.01m5.699-9.941l-7.81 7.81a1.5 1.5 0 002.112 2.13"
+                />
+              </svg>
+            </button>
+            <input
+              type="file"
+              ref={fileInputRef}
+              onChange={handleFileChange}
+              multiple
+              className="hidden"
+            />
+            <input
+              ref={inputRef}
+              value={input}
+              onChange={(event) => setInput(event.target.value)}
+              disabled={isSending}
+              className="flex-1 rounded-xl border border-black/20 bg-white px-4 py-3 text-sm h-12"
+              placeholder="Ask AI..."
+            />
+            <button
+              type="submit"
+              disabled={isSending || !selectedModel || (!input.trim() && attachments.length === 0)}
+              className="rounded-xl bg-amber px-4 h-12 text-sm font-semibold text-black disabled:opacity-50"
+            >
+              {isSending ? "Sending..." : "Send"}
+            </button>
+          </div>
         </form>
       </main>
     </section>
