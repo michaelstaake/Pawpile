@@ -81,7 +81,7 @@ function DeviceCard({ device }: { device: DeviceStatusRecord }) {
               <p className="font-display text-2xl text-ink">{usagePercent.toFixed(1)}%</p>
             </div>
             <div className="mt-4 h-4 overflow-hidden rounded-full bg-black/10">
-              <div className="h-full rounded-full bg-[linear-gradient(90deg,#174f48_0%,#d97706_100%)] transition-[width] duration-500" style={{ width: `${usagePercent}%` }} />
+              <div className="h-full rounded-full bg-blue-600 transition-[width] duration-500" style={{ width: `${usagePercent}%` }} />
             </div>
             <div className="mt-3 flex h-3 overflow-hidden rounded-full bg-black/8">
               {occupancySegments.map((model) => (
