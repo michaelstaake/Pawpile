@@ -39,7 +39,7 @@ class Settings(BaseSettings):
 
     default_context_length: int = 8192
     default_threads: int = 8
-    default_gpu_layers: int = 0
+    default_gpu_layers: int = -1
 
     queue_max_size: int = 1000
     queue_poll_interval_ms: int = 100

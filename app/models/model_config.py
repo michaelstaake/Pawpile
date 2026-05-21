@@ -18,7 +18,7 @@ class ModelConfig(Base):
     system_prompt: Mapped[str] = mapped_column(Text, default="", nullable=False)
     chat_template: Mapped[str] = mapped_column(Text, default="", nullable=False)
     context_length: Mapped[int] = mapped_column(Integer, default=8192, nullable=False)
-    gpu_layers: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
+    gpu_layers: Mapped[int] = mapped_column(Integer, default=-1, nullable=False)
     threads: Mapped[int] = mapped_column(Integer, default=8, nullable=False)
     assignment_mode: Mapped[str] = mapped_column(String(32), default="auto", nullable=False)
     pinned_device_id: Mapped[int | None] = mapped_column(ForeignKey("devices.id"), nullable=True)
