@@ -2,6 +2,7 @@ FROM intel/oneapi-basekit:2025.3.2-0-devel-ubuntu24.04
 
 WORKDIR /app
 
+# Install system dependencies including venv
 RUN apt-get update && apt-get install -y --no-install-recommends \
     build-essential \
     ca-certificates \
@@ -11,22 +12,31 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     libcurl4-openssl-dev \
     python3 \
     python3-pip \
+    python3-venv \
     && rm -rf /var/lib/apt/lists/* \
     && ln -sf /usr/bin/python3 /usr/bin/python
 
+# Create virtual environment and install requirements (AMD-style)
 COPY requirements.txt ./
-RUN pip3 install --no-cache-dir -r requirements.txt
+RUN python3 -m venv /opt/venv \
+    && /opt/venv/bin/pip install --no-cache-dir -r requirements.txt
 
-RUN git clone --depth 1 https://github.com/ggerganov/llama.cpp.git /opt/llama.cpp \
-    && bash -lc "source /opt/intel/oneapi/setvars.sh --force \
-        && cmake -S /opt/llama.cpp -B /opt/llama.cpp/build \
-            -DLLAMA_BUILD_SERVER=ON \
-            -DGGML_SYCL=ON \
-            -DGGML_SYCL_TARGET=INTEL \
-            -DCMAKE_C_COMPILER=icx \
-            -DCMAKE_CXX_COMPILER=icpx \
-            -DCMAKE_BUILD_TYPE=Release \
-        && cmake --build /opt/llama.cpp/build --config Release --target llama-server -j$(nproc)"
+# Add venv and oneAPI to PATH
+ENV PATH=/opt/venv/bin:/opt/intel/oneapi/compiler/latest/bin:$PATH
+
+# Build llama.cpp with SYCL using all CPU cores
+RUN git clone --depth 1 https://github.com/ggerganov/llama.cpp.git /opt/llama.cpp && \
+    bash -lc "source /opt/intel/oneapi/setvars.sh --force && \
+    cmake -S /opt/llama.cpp -B /opt/llama.cpp/build \
+        -DLLAMA_BUILD_SERVER=ON \
+        -DGGML_SYCL=ON \
+        -DGGML_SYCL_TARGET=INTEL \
+        -DCMAKE_C_COMPILER=icx \
+        -DCMAKE_CXX_COMPILER=icpx \
+        -DCMAKE_BUILD_TYPE=Release \
+        -DGGML_SYCL_F16=ON \
+        -DCMAKE_CXX_FLAGS='-Wno-error=maybe-uninitialized -Wno-error=unused-variable' && \
+    cmake --build /opt/llama.cpp/build --config Release --target llama-server -j$(nproc)"
 
 COPY app ./app
 
@@ -37,5 +47,5 @@ ENV SUPPORTED_DEVICES=cpu,intel
 
 EXPOSE 8100
 
-# Wrap uvicorn so the oneAPI runtime (libsycl, libigc, MKL) is on LD_LIBRARY_PATH.
+# Start with proper oneAPI environment
 CMD ["bash", "-lc", "source /opt/intel/oneapi/setvars.sh --force >/dev/null && exec uvicorn app.inference_service:app --host 0.0.0.0 --port 8100"]
