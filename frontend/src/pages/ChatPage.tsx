@@ -8,6 +8,16 @@ type ChatRole = "system" | "user" | "assistant";
 type ChatMessage = {
   role: ChatRole;
   content: string;
+  phase?: "thinking" | "streaming" | "complete";
+  stats?: ChatCompletionStats | null;
+};
+
+type ChatCompletionStats = {
+  model: string;
+  promptTokens: number | null;
+  completionTokens: number | null;
+  totalTokens: number | null;
+  tokensPerSecond: number | null;
 };
 
 type ModelListResponse = {
@@ -112,7 +122,7 @@ export default function ChatPage() {
     try {
       const detail = await apiGet<ChatDetailResponse>(`/api/chat/${chatId}`, token);
       setActiveChatId(detail.chat.id);
-      setMessages(detail.messages.map((m) => ({ role: m.role, content: m.content })));
+      setMessages(detail.messages.map((m) => ({ role: m.role, content: m.content, phase: "complete" })));
       setInput("");
     } catch (error) {
       setErrorMessage(error instanceof Error ? error.message : "Failed to load chat");
@@ -178,8 +188,14 @@ export default function ChatPage() {
       return;
     }
 
-    const nextMessages: ChatMessage[] = [...messages, { role: "user", content: trimmed }];
-    setMessages([...nextMessages, { role: "assistant", content: "" }]);
+    const nextMessages: ChatMessage[] = [
+      ...messages,
+      { role: "user", content: trimmed, phase: "complete" },
+    ];
+    setMessages([
+      ...nextMessages,
+      { role: "assistant", content: "", phase: "thinking", stats: null },
+    ]);
     setInput("");
     setErrorMessage("");
     setIsSending(true);
@@ -191,7 +207,10 @@ export default function ChatPage() {
 
     let assistantBuffer = "";
     try {
-      await streamCompletion(selectedModel, nextMessages, (delta) => {
+      const stats = await streamCompletion(
+        selectedModel,
+        nextMessages.map((message) => ({ role: message.role, content: message.content })),
+        (delta) => {
         assistantBuffer += delta;
         setMessages((current) => {
           if (current.length === 0) {
@@ -199,9 +218,27 @@ export default function ChatPage() {
           }
           const updated = [...current];
           const last = updated[updated.length - 1];
-          updated[updated.length - 1] = { ...last, content: last.content + delta };
+          updated[updated.length - 1] = {
+            ...last,
+            content: last.content + delta,
+            phase: "streaming",
+          };
           return updated;
         });
+        }
+      );
+      setMessages((current) => {
+        if (current.length === 0) {
+          return current;
+        }
+        const updated = [...current];
+        const last = updated[updated.length - 1];
+        updated[updated.length - 1] = {
+          ...last,
+          phase: "complete",
+          stats,
+        };
+        return updated;
       });
       if (chatId !== null && assistantBuffer) {
         void persistMessage(chatId, "assistant", assistantBuffer);
@@ -216,6 +253,11 @@ export default function ChatPage() {
         const last = current[current.length - 1];
         if (last.role === "assistant" && last.content === "") {
           return current.slice(0, -1);
+        }
+        if (last.role === "assistant") {
+          const updated = [...current];
+          updated[updated.length - 1] = { ...last, phase: "complete" };
+          return updated;
         }
         return current;
       });
@@ -330,16 +372,47 @@ export default function ChatPage() {
                   key={index}
                   className={
                     message.role === "user"
-                      ? "rounded-xl bg-white/90 p-3 shadow-sm"
-                      : "rounded-xl bg-black/5 p-3"
+                      ? "rounded-2xl border border-black/5 bg-white/90 p-4 shadow-sm"
+                      : "rounded-2xl border border-black/5 bg-white/55 p-4 shadow-sm shadow-black/5"
                   }
                 >
-                  <div className="mb-1 text-xs font-semibold uppercase tracking-wide text-black/50">
-                    {message.role}
+                  <div className="mb-2 flex items-center justify-between gap-3">
+                    <div className="text-xs font-semibold uppercase tracking-[0.2em] text-black/45">
+                      {message.role}
+                    </div>
+                    {message.role === "assistant" && message.phase && message.phase !== "complete" ? (
+                      <div className="rounded-full bg-amber/20 px-2.5 py-1 text-[11px] font-semibold uppercase tracking-wide text-black/65">
+                        {message.phase === "thinking" ? "Processing" : "Streaming"}
+                      </div>
+                    ) : null}
                   </div>
-                  <div className="whitespace-pre-wrap">
-                    {message.content || (isSending && index === messages.length - 1 ? "..." : "")}
+                  <div className="whitespace-pre-wrap leading-7 text-[15px] text-black/85">
+                    {message.content ||
+                      (message.role === "assistant" && message.phase === "thinking" ? "Processing your request..." : "")}
+                    {message.role === "assistant" && message.phase === "streaming" ? (
+                      <span className="ml-1 inline-block h-5 w-2 animate-pulse rounded-full bg-amber align-middle" />
+                    ) : null}
                   </div>
+                  {message.role === "assistant" && message.phase === "complete" && message.stats ? (
+                    <div className="mt-4 grid gap-2 border-t border-black/10 pt-3 text-xs text-black/60 md:grid-cols-3">
+                      <div className="rounded-xl bg-black/5 px-3 py-2">
+                        <div className="uppercase tracking-wide text-black/40">Model</div>
+                        <div className="mt-1 font-semibold text-black/75">{message.stats.model}</div>
+                      </div>
+                      <div className="rounded-xl bg-black/5 px-3 py-2">
+                        <div className="uppercase tracking-wide text-black/40">Tokens</div>
+                        <div className="mt-1 font-semibold text-black/75">
+                          {formatInteger(message.stats.totalTokens)} total
+                        </div>
+                      </div>
+                      <div className="rounded-xl bg-black/5 px-3 py-2">
+                        <div className="uppercase tracking-wide text-black/40">Speed</div>
+                        <div className="mt-1 font-semibold text-black/75">
+                          {formatRate(message.stats.tokensPerSecond)} tok/s
+                        </div>
+                      </div>
+                    </div>
+                  ) : null}
                 </div>
               ))}
             </div>
@@ -371,12 +444,14 @@ async function streamCompletion(
   model: string,
   messages: ChatMessage[],
   onDelta: (delta: string) => void
-): Promise<void> {
+): Promise<ChatCompletionStats> {
   const token = getStoredToken() || undefined;
   const headers: Record<string, string> = { "Content-Type": "application/json" };
   if (token) {
     headers.Authorization = `Bearer ${token}`;
   }
+
+  const startedAt = performance.now();
 
   const response = await fetch(`${BASE_URL}/v1/chat/completions`, {
     method: "POST",
@@ -404,13 +479,17 @@ async function streamCompletion(
   const reader = response.body.getReader();
   const decoder = new TextDecoder("utf-8");
   let buffer = "";
+  let usage: {
+    prompt_tokens?: number;
+    completion_tokens?: number;
+    total_tokens?: number;
+  } | null = null;
+  let resolvedModel = model;
 
   while (true) {
     const { value, done } = await reader.read();
-    if (done) {
-      break;
-    }
-    buffer += decoder.decode(value, { stream: true });
+    buffer += decoder.decode(value, { stream: !done });
+    buffer = buffer.replace(/\r\n/g, "\n");
 
     let separatorIndex = buffer.indexOf("\n\n");
     while (separatorIndex !== -1) {
@@ -428,16 +507,66 @@ async function streamCompletion(
         }
         try {
           const parsed = JSON.parse(data) as {
+            error?: { message?: string };
+            model?: string;
             choices?: { delta?: { content?: string } }[];
+            usage?: {
+              prompt_tokens?: number;
+              completion_tokens?: number;
+              total_tokens?: number;
+            };
           };
+          if (parsed.error?.message) {
+            throw new Error(parsed.error.message);
+          }
+          if (parsed.model) {
+            resolvedModel = parsed.model;
+          }
+          if (parsed.usage) {
+            usage = parsed.usage;
+          }
           const delta = parsed.choices?.[0]?.delta?.content;
           if (delta) {
             onDelta(delta);
           }
-        } catch {
+        } catch (error) {
+          if (error instanceof Error) {
+            throw error;
+          }
           // ignore malformed chunks
         }
       }
     }
+
+    if (done) {
+      break;
+    }
   }
+
+  const elapsedSeconds = Math.max((performance.now() - startedAt) / 1000, 0.001);
+  const completionTokens = usage?.completion_tokens ?? null;
+
+  return {
+    model: resolvedModel,
+    promptTokens: usage?.prompt_tokens ?? null,
+    completionTokens,
+    totalTokens: usage?.total_tokens ?? null,
+    tokensPerSecond: completionTokens !== null ? completionTokens / elapsedSeconds : null,
+  };
+}
+
+function formatInteger(value: number | null): string {
+  if (value === null || Number.isNaN(value)) {
+    return "n/a";
+  }
+
+  return new Intl.NumberFormat().format(value);
+}
+
+function formatRate(value: number | null): string {
+  if (value === null || Number.isNaN(value)) {
+    return "n/a";
+  }
+
+  return value >= 100 ? value.toFixed(0) : value.toFixed(1);
 }

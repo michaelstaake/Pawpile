@@ -1,4 +1,3 @@
-import json
 import time
 import uuid
 
@@ -52,36 +51,23 @@ async def v1_chat_completions(payload: OpenAIChatRequest, _: User = Depends(requ
     request_payload = {
         "model": payload.model,
         "messages": [m.model_dump() for m in payload.messages],
-        "stream": False,
+        "stream": payload.stream,
         "temperature": payload.temperature,
         "max_tokens": payload.max_tokens,
     }
 
     if payload.stream:
         async def event_stream():
-            result = await inference.chat_completion(model.id, request_payload)
-            text = result.get("choices", [{}])[0].get("message", {}).get("content", "")
-            chunk_id = f"chatcmpl-{uuid.uuid4().hex}"
-            first = {
-                "id": chunk_id,
-                "object": "chat.completion.chunk",
-                "choices": [{"index": 0, "delta": {"role": "assistant"}, "finish_reason": None}],
-            }
-            yield f"data: {json.dumps(first)}\n\n"
-            for token in text.split(" "):
-                data = {
-                    "id": chunk_id,
-                    "object": "chat.completion.chunk",
-                    "choices": [{"index": 0, "delta": {"content": token + " "}, "finish_reason": None}],
-                }
-                yield f"data: {json.dumps(data)}\n\n"
-            last = {
-                "id": chunk_id,
-                "object": "chat.completion.chunk",
-                "choices": [{"index": 0, "delta": {}, "finish_reason": "stop"}],
-            }
-            yield f"data: {json.dumps(last)}\n\n"
-            yield "data: [DONE]\n\n"
+            try:
+                async for chunk in inference.stream_chat_completion(model.id, {
+                    **request_payload,
+                    "stream_options": {"include_usage": True},
+                }):
+                    yield chunk
+            except RuntimeError as exc:
+                message = str(exc).replace("\\", "\\\\").replace('"', '\\"')
+                yield f'data: {{"error": {{"message": "{message}"}}}}\n\n'
+                yield "data: [DONE]\n\n"
 
         return StreamingResponse(event_stream(), media_type="text/event-stream")
 

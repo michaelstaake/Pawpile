@@ -3,6 +3,7 @@ import time
 import logging
 from dataclasses import dataclass
 import json
+from collections.abc import AsyncIterator
 
 import httpx
 
@@ -168,3 +169,19 @@ class InferenceManager:
             response = await client.post(url, json=payload)
         response.raise_for_status()
         return response.json()
+
+    async def stream_chat_completion(self, model_id: int, payload: dict) -> AsyncIterator[bytes]:
+        running = self._running.get(model_id)
+        if not running:
+            raise RuntimeError("Model is not active")
+
+        url = f"{running.base_url}/runtime/models/{model_id}/chat/completions"
+        async with httpx.AsyncClient(timeout=self.settings.llama_request_timeout_seconds) as client:
+            async with client.stream("POST", url, json=payload) as response:
+                if response.is_error:
+                    await response.aread()
+                    raise RuntimeError(_runtime_error_detail(response))
+
+                async for chunk in response.aiter_bytes():
+                    if chunk:
+                        yield chunk
