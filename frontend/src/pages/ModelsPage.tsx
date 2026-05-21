@@ -425,7 +425,6 @@ export default function ModelsPage({ setupMode = false, onComplete }: ModelsPage
               </div>
 
               <div className="mt-4 flex flex-wrap items-center justify-between gap-3">
-                <p className="text-sm text-black/55">Drag and drop to change the order used across the app.</p>
                 {savingModelIds.includes(model.id) || pendingModelIds.includes(model.id) ? (
                   <p className="text-sm text-black/55">
                     {savingModelIds.includes(model.id) ? "Saving..." : "Saving changes..."}
