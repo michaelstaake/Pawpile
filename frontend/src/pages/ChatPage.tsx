@@ -581,7 +581,7 @@ export default function ChatPage() {
               disabled={isSending || !selectedModel || (!input.trim() && attachments.length === 0)}
               className="rounded-xl bg-amber px-4 h-12 text-sm font-semibold text-black disabled:opacity-50"
             >
-              {isSending ? "Sending..." : "Send"}
+              Send
             </button>
           </div>
         </form>
