@@ -11,7 +11,7 @@ const config: Config = {
         amber: "#ffb347"
       },
       fontFamily: {
-        display: ["Space Grotesk", "Segoe UI", "sans-serif"],
+        display: ["Ubuntu", "Segoe UI", "sans-serif"],
         body: ["Manrope", "Segoe UI", "sans-serif"]
       }
     }
