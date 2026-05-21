@@ -157,7 +157,7 @@ curl http://localhost:8000/v1/chat/completions \
   -H "Authorization: Bearer YOUR_API_KEY" \
   -H "Content-Type: application/json" \
   -d '{
-    "model": "my-model-alias",
+    "model": "your-model-alias",
     "messages": [{"role": "user", "content": "Hello"}],
     "stream": false
   }'
@@ -180,8 +180,8 @@ Use this in your OpenCode config file to connect to Pawpile's OpenAI-compatible 
         "timeout": 7200000
       },
       "models": {
-        "gemma-4-26B-A4B-it-UD-Q4_K_M": {
-          "name": "Gemma 4"
+        "your-model-alias": {
+          "name": "My AI Model"
         }
       }
     }
