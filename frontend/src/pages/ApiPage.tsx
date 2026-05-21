@@ -131,15 +131,13 @@ export default function ApiPage() {
         <div className="flex flex-wrap items-start justify-between gap-4">
           <div className="max-w-2xl">
             <h2 className="font-display text-2xl">API keys</h2>
-            <p className="mt-2 text-sm text-black/70">Create and manage access tokens for your account from the same workspace-style layout as user administration.</p>
           </div>
           <button className="rounded-xl border border-black/15 bg-white px-4 py-3 text-sm font-semibold text-black" type="button" onClick={() => setIsCreateModalOpen(true)}>
             Add API key
           </button>
         </div>
 
-        <div className="mt-5 grid gap-4 xl:grid-cols-[minmax(0,1.55fr)_minmax(280px,0.85fr)] xl:items-start">
-          <div className="space-y-4">
+        <div className="mt-5 space-y-4">
             {apiKeys.map((apiKey, index) => (
               <div key={apiKey.id} className="rounded-2xl border border-black/10 bg-[#fffdf7] p-4">
                 <div className="flex flex-wrap items-start justify-between gap-4">
@@ -169,39 +167,6 @@ export default function ApiPage() {
                 <p className="mt-2 text-sm text-black/60">Create your first key to connect scripts, local tools, or external clients to the API.</p>
               </div>
             ) : null}
-          </div>
-
-          <aside className="rounded-2xl border border-black/10 bg-[#f8f3e6] p-4">
-            <p className="text-xs font-semibold uppercase tracking-[0.24em] text-black/45">Create</p>
-            <h3 className="mt-2 font-display text-xl text-black">Issue a new API key</h3>
-            <p className="mt-2 text-sm text-black/70">New keys are shown only once after creation. Store them in your client or secret manager before closing the modal.</p>
-
-            {latestApiKey ? (
-              <div className="mt-5 rounded-2xl border border-amber-300 bg-amber-50 p-4 text-amber-950">
-                <p className="text-xs font-semibold uppercase tracking-[0.24em] text-amber-700">Latest secret</p>
-                <h4 className="mt-2 font-display text-lg">Key created successfully</h4>
-                <div className="mt-4 rounded-2xl bg-black px-4 py-3 font-mono text-sm text-white">
-                  {showLatestApiKey ? latestApiKey : maskApiKey(latestApiKey)}
-                </div>
-                <div className="mt-4 flex flex-wrap items-center gap-3">
-                  <button className="rounded-xl border border-amber-300 px-3 py-2 text-sm font-semibold text-amber-900" type="button" onClick={() => setShowLatestApiKey((current) => !current)}>
-                    {showLatestApiKey ? "Hide value" : "Reveal value"}
-                  </button>
-                  <button className="rounded-xl bg-amber-500 px-4 py-2 text-sm font-semibold text-amber-950" type="button" onClick={() => void handleCopyLatestApiKey()}>
-                    Copy key
-                  </button>
-                  {copyState === "copied" ? <p className="text-sm text-emerald-700">Copied to clipboard.</p> : null}
-                  {copyState === "failed" ? <p className="text-sm text-rose-700">Clipboard copy failed. Copy it manually.</p> : null}
-                </div>
-              </div>
-            ) : null}
-
-            <div className="mt-5 flex flex-wrap gap-3">
-              <button className="rounded-xl bg-ink px-4 py-3 text-sm font-semibold text-white" type="button" onClick={() => setIsCreateModalOpen(true)}>
-                Add API key
-              </button>
-            </div>
-          </aside>
         </div>
       </article>
 
@@ -209,9 +174,7 @@ export default function ApiPage() {
         <article className="max-h-[min(92vh,820px)] overflow-y-auto p-5 sm:p-6">
           <div className="flex flex-wrap items-start justify-between gap-3">
             <div>
-              <p className="text-xs font-semibold uppercase tracking-[0.24em] text-black/45">Create</p>
-              <h2 id="api-key-create-title" className="mt-2 font-display text-2xl">Add API key</h2>
-              <p className="mt-2 text-sm text-black/70">Name each key by the app or environment using it so revocation stays obvious later.</p>
+              <h2 id="api-key-create-title" className="font-display text-2xl">Add API key</h2>
             </div>
             <button className="rounded-xl border border-black/15 bg-white px-4 py-2 text-sm font-semibold text-black" type="button" onClick={closeCreateModal}>
               Close
