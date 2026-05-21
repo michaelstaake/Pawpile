@@ -144,15 +144,11 @@ export default function ApiPage() {
         </div>
 
         <div className="mt-5 space-y-4">
-            {apiKeys.map((apiKey, index) => (
+            {apiKeys.map((apiKey) => (
               <div key={apiKey.id} className="rounded-2xl border border-black/10 bg-[#fffdf7] p-4">
                 <div className="flex flex-wrap items-start justify-between gap-4">
                   <div>
-                    <div className="flex flex-wrap items-center gap-2">
-                      <h3 className="font-display text-lg text-black">{apiKey.name}</h3>
-                      {index === 0 ? <span className="rounded-full bg-emerald-100 px-2.5 py-1 text-xs font-semibold text-emerald-700">Newest</span> : null}
-                    </div>
-                    <p className="mt-2 text-sm text-black/70">Used by {apiKey.user_username}</p>
+                    <h3 className="font-display text-lg text-black">{apiKey.name}</h3>
                     <p className="mt-1 text-xs uppercase tracking-[0.18em] text-black/45">Created {formatCreatedAt(apiKey.created_at)}</p>
                   </div>
                   <button
