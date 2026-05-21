@@ -60,22 +60,13 @@ function DeviceCard({ device }: { device: DeviceStatusRecord }) {
   const occupancySegments = device.models.length > 0 ? device.models : Array.from({ length: Math.max(1, device.max_slots) }, (_, index) => ({ model_id: index, alias: "Open slot", memory_used_mb: 0, pid: null }));
 
   return (
-    <article className={`overflow-hidden rounded-[28px] border p-5 shadow-sm backdrop-blur ${device.enabled ? "border-black/10 bg-white/80" : "border-black/10 bg-white/50 opacity-80"}`}>
+    <article className="overflow-hidden rounded-[28px] border border-black/10 bg-white/80 p-5 shadow-sm backdrop-blur">
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div>
-          <div className="flex flex-wrap items-center gap-2">
-            <h3 className="font-display text-xl text-ink">{device.name}</h3>
-            <span className={`rounded-full px-3 py-1 text-xs font-semibold uppercase tracking-[0.18em] ${device.enabled ? "bg-emerald-100 text-emerald-800" : "bg-black/5 text-black/50"}`}>
-              {device.enabled ? "Ready" : "Disabled"}
-            </span>
-          </div>
+          <h3 className="font-display text-xl text-ink">{device.name}</h3>
           <p className="mt-2 text-sm text-black/60">
             {device.vendor} {device.device_type} · {device.hardware_id}
           </p>
-        </div>
-        <div className="rounded-2xl border border-black/10 bg-[#fff9ec] px-4 py-3 text-right">
-          <p className="text-[11px] uppercase tracking-[0.24em] text-black/45">Loaded Models</p>
-          <p className="mt-1 font-display text-2xl text-ink">{device.models.length}</p>
         </div>
       </div>
 
@@ -129,18 +120,11 @@ function DeviceCard({ device }: { device: DeviceStatusRecord }) {
               ))}
               {unassignedMemoryPercent > 0 ? <div className="h-full bg-black/20" style={{ width: `${unassignedMemoryPercent}%` }} title="Used by runtime or system overhead" /> : null}
             </div>
-            <p className="mt-3 text-xs text-black/50">Telemetry: usage from {device.usage_source}, memory from {device.memory_source}.</p>
           </section>
         </div>
 
         <section className="rounded-2xl border border-black/10 bg-[#fffdf7] p-4">
-          <div className="flex items-center justify-between gap-3">
-            <div>
-              <p className="text-xs font-semibold uppercase tracking-[0.24em] text-black/45">Model Map</p>
-              <p className="mt-1 text-sm text-black/60">Each active model keeps a distinct color for this device.</p>
-            </div>
-            <p className="text-sm text-black/45">Slots {device.models.length}/{device.max_slots}</p>
-          </div>
+          <p className="text-xs font-semibold uppercase tracking-[0.24em] text-black/45">Loaded Models</p>
 
           <div className="mt-4 space-y-3">
             {device.models.length > 0 ? device.models.map((model) => (
@@ -173,9 +157,7 @@ export default function StatusPage() {
   const [devices, setDevices] = useState<DeviceStatusRecord[]>([]);
   const [runtimeErrors, setRuntimeErrors] = useState<StatusResponse["runtime_errors"]>([]);
   const [isLoading, setIsLoading] = useState(true);
-  const [isRefreshing, setIsRefreshing] = useState(false);
   const [errorMessage, setErrorMessage] = useState("");
-  const [refreshedAt, setRefreshedAt] = useState("");
 
   useEffect(() => {
     let isMounted = true;
@@ -183,8 +165,6 @@ export default function StatusPage() {
     async function loadStatus(showSpinner: boolean) {
       if (showSpinner) {
         setIsLoading(true);
-      } else {
-        setIsRefreshing(true);
       }
 
       try {
@@ -194,7 +174,6 @@ export default function StatusPage() {
         }
         setDevices(response.devices);
         setRuntimeErrors(response.runtime_errors);
-        setRefreshedAt(response.refreshed_at);
         setErrorMessage("");
       } catch (error) {
         if (!isMounted) {
@@ -206,7 +185,6 @@ export default function StatusPage() {
           return;
         }
         setIsLoading(false);
-        setIsRefreshing(false);
       }
     }
 
@@ -221,37 +199,29 @@ export default function StatusPage() {
     };
   }, [token]);
 
+  const visibleDevices = useMemo(() => devices.filter((device) => device.enabled), [devices]);
+
   const summary = useMemo(() => {
-    const onlineDevices = devices.filter((device) => device.enabled).length;
-    const activeModels = devices.reduce((sum, device) => sum + device.models.length, 0);
-    const totalMemory = devices.reduce((sum, device) => sum + device.memory_total_mb, 0);
-    const usedMemory = devices.reduce((sum, device) => sum + device.memory_used_mb, 0);
-    const averageUsage = devices.length > 0
-      ? devices.reduce((sum, device) => sum + clampPercent(device.usage_percent ?? (device.models.length / Math.max(1, device.max_slots)) * 100), 0) / devices.length
+    const activeModels = visibleDevices.reduce((sum, device) => sum + device.models.length, 0);
+    const totalMemory = visibleDevices.reduce((sum, device) => sum + device.memory_total_mb, 0);
+    const usedMemory = visibleDevices.reduce((sum, device) => sum + device.memory_used_mb, 0);
+    const averageUsage = visibleDevices.length > 0
+      ? visibleDevices.reduce((sum, device) => sum + clampPercent(device.usage_percent ?? (device.models.length / Math.max(1, device.max_slots)) * 100), 0) / visibleDevices.length
       : 0;
 
     return {
-      onlineDevices,
+      onlineDevices: visibleDevices.length,
       activeModels,
       totalMemory,
       usedMemory,
       averageUsage,
     };
-  }, [devices]);
+  }, [visibleDevices]);
 
   return (
     <section className="grid gap-4">
       <article className="overflow-hidden rounded-[32px] border border-black/10 bg-[linear-gradient(135deg,rgba(255,250,236,0.96)_0%,rgba(241,247,241,0.92)_54%,rgba(231,240,237,0.96)_100%)] p-6 shadow-sm backdrop-blur">
-        <div className="flex flex-wrap items-start justify-between gap-4">
-          <div className="max-w-3xl">
-            <p className="text-xs font-semibold uppercase tracking-[0.32em] text-black/45">Runtime Status</p>
-            <h2 className="mt-3 font-display text-3xl text-ink md:text-4xl">Live device load across your Pawpile runtimes</h2>
-            <p className="mt-3 text-sm text-black/65 md:text-base">Track utilization, memory pressure, and exactly which models are occupying each device. The page refreshes automatically every five seconds.</p>
-          </div>
-          <div className="rounded-3xl border border-black/10 bg-white/75 px-4 py-3 text-sm text-black/60 shadow-sm">
-            <p>{isRefreshing ? "Refreshing telemetry..." : refreshedAt ? `Updated ${new Date(refreshedAt).toLocaleTimeString()}` : "Waiting for telemetry..."}</p>
-          </div>
-        </div>
+        <h2 className="font-display text-3xl text-ink md:text-4xl">Status</h2>
 
         <div className="mt-6 grid gap-3 md:grid-cols-4">
           <div className="rounded-2xl border border-black/10 bg-white/75 p-4">
@@ -279,12 +249,12 @@ export default function StatusPage() {
 
       {isLoading ? (
         <div className="rounded-2xl border border-black/10 bg-white/80 px-4 py-8 text-sm text-black/55 shadow-sm">Loading live device telemetry...</div>
-      ) : devices.length > 0 ? (
+      ) : visibleDevices.length > 0 ? (
         <div className="grid gap-4">
-          {devices.map((device) => <DeviceCard key={device.id} device={device} />)}
+          {visibleDevices.map((device) => <DeviceCard key={device.id} device={device} />)}
         </div>
       ) : (
-        <div className="rounded-2xl border border-dashed border-black/15 bg-white/60 px-4 py-8 text-sm text-black/55 shadow-sm">No devices are registered yet.</div>
+        <div className="rounded-2xl border border-dashed border-black/15 bg-white/60 px-4 py-8 text-sm text-black/55 shadow-sm">No ready devices are available.</div>
       )}
     </section>
   );
