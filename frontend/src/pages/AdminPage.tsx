@@ -38,6 +38,8 @@ type ModelRecord = {
   context_length: number;
   gpu_layers: number;
   threads: number;
+  temperature: number;
+  top_p: number;
   assignment_mode: string;
   pinned_device_id: number | null;
   activated: boolean;
