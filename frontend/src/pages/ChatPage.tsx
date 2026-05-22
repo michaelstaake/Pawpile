@@ -338,6 +338,7 @@ export default function ChatPage() {
         const last = updated[updated.length - 1];
         updated[updated.length - 1] = {
           ...last,
+          content: assistantBuffer,
           phase: "complete",
           stats,
         };
@@ -690,6 +691,50 @@ async function streamCompletion(
 
     if (done) {
       break;
+    }
+  }
+
+  // Process any remaining buffer content that lacked a trailing double-newline
+  // (can happen when the TCP connection closes before the final \n\n is received).
+  if (buffer.trim()) {
+    for (const line of buffer.split("\n")) {
+      if (!line.startsWith("data:")) {
+        continue;
+      }
+      const data = line.slice(5).trim();
+      if (!data || data === "[DONE]") {
+        continue;
+      }
+      try {
+        const parsed = JSON.parse(data) as {
+          error?: { message?: string };
+          model?: string;
+          choices?: { delta?: { content?: string } }[];
+          usage?: {
+            prompt_tokens?: number;
+            completion_tokens?: number;
+            total_tokens?: number;
+          };
+        };
+        if (parsed.error?.message) {
+          throw new Error(parsed.error.message);
+        }
+        if (parsed.model) {
+          resolvedModel = parsed.model;
+        }
+        if (parsed.usage) {
+          usage = parsed.usage;
+        }
+        const delta = parsed.choices?.[0]?.delta?.content;
+        if (delta) {
+          onDelta(delta);
+        }
+      } catch (error) {
+        if (error instanceof Error) {
+          throw error;
+        }
+        // ignore malformed chunks
+      }
     }
   }
 
