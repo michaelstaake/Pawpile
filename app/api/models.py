@@ -90,6 +90,8 @@ def upload_model(
         context_length=settings.default_context_length,
         gpu_layers=settings.default_gpu_layers,
         threads=settings.default_threads,
+        temperature=settings.default_temperature,
+        top_p=settings.default_top_p,
     )
     try:
         db.add(model)
@@ -122,6 +124,8 @@ def scan_models(_: User = Depends(get_admin_user), db: Session = Depends(get_db)
             context_length=settings.default_context_length,
             gpu_layers=settings.default_gpu_layers,
             threads=settings.default_threads,
+            temperature=settings.default_temperature,
+            top_p=settings.default_top_p,
         )
         db.add(model)
         added += 1
@@ -161,6 +165,8 @@ def update_model(model_id: int, payload: ModelUpdateRequest, _: User = Depends(g
         "context_length",
         "gpu_layers",
         "threads",
+        "temperature",
+        "top_p",
         "tool_calling_enabled",
         "assignment_mode",
         "pinned_device_id",
@@ -348,6 +354,8 @@ def _serialize_model(model: ModelConfig) -> dict:
         "context_length": model.context_length,
         "gpu_layers": model.gpu_layers,
         "threads": model.threads,
+        "temperature": model.temperature,
+        "top_p": model.top_p,
         "tool_calling_enabled": model.tool_calling_enabled,
         "assignment_mode": model.assignment_mode,
         "pinned_device_id": model.pinned_device_id,

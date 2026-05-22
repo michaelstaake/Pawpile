@@ -349,6 +349,8 @@ export default function SettingsPage() {
         context_length: model.context_length,
         gpu_layers: model.gpu_layers,
         threads: model.threads,
+        temperature: model.temperature,
+        top_p: model.top_p,
         assignment_mode: model.assignment_mode,
         pinned_device_id: model.assignment_mode === "pinned" ? model.pinned_device_id : null
       }, token);
@@ -786,6 +788,14 @@ export default function SettingsPage() {
                       <label className="grid gap-1 text-sm text-black/70">
                         GPU Layers
                         <input className="rounded-xl border border-black/15 bg-white px-3 py-2 text-sm" type="number" value={model.gpu_layers} onChange={(event) => updateModelDraft(model.id, { gpu_layers: Number(event.target.value) || 0 })} />
+                      </label>
+                      <label className="grid gap-1 text-sm text-black/70">
+                        Temperature
+                        <input className="rounded-xl border border-black/15 bg-white px-3 py-2 text-sm" type="number" min={0} max={2} step={0.05} value={model.temperature} onChange={(event) => updateModelDraft(model.id, { temperature: Number(event.target.value) })} />
+                      </label>
+                      <label className="grid gap-1 text-sm text-black/70">
+                        Top P
+                        <input className="rounded-xl border border-black/15 bg-white px-3 py-2 text-sm" type="number" min={0} max={1} step={0.05} value={model.top_p} onChange={(event) => updateModelDraft(model.id, { top_p: Number(event.target.value) })} />
                       </label>
                       <label className="grid gap-1 text-sm text-black/70">
                         Assignment Mode

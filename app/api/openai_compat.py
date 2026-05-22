@@ -56,6 +56,10 @@ async def v1_chat_completions(payload: OpenAIChatRequest, _: User = Depends(requ
             )
 
     request_payload = payload.model_dump(exclude_none=True)
+    if "temperature" not in request_payload:
+        request_payload["temperature"] = model.temperature
+    if "top_p" not in request_payload:
+        request_payload["top_p"] = model.top_p
     request_payload["messages"] = [
         {
             key: value

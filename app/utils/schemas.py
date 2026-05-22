@@ -166,6 +166,8 @@ class ModelUpdateRequest(BaseModel):
     context_length: int | None = Field(default=None, ge=256)
     gpu_layers: int | None = None
     threads: int | None = Field(default=None, ge=1)
+    temperature: float | None = Field(default=None, ge=0.0, le=2.0)
+    top_p: float | None = Field(default=None, ge=0.0, le=1.0)
     tool_calling_enabled: bool | None = None
     assignment_mode: str | None = None
     pinned_device_id: int | None = None
@@ -226,7 +228,8 @@ class OpenAIChatRequest(BaseModel):
     model: str
     messages: list[ChatMessageRequest]
     stream: bool = False
-    temperature: float | None = 0.7
+    temperature: float | None = None
+    top_p: float | None = None
     max_tokens: int | None = 512
     tools: list[dict[str, Any]] | None = None
     tool_choice: str | dict[str, Any] | None = None
