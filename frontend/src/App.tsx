@@ -81,9 +81,23 @@ export default function App() {
   const authRouteActive = location.pathname === "/login" || location.pathname === "/register";
   const userMenuActive = !!user && location.pathname === "/profile";
 
+  const pageTitle = ((): string => {
+    const path = location.pathname;
+    if (path === "/" || path === "/chat") return "Chat";
+    if (path === "/status") return "Status";
+    if (path === "/apikeys" || path === "/api") return "API";
+    if (path === "/settings") return "Settings";
+    if (path === "/profile") return "Profile";
+    if (path === "/login" || path === "/auth") return "Login";
+    if (path === "/register") return "Register";
+    if (path === "/setup") return "Setup";
+    return "";
+  })();
+
   useEffect(() => {
-    document.title = sitename || "Pawpile";
-  }, [sitename]);
+    const base = sitename || "Pawpile";
+    document.title = pageTitle ? `${base} — ${pageTitle}` : base;
+  }, [sitename, pageTitle]);
 
   useEffect(() => {
     setOpenMenu(null);
