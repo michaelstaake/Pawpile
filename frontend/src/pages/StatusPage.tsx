@@ -91,7 +91,7 @@ function DeviceCard({ device }: { device: DeviceStatusRecord }) {
               </div>
               <p className="font-display text-2xl text-ink">{memoryPercent.toFixed(1)}%</p>
             </div>
-            <div className="mt-4 flex h-5 overflow-hidden rounded-full bg-black/10">
+            <div className="mt-4 flex h-4 overflow-hidden rounded-full bg-black/10">
               {device.models.map((model, index) => (
                 <div
                   key={`${device.id}-memory-${model.model_id}`}
