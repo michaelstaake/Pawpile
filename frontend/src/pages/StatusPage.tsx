@@ -206,26 +206,20 @@ export default function StatusPage() {
   return (
     <section className="grid gap-4">
       <article className="overflow-hidden rounded-[32px] border border-black/10 bg-[linear-gradient(135deg,rgba(255,250,236,0.96)_0%,rgba(241,247,241,0.92)_54%,rgba(231,240,237,0.96)_100%)] p-6 shadow-sm backdrop-blur">
-        <h2 className="font-display text-3xl text-ink md:text-4xl">Status</h2>
+        <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+          <h2 className="font-display text-3xl text-ink md:text-4xl">Status</h2>
 
-        <div className="mt-6 grid gap-3 md:grid-cols-4">
-          <div className="rounded-2xl border border-black/10 bg-white/75 p-4">
-            <p className="text-xs font-semibold uppercase tracking-[0.24em] text-black/45">Devices</p>
-            <p className="mt-2 font-display text-3xl text-ink">{summary.onlineDevices}</p>
-          </div>
-          <div className="rounded-2xl border border-black/10 bg-white/75 p-4">
-            <p className="text-xs font-semibold uppercase tracking-[0.24em] text-black/45">Loaded Models</p>
-            <p className="mt-2 font-display text-3xl text-ink">{summary.activeModels}</p>
-          </div>
-          <div className="rounded-2xl border border-black/10 bg-white/75 p-4">
-            <p className="text-xs font-semibold uppercase tracking-[0.24em] text-black/45">Memory In Use</p>
-            <p className="mt-2 font-display text-3xl text-ink">{summary.totalMemory > 0 ? `${clampPercent((summary.usedMemory / summary.totalMemory) * 100).toFixed(1)}%` : "0.0%"}</p>
-            <p className="mt-1 text-sm text-black/55">{formatMemory(summary.usedMemory)} of {formatMemory(summary.totalMemory)}</p>
-          </div>
-          <div className="rounded-2xl border border-black/10 bg-white/75 p-4">
-            <p className="text-xs font-semibold uppercase tracking-[0.24em] text-black/45">Average Usage</p>
-            <p className="mt-2 font-display text-3xl text-ink">{summary.devicesWithUsageCount > 0 ? `${summary.averageUsage.toFixed(1)}%` : "N/A"}</p>
-            <p className="mt-2 text-xs text-black/50">{summary.devicesWithUsageCount > 0 ? `From ${summary.devicesWithUsageCount} device${summary.devicesWithUsageCount === 1 ? "" : "s"}` : "No live telemetry available"}</p>
+          <div className="flex flex-col gap-3 sm:flex-row">
+            <div className="rounded-2xl border border-black/10 bg-white/75 p-4">
+              <p className="text-xs font-semibold uppercase tracking-[0.24em] text-black/45">Memory Usage</p>
+              <p className="mt-2 font-display text-3xl text-ink">{summary.totalMemory > 0 ? `${clampPercent((summary.usedMemory / summary.totalMemory) * 100).toFixed(1)}%` : "0.0%"}</p>
+              <p className="mt-1 text-sm text-black/55">{formatMemory(summary.usedMemory)} of {formatMemory(summary.totalMemory)}</p>
+            </div>
+            <div className="rounded-2xl border border-black/10 bg-white/75 p-4">
+              <p className="text-xs font-semibold uppercase tracking-[0.24em] text-black/45">Average Usage</p>
+              <p className="mt-2 font-display text-3xl text-ink">{summary.devicesWithUsageCount > 0 ? `${summary.averageUsage.toFixed(1)}%` : "N/A"}</p>
+              <p className="mt-2 text-xs text-black/50">{summary.devicesWithUsageCount > 0 ? `From ${summary.devicesWithUsageCount} device${summary.devicesWithUsageCount === 1 ? "" : "s"}` : "No live telemetry available"}</p>
+            </div>
           </div>
         </div>
       </article>
