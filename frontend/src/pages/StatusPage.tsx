@@ -225,7 +225,7 @@ export default function StatusPage() {
           <div className="rounded-2xl border border-black/10 bg-white/75 p-4">
             <p className="text-xs font-semibold uppercase tracking-[0.24em] text-black/45">Average Usage</p>
             <p className="mt-2 font-display text-3xl text-ink">{summary.devicesWithUsageCount > 0 ? `${summary.averageUsage.toFixed(1)}%` : "N/A"}</p>
-            <p className="mt-2 text-xs text-black/50">{summary.devicesWithUsageCount > 0 ? `From ${summary.devicesWithUsageCount} device${summary.devicesWithUsageCount === 1 ? "" : "s"} with live telemetry` : "No live telemetry available"}</p>
+            <p className="mt-2 text-xs text-black/50">{summary.devicesWithUsageCount > 0 ? `From ${summary.devicesWithUsageCount} device${summary.devicesWithUsageCount === 1 ? "" : "s"}` : "No live telemetry available"}</p>
           </div>
         </div>
       </article>
