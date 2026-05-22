@@ -47,14 +47,6 @@ function colorForModel(index: number) {
   return FALLBACK_MODEL_COLORS[(index - PRIMARY_MODEL_COLORS.length) % FALLBACK_MODEL_COLORS.length];
 }
 
-function usageLabel(device: DeviceStatusRecord) {
-  if (device.usage_percent === null) {
-    return "Live utilization unavailable";
-  }
-
-  return `${device.usage_percent.toFixed(1)}% live load`;
-}
-
 function DeviceCard({ device }: { device: DeviceStatusRecord }) {
   const usagePercent = clampPercent(device.usage_percent);
   const hasUsage = device.usage_percent !== null;
@@ -79,13 +71,13 @@ function DeviceCard({ device }: { device: DeviceStatusRecord }) {
             <div className="flex items-center justify-between gap-3">
               <div>
                 <p className="text-xs font-semibold uppercase tracking-[0.24em] text-black/45">Usage</p>
-                <p className="mt-1 text-sm text-black/65">{usageLabel(device)}</p>
+                {!hasUsage && <p className="mt-1 text-sm text-black/65">Live utilization unavailable</p>}
               </div>
               <p className="font-display text-2xl text-ink">{hasUsage ? `${usagePercent.toFixed(1)}%` : "N/A"}</p>
             </div>
             <div className="mt-4 h-4 overflow-hidden rounded-full bg-black/10">
               <div
-                className={`h-full rounded-full transition-[width] duration-500 ${hasUsage ? "bg-amber-800" : "bg-black/25"}`}
+                className={`h-full rounded-full transition-[width] duration-500 ${hasUsage ? "bg-ink" : "bg-black/25"}`}
                 style={{ width: hasUsage ? `${usagePercent}%` : "100%" }}
               />
             </div>
