@@ -2,13 +2,15 @@ import { useState } from "react";
 import ConfigurationPage from "./ConfigurationPage";
 import DevicesPage from "./DevicesPage";
 import ModelsPage from "./ModelsPage";
+import UsersPage from "./UsersPage";
 
-type SettingsTab = "general" | "devices" | "models";
+type SettingsTab = "general" | "devices" | "models" | "users";
 
 const tabs: { id: SettingsTab; label: string }[] = [
   { id: "general", label: "General" },
   { id: "devices", label: "Devices" },
   { id: "models", label: "Models" },
+  { id: "users", label: "Users" },
 ];
 
 export default function SettingsPage() {
@@ -32,6 +34,7 @@ export default function SettingsPage() {
       {activeTab === "general" && <ConfigurationPage />}
       {activeTab === "devices" && <DevicesPage />}
       {activeTab === "models" && <ModelsPage />}
+      {activeTab === "users" && <UsersPage />}
     </div>
   );
 }

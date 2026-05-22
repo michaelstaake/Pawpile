@@ -1,7 +1,6 @@
 import { MouseEvent, useEffect, useRef, useState } from "react";
 import { NavLink, Navigate, Route, Routes, useLocation } from "react-router-dom";
 import ChatPage from "./pages/ChatPage";
-import UsersPage from "./pages/UsersPage";
 import AuthPage from "./pages/AuthPage";
 import RegisterPage from "./pages/RegisterPage";
 import ApiPage from "./pages/ApiPage";
@@ -141,10 +140,7 @@ export default function App() {
                 <NavLink to="/apikeys" className={({ isActive }) => `rounded-lg px-3 py-2 text-sm ${isActive ? "bg-ink text-white" : "bg-black/5"}`}>API</NavLink>
               ) : null}
               {user?.is_admin ? (
-                <>
-                  <NavLink to="/settings" className={({ isActive }) => `rounded-lg px-3 py-2 text-sm ${isActive ? "bg-ink text-white" : "bg-black/5"}`}>Settings</NavLink>
-                  <NavLink to="/users" className={({ isActive }) => `rounded-lg px-3 py-2 text-sm ${isActive ? "bg-ink text-white" : "bg-black/5"}`}>Users</NavLink>
-                </>
+                <NavLink to="/settings" className={({ isActive }) => `rounded-lg px-3 py-2 text-sm ${isActive ? "bg-ink text-white" : "bg-black/5"}`}>Settings</NavLink>
               ) : null}
               {!user ? (
                 <NavLink to="/login" className={() => `rounded-lg px-3 py-2 text-sm ${authRouteActive ? "bg-ink text-white" : "bg-black/5"}`}>Login</NavLink>
@@ -183,7 +179,7 @@ export default function App() {
           <Route path="/configuration" element={<RequireAdmin><Navigate to="/settings" replace /></RequireAdmin>} />
           <Route path="/devices" element={<RequireAdmin><Navigate to="/settings" replace /></RequireAdmin>} />
           <Route path="/models" element={<RequireAdmin><Navigate to="/settings" replace /></RequireAdmin>} />
-          <Route path="/users" element={<RequireAdmin><UsersPage /></RequireAdmin>} />
+          <Route path="/users" element={<RequireAdmin><Navigate to="/settings" replace /></RequireAdmin>} />
           <Route path="/login" element={<AuthPage />} />
           <Route path="/register" element={<RegisterPage />} />
           <Route path="/auth" element={<Navigate to="/login" replace />} />
