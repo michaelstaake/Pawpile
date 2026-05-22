@@ -1,4 +1,4 @@
-import { MouseEvent, useEffect, useState } from "react";
+import { MouseEvent, useEffect, useRef, useState } from "react";
 import { NavLink, Navigate, Route, Routes, useLocation } from "react-router-dom";
 import ChatPage from "./pages/ChatPage";
 import DevicesPage from "./pages/DevicesPage";
@@ -101,6 +101,18 @@ export default function App() {
     setOpenMenu(null);
   }, [location.pathname]);
 
+  const navRef = useRef<HTMLElement>(null);
+
+  useEffect(() => {
+    function handleClickOutside(event: Event) {
+      if (navRef.current && !navRef.current.contains(event.target as Node)) {
+        setOpenMenu(null);
+      }
+    }
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, []);
+
   function handleMenuToggle(menu: HeaderMenu) {
     return (event: MouseEvent<HTMLElement>) => {
       event.preventDefault();
@@ -133,7 +145,7 @@ export default function App() {
             <h1 className="font-display text-2xl font-semibold tracking-tight">{sitename}</h1>
           </NavLink>
           {showMainNav ? (
-            <nav className="relative z-50 flex flex-wrap items-center gap-2 overflow-visible">
+            <nav ref={navRef} className="relative z-50 flex flex-wrap items-center gap-2 overflow-visible">
               <NavLink to="/" end className={({ isActive }) => `rounded-lg px-3 py-2 text-sm ${isActive ? "bg-ink text-white" : "bg-black/5"}`}>Chat</NavLink>
               <NavLink to="/status" className={({ isActive }) => `rounded-lg px-3 py-2 text-sm ${isActive ? "bg-ink text-white" : "bg-black/5"}`}>Status</NavLink>
               {user?.is_admin ? (
