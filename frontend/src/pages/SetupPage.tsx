@@ -428,7 +428,7 @@ export default function SetupPage() {
             </button>
           </div>
           <p className="mt-2 text-sm text-black/70">
-            Pawpile requires GGUF format models. Upload a model through your browser or place it in the models folder and then scan the directory.
+            Pawpile requires GGUF format models. Upload a model through your browser or scan the directory to use an existing model.
           </p>
 
           <div className="mt-5 grid gap-5 md:grid-cols-2">
