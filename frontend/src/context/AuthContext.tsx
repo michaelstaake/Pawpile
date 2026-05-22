@@ -13,6 +13,7 @@ type AuthContextValue = {
   usersCanRegister: boolean;
   sitename: string;
   refreshAuthState: () => Promise<void>;
+  refreshPublicSettings: () => Promise<void>;
   updateProfile: (payload: { email?: string; password?: string }) => Promise<CurrentUser>;
   login: (username: string, password: string) => Promise<void>;
   register: (username: string, email: string, password: string) => Promise<void>;
@@ -46,6 +47,16 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     void refreshAuthState();
   }, [token]);
+
+  async function refreshPublicSettings() {
+    try {
+      const bootstrap = await apiGet<BootstrapStatus>("/api/auth/bootstrap-status");
+      setUsersCanRegister(bootstrap.users_can_register);
+      setSitename(bootstrap.sitename || "Pawpile");
+    } catch {
+      // silently ignore — UI will retain previous values
+    }
+  }
 
   async function refreshAuthState() {
     setIsBootstrapping(true);
@@ -167,6 +178,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         usersCanRegister,
         sitename,
         refreshAuthState,
+        refreshPublicSettings,
         updateProfile,
         login,
         register,

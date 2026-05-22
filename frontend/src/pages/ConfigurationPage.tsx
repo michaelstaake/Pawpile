@@ -4,7 +4,7 @@ import { useAuth } from "../context/AuthContext";
 import { AppSettingsRecord } from "../lib/records";
 
 export default function ConfigurationPage() {
-  const { refreshAuthState, token } = useAuth();
+  const { refreshPublicSettings, token } = useAuth();
   const [settings, setSettings] = useState<AppSettingsRecord>({
     users_can_register: false,
     auto_load_enabled_models_on_startup: false,
@@ -57,7 +57,7 @@ export default function ConfigurationPage() {
     try {
       const response = await apiPatch<Partial<AppSettingsRecord>, AppSettingsRecord>("/api/admin/settings", { [settingName]: nextValue }, token);
       setSettings(response);
-      await refreshAuthState();
+      await refreshPublicSettings();
       setSuccessMessage("Configuration updated.");
     } catch (error) {
       setSettings(previousSettings);
@@ -94,7 +94,7 @@ export default function ConfigurationPage() {
                 </p>
               </div>
             </div>
-            <div className="mt-2 flex max-w-md gap-2">
+            <div className="mt-2 max-w-md">
               <input
                 type="text"
                 className="w-full rounded-xl border border-black/15 bg-white px-3 py-2 text-sm text-black focus:outline-none focus:ring-2 focus:ring-ink/20"
@@ -113,16 +113,6 @@ export default function ConfigurationPage() {
                 disabled={isLoading || isSaving === "sitename"}
                 placeholder="Pawpile"
               />
-              {localSitename !== settings.sitename && (
-                <button
-                  type="button"
-                  onClick={() => void updateSetting("sitename", localSitename)}
-                  className="rounded-xl bg-ink px-4 py-2 text-sm font-semibold text-white transition hover:bg-ink/80"
-                  disabled={isLoading || isSaving === "sitename"}
-                >
-                  Save
-                </button>
-              )}
             </div>
           </div>
 
