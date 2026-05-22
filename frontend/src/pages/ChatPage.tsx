@@ -468,7 +468,7 @@ export default function ChatPage() {
           className="min-h-[360px] max-h-[55vh] overflow-y-auto rounded-xl border border-dashed border-black/20 bg-sand p-4 text-sm text-black/80"
         >
           {messages.length === 0 ? (
-            <div className="text-black/50">Ask AI anything to get started.</div>
+            <div className="text-black/50">Nothing to see here yet - send a message to start the conversation!</div>
           ) : (
             <div className="space-y-3">
               {messages.map((message, index) => (
