@@ -1,28 +1,18 @@
 import { MouseEvent, useEffect, useRef, useState } from "react";
 import { NavLink, Navigate, Route, Routes, useLocation } from "react-router-dom";
 import ChatPage from "./pages/ChatPage";
-import DevicesPage from "./pages/DevicesPage";
-import ModelsPage from "./pages/ModelsPage";
 import UsersPage from "./pages/UsersPage";
 import AuthPage from "./pages/AuthPage";
 import RegisterPage from "./pages/RegisterPage";
 import ApiPage from "./pages/ApiPage";
 import ProfilePage from "./pages/ProfilePage";
-import ConfigurationPage from "./pages/ConfigurationPage";
+import SettingsPage from "./pages/SettingsPage";
 import SetupPage from "./pages/SetupPage";
 import StatusPage from "./pages/StatusPage";
 import { useAuth } from "./context/AuthContext";
 
-const adminNavItems = [
-  { to: "/configuration", label: "Configuration" },
-  { to: "/devices", label: "Devices" },
-  { to: "/models", label: "Models" },
-  { to: "/users", label: "Users" },
-  { to: "/apikeys", label: "API" },
-] as const;
-
 const appVersionLabel = `v${__APP_VERSION__}`;
-type HeaderMenu = "admin" | "user";
+type HeaderMenu = "user";
 
 function RequireAdmin({ children }: { children: JSX.Element }) {
   const { isBootstrapping, requiresSetup, user } = useAuth();
@@ -90,7 +80,6 @@ export default function App() {
   const [openMenu, setOpenMenu] = useState<HeaderMenu | null>(null);
   const showMainNav = !isBootstrapping && !requiresSetup;
   const authRouteActive = location.pathname === "/login" || location.pathname === "/register";
-  const adminMenuActive = !!user?.is_admin && adminNavItems.some((item) => location.pathname === item.to);
   const userMenuActive = !!user && location.pathname === "/profile";
 
   useEffect(() => {
@@ -148,28 +137,14 @@ export default function App() {
             <nav ref={navRef} className="relative z-50 flex flex-wrap items-center gap-2 overflow-visible">
               <NavLink to="/" end className={({ isActive }) => `rounded-lg px-3 py-2 text-sm ${isActive ? "bg-ink text-white" : "bg-black/5"}`}>Chat</NavLink>
               <NavLink to="/status" className={({ isActive }) => `rounded-lg px-3 py-2 text-sm ${isActive ? "bg-ink text-white" : "bg-black/5"}`}>Status</NavLink>
-              {user?.is_admin ? (
-                <details open={openMenu === "admin"} className="group relative z-50">
-                  <summary onClick={handleMenuToggle("admin")} className={`list-none rounded-lg px-3 py-2 text-sm cursor-pointer ${adminMenuActive ? "bg-ink text-white" : "bg-black/5"}`}>
-                    <span className="flex items-center gap-2">
-                      Settings
-                      <span className="text-xs transition group-open:rotate-180">▾</span>
-                    </span>
-                  </summary>
-                  <div className="absolute right-0 top-full z-50 mt-2 min-w-40 rounded-xl border border-black/10 bg-white/95 p-2 shadow-lg backdrop-blur">
-                    {adminNavItems.map((item) => (
-                      <NavLink
-                        key={item.to}
-                        to={item.to}
-                        className={({ isActive }) => `block rounded-lg px-3 py-2 text-sm ${isActive ? "bg-ink text-white" : "text-black/70 hover:bg-black/5"}`}
-                      >
-                        {item.label}
-                      </NavLink>
-                    ))}
-                  </div>
-                </details>
-              ) : user ? (
+              {user ? (
                 <NavLink to="/apikeys" className={({ isActive }) => `rounded-lg px-3 py-2 text-sm ${isActive ? "bg-ink text-white" : "bg-black/5"}`}>API</NavLink>
+              ) : null}
+              {user?.is_admin ? (
+                <>
+                  <NavLink to="/settings" className={({ isActive }) => `rounded-lg px-3 py-2 text-sm ${isActive ? "bg-ink text-white" : "bg-black/5"}`}>Settings</NavLink>
+                  <NavLink to="/users" className={({ isActive }) => `rounded-lg px-3 py-2 text-sm ${isActive ? "bg-ink text-white" : "bg-black/5"}`}>Users</NavLink>
+                </>
               ) : null}
               {!user ? (
                 <NavLink to="/login" className={() => `rounded-lg px-3 py-2 text-sm ${authRouteActive ? "bg-ink text-white" : "bg-black/5"}`}>Login</NavLink>
@@ -204,10 +179,10 @@ export default function App() {
 
         <Routes>
           <Route path="/" element={<HomeRoute />} />
-          <Route path="/settings" element={<RequireAdmin><Navigate to="/configuration" replace /></RequireAdmin>} />
-          <Route path="/configuration" element={<RequireAdmin><ConfigurationPage /></RequireAdmin>} />
-          <Route path="/devices" element={<RequireAdmin><DevicesPage /></RequireAdmin>} />
-          <Route path="/models" element={<RequireAdmin><ModelsPage /></RequireAdmin>} />
+          <Route path="/settings" element={<RequireAdmin><SettingsPage /></RequireAdmin>} />
+          <Route path="/configuration" element={<RequireAdmin><Navigate to="/settings" replace /></RequireAdmin>} />
+          <Route path="/devices" element={<RequireAdmin><Navigate to="/settings" replace /></RequireAdmin>} />
+          <Route path="/models" element={<RequireAdmin><Navigate to="/settings" replace /></RequireAdmin>} />
           <Route path="/users" element={<RequireAdmin><UsersPage /></RequireAdmin>} />
           <Route path="/login" element={<AuthPage />} />
           <Route path="/register" element={<RegisterPage />} />

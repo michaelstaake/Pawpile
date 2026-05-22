@@ -1,15 +1,7 @@
 import { useEffect, useState } from "react";
-import { Link } from "react-router-dom";
 import { apiGet, apiPatch } from "../lib/api";
 import { useAuth } from "../context/AuthContext";
 import { AppSettingsRecord } from "../lib/records";
-
-const settingsLinks = [
-  { to: "/apikeys", label: "API" },
-  { to: "/devices", label: "Devices" },
-  { to: "/models", label: "Models" },
-  { to: "/users", label: "Users" },
-] as const;
 
 export default function ConfigurationPage() {
   const { refreshAuthState, token } = useAuth();
@@ -170,17 +162,6 @@ export default function ConfigurationPage() {
               onChange={(event) => void updateSetting("users_can_register", event.target.checked)}
             />
           </label>
-        </div>
-      </article>
-
-      <article className="rounded-2xl border border-black/10 bg-white/80 p-5 shadow-sm backdrop-blur">
-        <p className="text-xs font-semibold uppercase tracking-[0.24em] text-black/45">Other Settings</p>
-        <div className="mt-4 flex flex-wrap gap-3">
-          {settingsLinks.map((link) => (
-            <Link key={link.to} to={link.to} className="rounded-xl border border-black/15 bg-[#fffdf7] px-4 py-2 text-sm font-semibold text-black transition hover:bg-black/5">
-              {link.label}
-            </Link>
-          ))}
         </div>
       </article>
 
