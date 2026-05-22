@@ -93,6 +93,7 @@ export default function ModelsPage({ setupMode = false, onComplete }: ModelsPage
   const [isReordering, setIsReordering] = useState(false);
   const [savingModelIds, setSavingModelIds] = useState<number[]>([]);
   const [pendingModelIds, setPendingModelIds] = useState<number[]>([]);
+  const [localNumericDrafts, setLocalNumericDrafts] = useState<Record<number, Record<string, string>>>({});
   const [errorMessage, setErrorMessage] = useState("");
   const [successMessage, setSuccessMessage] = useState("");
   const latestModelsRef = useRef<ModelRecord[]>([]);
@@ -325,7 +326,34 @@ export default function ModelsPage({ setupMode = false, onComplete }: ModelsPage
     }
   }
 
-  function handleDragStart(modelId: number) {
+  function setNumericDraft(modelId: number, field: string, value: string) {
+    setLocalNumericDrafts((current) => ({
+      ...current,
+      [modelId]: { ...current[modelId], [field]: value },
+    }));
+  }
+
+  function commitNumericDraft(modelId: number, field: keyof ModelRecord, value: string, clamp: (n: number) => number) {
+    setLocalNumericDrafts((current) => {
+      const next = { ...current };
+      if (next[modelId]) {
+        const { [field]: _removed, ...rest } = next[modelId] as Record<string, string>;
+        next[modelId] = rest;
+      }
+      return next;
+    });
+    const parsed = parseFloat(value);
+    if (!isNaN(parsed) && value.trim() !== "") {
+      updateModelDraft(modelId, { [field]: clamp(parsed) } as Partial<ModelRecord>);
+    }
+  }
+
+  function handleDragStart(event: DragEvent<HTMLElement>, modelId: number) {
+    const target = event.target as HTMLElement;
+    if (target.tagName === "INPUT" || target.tagName === "TEXTAREA" || target.tagName === "SELECT") {
+      event.preventDefault();
+      return;
+    }
     setDraggedModelId(modelId);
   }
 
@@ -403,7 +431,7 @@ export default function ModelsPage({ setupMode = false, onComplete }: ModelsPage
               key={model.id}
               className={`rounded-2xl border border-black/10 bg-[#fffdf7] p-4 transition-shadow ${draggedModelId === model.id ? "shadow-lg ring-2 ring-amber/60" : ""} ${activeModelId === model.id ? "shadow-md ring-1 ring-black/10" : ""}`}
               draggable={!isReordering}
-              onDragStart={() => handleDragStart(model.id)}
+              onDragStart={(event) => handleDragStart(event, model.id)}
               onDragOver={handleDragOver}
               onDragEnd={handleDragEnd}
               onDrop={() => handleModelDrop(model.id)}
@@ -466,23 +494,23 @@ export default function ModelsPage({ setupMode = false, onComplete }: ModelsPage
                     </label>
                     <label className="grid gap-1 text-sm text-black/70">
                       Context Length
-                      <input className="rounded-xl border border-black/15 bg-white px-3 py-2 text-sm" type="number" min={256} value={model.context_length} onChange={(event) => updateModelDraft(model.id, { context_length: Number(event.target.value) || 256 })} />
+                      <input className="rounded-xl border border-black/15 bg-white px-3 py-2 text-sm" type="number" min={256} value={localNumericDrafts[model.id]?.context_length ?? String(model.context_length)} onChange={(event) => setNumericDraft(model.id, "context_length", event.target.value)} onBlur={(event) => commitNumericDraft(model.id, "context_length", event.target.value, (n) => Math.max(256, Math.round(n)))} />
                     </label>
                     <label className="grid gap-1 text-sm text-black/70">
                       Threads
-                      <input className="rounded-xl border border-black/15 bg-white px-3 py-2 text-sm" type="number" min={1} value={model.threads} onChange={(event) => updateModelDraft(model.id, { threads: Number(event.target.value) || 1 })} />
+                      <input className="rounded-xl border border-black/15 bg-white px-3 py-2 text-sm" type="number" min={1} value={localNumericDrafts[model.id]?.threads ?? String(model.threads)} onChange={(event) => setNumericDraft(model.id, "threads", event.target.value)} onBlur={(event) => commitNumericDraft(model.id, "threads", event.target.value, (n) => Math.max(1, Math.round(n)))} />
                     </label>
                     <label className="grid gap-1 text-sm text-black/70">
                       GPU Layers
-                      <input className="rounded-xl border border-black/15 bg-white px-3 py-2 text-sm" type="number" value={model.gpu_layers} onChange={(event) => updateModelDraft(model.id, { gpu_layers: Number(event.target.value) || 0 })} />
+                      <input className="rounded-xl border border-black/15 bg-white px-3 py-2 text-sm" type="number" value={localNumericDrafts[model.id]?.gpu_layers ?? String(model.gpu_layers)} onChange={(event) => setNumericDraft(model.id, "gpu_layers", event.target.value)} onBlur={(event) => commitNumericDraft(model.id, "gpu_layers", event.target.value, (n) => Math.max(0, Math.round(n)))} />
                     </label>
                     <label className="grid gap-1 text-sm text-black/70">
                       Temperature
-                      <input className="rounded-xl border border-black/15 bg-white px-3 py-2 text-sm" type="number" min={0} max={2} step={0.05} value={model.temperature} onChange={(event) => updateModelDraft(model.id, { temperature: Number(event.target.value) })} />
+                      <input className="rounded-xl border border-black/15 bg-white px-3 py-2 text-sm" type="number" min={0} max={2} step={0.05} value={localNumericDrafts[model.id]?.temperature ?? String(model.temperature)} onChange={(event) => setNumericDraft(model.id, "temperature", event.target.value)} onBlur={(event) => commitNumericDraft(model.id, "temperature", event.target.value, (n) => Math.min(2, Math.max(0, n)))} />
                     </label>
                     <label className="grid gap-1 text-sm text-black/70">
                       Top P
-                      <input className="rounded-xl border border-black/15 bg-white px-3 py-2 text-sm" type="number" min={0} max={1} step={0.05} value={model.top_p} onChange={(event) => updateModelDraft(model.id, { top_p: Number(event.target.value) })} />
+                      <input className="rounded-xl border border-black/15 bg-white px-3 py-2 text-sm" type="number" min={0} max={1} step={0.05} value={localNumericDrafts[model.id]?.top_p ?? String(model.top_p)} onChange={(event) => setNumericDraft(model.id, "top_p", event.target.value)} onBlur={(event) => commitNumericDraft(model.id, "top_p", event.target.value, (n) => Math.min(1, Math.max(0, n)))} />
                     </label>
                     <label className="grid gap-1 text-sm text-black/70">
                       Assignment Mode
