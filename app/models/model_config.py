@@ -17,7 +17,7 @@ class ModelConfig(Base):
     description: Mapped[str] = mapped_column(Text, default="", nullable=False)
     system_prompt: Mapped[str] = mapped_column(Text, default="", nullable=False)
     chat_template: Mapped[str] = mapped_column(Text, default="", nullable=False)
-    context_length: Mapped[int] = mapped_column(Integer, default=8192, nullable=False)
+    context_length: Mapped[int] = mapped_column(Integer, default=32768, nullable=False)
     gpu_layers: Mapped[int] = mapped_column(Integer, default=-1, nullable=False)
     threads: Mapped[int] = mapped_column(Integer, default=8, nullable=False)
     temperature: Mapped[float] = mapped_column(Float, default=0.7, nullable=False)

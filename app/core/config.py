@@ -37,7 +37,7 @@ class Settings(BaseSettings):
     llama_startup_timeout_seconds: int = 120
     llama_request_timeout_seconds: int = 300
 
-    default_context_length: int = 8192
+    default_context_length: int = 32768
     default_threads: int = 8
     default_gpu_layers: int = -1
     default_temperature: float = 0.7
