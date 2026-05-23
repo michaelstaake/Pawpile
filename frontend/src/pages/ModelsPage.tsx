@@ -555,6 +555,14 @@ export default function ModelsPage({ setupMode = false, onComplete }: ModelsPage
               <section>
                 <p className="mb-3 text-xs font-semibold uppercase tracking-[0.2em] text-black/45">General</p>
                 <div className="grid gap-3 md:grid-cols-2">
+                  <label className="grid gap-1 text-sm text-black/70">
+                    Name
+                    <input className="rounded-xl border border-black/15 bg-white px-3 py-2 text-sm" value={modalDraft.alias} onChange={(event) => updateModalDraft({ alias: event.target.value })} />
+                  </label>
+                  <label className="grid gap-1 text-sm text-black/70">
+                    Description
+                    <input className="rounded-xl border border-black/15 bg-white px-3 py-2 text-sm" value={modalDraft.description} onChange={(event) => updateModalDraft({ description: event.target.value })} />
+                  </label>
                   <label className="flex items-center gap-2 rounded-xl border border-black/10 bg-white px-3 py-2 text-sm text-black/70 md:col-span-2">
                     <input type="checkbox" checked={modalDraft.tool_calling_enabled} onChange={(event) => updateModalDraft({ tool_calling_enabled: event.target.checked })} />
                     Tool Calling Enabled
@@ -635,7 +643,7 @@ export default function ModelsPage({ setupMode = false, onComplete }: ModelsPage
                 onClick={() => void saveModalDraft()}
                 disabled={isSavingModal}
               >
-                {isSavingModal ? "Saving..." : "Save Settings"}
+                {isSavingModal ? "Saving..." : modalDraft.activated ? "Save and Reload" : "Save"}
               </button>
             </div>
           </div>

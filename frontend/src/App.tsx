@@ -17,7 +17,7 @@ function RequireAdmin({ children }: { children: JSX.Element }) {
   const { isBootstrapping, requiresSetup, user } = useAuth();
 
   if (isBootstrapping) {
-    return <section className="rounded-2xl border border-black/10 bg-white/80 p-5 text-sm text-black/60 shadow-sm">Loading your workspace...</section>;
+    return <section className="rounded-2xl border border-black/10 bg-white/80 p-5 text-sm text-black/60 shadow-sm">Loading...</section>;
   }
   if (requiresSetup) {
     return <Navigate to="/setup" replace />;
@@ -32,7 +32,7 @@ function RequireUser({ children }: { children: JSX.Element }) {
   const { isBootstrapping, requiresSetup, user } = useAuth();
 
   if (isBootstrapping) {
-    return <section className="rounded-2xl border border-black/10 bg-white/80 p-5 text-sm text-black/60 shadow-sm">Loading your workspace...</section>;
+    return <section className="rounded-2xl border border-black/10 bg-white/80 p-5 text-sm text-black/60 shadow-sm">Loading...</section>;
   }
   if (requiresSetup) {
     return <Navigate to="/setup" replace />;
@@ -47,7 +47,7 @@ function HomeRoute() {
   const { isBootstrapping, requiresSetup, user } = useAuth();
 
   if (isBootstrapping) {
-    return <section className="rounded-2xl border border-black/10 bg-white/80 p-5 text-sm text-black/60 shadow-sm">Loading your workspace...</section>;
+    return <section className="rounded-2xl border border-black/10 bg-white/80 p-5 text-sm text-black/60 shadow-sm">Loading...</section>;
   }
   if (requiresSetup) {
     return <Navigate to="/setup" replace />;
