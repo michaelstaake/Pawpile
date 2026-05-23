@@ -8,6 +8,8 @@ import ProfilePage from "./pages/ProfilePage";
 import SettingsPage from "./pages/SettingsPage";
 import SetupPage from "./pages/SetupPage";
 import StatusPage from "./pages/StatusPage";
+import NotFoundPage from "./pages/NotFoundPage";
+import ForbiddenPage from "./pages/ForbiddenPage";
 import { useAuth } from "./context/AuthContext";
 
 const appVersionLabel = `v${__APP_VERSION__}`;
@@ -22,8 +24,11 @@ function RequireAdmin({ children }: { children: JSX.Element }) {
   if (requiresSetup) {
     return <Navigate to="/setup" replace />;
   }
-  if (!user?.is_admin) {
+  if (!user) {
     return <Navigate to="/login" replace />;
+  }
+  if (!user.is_admin) {
+    return <ForbiddenPage />;
   }
   return children;
 }
@@ -91,6 +96,8 @@ export default function App() {
     if (path === "/login" || path === "/auth") return "Login";
     if (path === "/register") return "Register";
     if (path === "/setup") return "Setup";
+    if (path === "/403") return "Forbidden";
+    if (path === "/404") return "Not Found";
     return "";
   })();
 
@@ -206,7 +213,9 @@ export default function App() {
           <Route path="/api" element={<Navigate to="/apikeys" replace />} />
           <Route path="/apikeys" element={<RequireUser><ApiPage /></RequireUser>} />
           <Route path="/setup" element={<SetupRoute />} />
-          <Route path="*" element={<Navigate to={requiresSetup ? "/setup" : "/"} replace />} />
+          <Route path="/403" element={<ForbiddenPage />} />
+          <Route path="/404" element={<NotFoundPage />} />
+          <Route path="*" element={requiresSetup ? <Navigate to="/setup" replace /> : <NotFoundPage />} />
         </Routes>
       </div>
     </div>
