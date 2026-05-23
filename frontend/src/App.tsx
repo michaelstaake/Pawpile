@@ -48,6 +48,18 @@ function RequireUser({ children }: { children: JSX.Element }) {
   return children;
 }
 
+function RequireSetup({ children }: { children: JSX.Element }) {
+  const { isBootstrapping, requiresSetup } = useAuth();
+
+  if (isBootstrapping) {
+    return <section className="rounded-2xl border border-black/10 bg-white/80 p-5 text-sm text-black/60 shadow-sm">Loading...</section>;
+  }
+  if (requiresSetup) {
+    return <Navigate to="/setup" replace />;
+  }
+  return children;
+}
+
 function HomeRoute() {
   const { isBootstrapping, requiresSetup, user } = useAuth();
 
@@ -167,9 +179,7 @@ export default function App() {
               {user?.is_admin ? (
                 <NavLink to="/settings" className={({ isActive }) => `rounded-lg px-3 py-2 text-sm ${isActive ? "bg-ink text-white" : "bg-black/5"}`}>Settings</NavLink>
               ) : null}
-              {!user ? (
-                <NavLink to="/login" className={() => `rounded-lg px-3 py-2 text-sm ${authRouteActive ? "bg-ink text-white" : "bg-black/5"}`}>Login</NavLink>
-              ) : (
+              {user ? (
                 <details open={openMenu === "user"} className="group relative z-50">
                   <summary onClick={handleMenuToggle("user")} className={`list-none cursor-pointer rounded-lg px-3 py-2 text-sm ${userMenuActive ? "bg-ink text-white" : "bg-black/5"}`}>
                     <span className="flex items-center gap-2">
@@ -208,7 +218,7 @@ export default function App() {
           <Route path="/login" element={<AuthPage />} />
           <Route path="/register" element={<RegisterPage />} />
           <Route path="/auth" element={<Navigate to="/login" replace />} />
-          <Route path="/status" element={<RequireUser><StatusPage /></RequireUser>} />
+          <Route path="/status" element={<RequireSetup><StatusPage /></RequireSetup>} />
           <Route path="/profile" element={<RequireUser><ProfilePage /></RequireUser>} />
           <Route path="/api" element={<Navigate to="/apikeys" replace />} />
           <Route path="/apikeys" element={<RequireUser><ApiPage /></RequireUser>} />
