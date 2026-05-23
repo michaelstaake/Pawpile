@@ -81,8 +81,7 @@ export default function ConfigurationPage() {
       ) : null}
 
       <article className="rounded-2xl border border-black/10 bg-white/80 p-5 shadow-sm backdrop-blur">
-        <p className="text-xs font-semibold uppercase tracking-[0.24em] text-black/45">Configuration</p>
-        <h2 className="mt-2 font-display text-xl">General</h2>
+        <h2 className="font-display text-xl">General</h2>
 
         <div className="mt-5 grid gap-3">
           <div className="flex flex-col gap-2 rounded-2xl border border-black/10 bg-[#fffdf7] px-4 py-4">
@@ -134,8 +133,7 @@ export default function ConfigurationPage() {
       </article>
 
       <article className="rounded-2xl border border-black/10 bg-white/80 p-5 shadow-sm backdrop-blur">
-        <p className="text-xs font-semibold uppercase tracking-[0.24em] text-black/45">Configuration</p>
-        <h2 className="mt-2 font-display text-xl">Access control</h2>
+        <h2 className="font-display text-xl">Access control</h2>
 
         <div className="mt-5 grid gap-3">
           <label className="flex items-start justify-between gap-4 rounded-2xl border border-black/10 bg-[#fffdf7] px-4 py-4">
@@ -156,8 +154,7 @@ export default function ConfigurationPage() {
       </article>
 
       <article className="rounded-2xl border border-black/10 bg-white/80 p-5 shadow-sm backdrop-blur">
-        <p className="text-xs font-semibold uppercase tracking-[0.24em] text-black/45">About</p>
-        <h2 className="mt-2 font-display text-xl">Pawpile v{__APP_VERSION__}</h2>
+        <h2 className="font-display text-xl">Pawpile v{__APP_VERSION__}</h2>
         <div className="mt-4 text-sm text-black/65">
           <p className="mt-2">
             Learn more, get help, and contribute on {" "}
