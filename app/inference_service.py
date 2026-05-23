@@ -6,8 +6,9 @@ import os
 import re
 import subprocess
 import time
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from pathlib import Path
+from typing import IO, Optional
 
 import httpx
 import psutil
@@ -40,6 +41,7 @@ class RunningModel:
     vendor: str
     port: int
     process: subprocess.Popen
+    log_file: Optional[IO[bytes]] = field(default=None, compare=False)
 
 
 class InferenceRuntime:
@@ -71,8 +73,13 @@ class InferenceRuntime:
             str(payload.gpu_layers),
         ]
 
+        logs_dir = Path(self.settings.logs_dir)
+        logs_dir.mkdir(parents=True, exist_ok=True)
+        log_path = logs_dir / f"llama-{payload.model_id}.log"
+
         try:
-            process = subprocess.Popen(command, env=env, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+            log_file: IO[bytes] = open(log_path, "wb")
+            process = subprocess.Popen(command, env=env, stdout=log_file, stderr=log_file)
         except FileNotFoundError as exc:
             raise RuntimeError(f"llama-server executable not found at {self.settings.llama_server_path}") from exc
 
@@ -83,6 +90,7 @@ class InferenceRuntime:
             vendor=payload.vendor,
             port=port,
             process=process,
+            log_file=log_file,
         )
         if not await self.wait_until_healthy(payload.model_id):
             self.deactivate_model(payload.model_id)
@@ -97,6 +105,11 @@ class InferenceRuntime:
             running.process.wait(timeout=10)
         except Exception:
             running.process.kill()
+        if running.log_file is not None:
+            try:
+                running.log_file.close()
+            except Exception:
+                pass
 
     async def wait_until_healthy(self, model_id: int) -> bool:
         running = self._running.get(model_id)
@@ -108,6 +121,16 @@ class InferenceRuntime:
         deadline = time.monotonic() + max(timeout, self.settings.llama_startup_timeout_seconds)
 
         while time.monotonic() < deadline:
+            exit_code = running.process.poll()
+            if exit_code is not None:
+                logger.error(
+                    "llama-server for model %d (%s) exited early with code %d — check logs/%s",
+                    model_id,
+                    running.alias,
+                    exit_code,
+                    f"llama-{model_id}.log",
+                )
+                return False
             try:
                 async with httpx.AsyncClient(timeout=timeout) as client:
                     response = await client.get(url)
@@ -117,6 +140,13 @@ class InferenceRuntime:
                 pass
             await asyncio.sleep(0.5)
 
+        logger.error(
+            "llama-server for model %d (%s) did not become healthy within %d seconds — check logs/%s",
+            model_id,
+            running.alias,
+            max(timeout, self.settings.llama_startup_timeout_seconds),
+            f"llama-{model_id}.log",
+        )
         return False
 
     async def chat_completion(self, model_id: int, payload: dict) -> dict:

@@ -1,4 +1,4 @@
-import { MouseEvent, useEffect, useRef, useState } from "react";
+import { MouseEvent, useEffect, useRef, useState, type ReactNode } from "react";
 import { NavLink, Navigate, Route, Routes, useLocation } from "react-router-dom";
 import ChatPage from "./pages/ChatPage";
 import AuthPage from "./pages/AuthPage";
@@ -15,7 +15,7 @@ import { useAuth } from "./context/AuthContext";
 const appVersionLabel = `v${__APP_VERSION__}`;
 type HeaderMenu = "user";
 
-function RequireAdmin({ children }: { children: JSX.Element }) {
+function RequireAdmin({ children }: { children: ReactNode }) {
   const { isBootstrapping, requiresSetup, user } = useAuth();
 
   if (isBootstrapping) {
@@ -33,7 +33,7 @@ function RequireAdmin({ children }: { children: JSX.Element }) {
   return children;
 }
 
-function RequireUser({ children }: { children: JSX.Element }) {
+function RequireUser({ children }: { children: ReactNode }) {
   const { isBootstrapping, requiresSetup, user } = useAuth();
 
   if (isBootstrapping) {
@@ -48,7 +48,7 @@ function RequireUser({ children }: { children: JSX.Element }) {
   return children;
 }
 
-function RequireSetup({ children }: { children: JSX.Element }) {
+function RequireSetup({ children }: { children: ReactNode }) {
   const { isBootstrapping, requiresSetup } = useAuth();
 
   if (isBootstrapping) {
