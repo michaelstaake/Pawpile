@@ -96,7 +96,7 @@ export default function App() {
 
   useEffect(() => {
     const base = sitename || "Pawpile";
-    document.title = pageTitle ? `${base} — ${pageTitle}` : base;
+    document.title = pageTitle ? `${base} ~ ${pageTitle}` : base;
   }, [sitename, pageTitle]);
 
   useEffect(() => {
@@ -166,7 +166,7 @@ export default function App() {
                       <span className="text-xs transition group-open:rotate-180">▾</span>
                     </span>
                   </summary>
-                  <div className="absolute right-0 top-full z-50 mt-2 min-w-40 rounded-xl border border-black/10 bg-white/95 p-2 shadow-lg backdrop-blur">
+                  <div className="absolute right-0 top-full z-50 mt-2 min-w-40 rounded-xl border border-black/10 bg-white/95 p-2 shadow-lg backdrop-blur space-y-1">
                     <NavLink
                       to="/profile"
                       className={({ isActive }) => `block rounded-lg px-3 py-2 text-sm ${isActive ? "bg-ink text-white" : "text-black/70 hover:bg-black/5"}`}
