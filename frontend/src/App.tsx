@@ -203,7 +203,7 @@ export default function App() {
                     </button>
                   </div>
                 </details>
-              )}
+              ) : null}
             </nav>
           ) : null}
         </header>
