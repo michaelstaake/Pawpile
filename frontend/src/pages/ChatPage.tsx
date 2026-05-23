@@ -682,7 +682,11 @@ async function streamCompletion(
           if (parsed.usage) {
             usage = parsed.usage;
           }
-          const delta = parsed.choices?.[0]?.delta?.content;
+          const delta =
+            parsed.choices?.[0]?.delta?.content ||
+            parsed.choices?.[0]?.delta?.reasoning_content ||
+            (parsed.choices?.[0]?.delta as any)?.reasoning ||
+            (parsed.choices?.[0]?.delta as any)?.thought;
           if (delta) {
             onDelta(delta);
           }
@@ -731,7 +735,11 @@ async function streamCompletion(
         if (parsed.usage) {
           usage = parsed.usage;
         }
-        const delta = parsed.choices?.[0]?.delta?.content;
+        const delta =
+          parsed.choices?.[0]?.delta?.content ||
+          parsed.choices?.[0]?.delta?.reasoning_content ||
+          (parsed.choices?.[0]?.delta as any)?.reasoning ||
+          (parsed.choices?.[0]?.delta as any)?.thought;
         if (delta) {
           onDelta(delta);
         }
