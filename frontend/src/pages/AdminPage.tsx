@@ -17,6 +17,7 @@ type UserRecord = {
   is_admin: boolean;
   is_active: boolean;
   password?: string;
+  passwordConfirm?: string;
 };
 
 type ApiKeyRecord = {
@@ -122,6 +123,7 @@ export default function SettingsPage() {
   const [bootstrapUsername, setBootstrapUsername] = useState("admin");
   const [bootstrapEmail, setBootstrapEmail] = useState("admin@localhost");
   const [bootstrapPassword, setBootstrapPassword] = useState("");
+  const [bootstrapConfirmPassword, setBootstrapConfirmPassword] = useState("");
 
   const [models, setModels] = useState<ModelRecord[]>([]);
   const [devices, setDevices] = useState<DeviceRecord[]>([]);
@@ -130,6 +132,7 @@ export default function SettingsPage() {
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [uploadProgress, setUploadProgress] = useState<UploadProgressState>({ loaded: 0, total: 0 });
   const [newUser, setNewUser] = useState({ username: "", email: "", password: "", is_admin: false, is_active: true });
+  const [newUserConfirmPassword, setNewUserConfirmPassword] = useState("");
   const [newApiKey, setNewApiKey] = useState({ user_id: "", name: "" });
   const [latestApiKey, setLatestApiKey] = useState("");
 
@@ -205,6 +208,12 @@ export default function SettingsPage() {
     setSuccessMessage("");
     setIsSubmittingBootstrap(true);
 
+    if (bootstrapPassword !== bootstrapConfirmPassword) {
+      setErrorMessage("Passwords do not match.");
+      setIsSubmittingBootstrap(false);
+      return;
+    }
+
     try {
       const response = await apiPost<{ username: string; email: string; password: string }, LoginResponse>("/api/auth/bootstrap-admin", {
         username: bootstrapUsername,
@@ -215,6 +224,7 @@ export default function SettingsPage() {
       setToken(response.access_token);
       setRequiresSetup(false);
       setBootstrapPassword("");
+      setBootstrapConfirmPassword("");
       setSuccessMessage("Initial admin account created.");
     } catch (error) {
       const message = error instanceof Error ? error.message : "Initial admin creation failed";
@@ -414,6 +424,10 @@ export default function SettingsPage() {
     if (!token) {
       return;
     }
+    if (newUser.password !== newUserConfirmPassword) {
+      setErrorMessage("Passwords do not match.");
+      return;
+    }
     setIsCreatingUser(true);
     setErrorMessage("");
     setSuccessMessage("");
@@ -422,6 +436,7 @@ export default function SettingsPage() {
       const response = await apiPost<typeof newUser, UserResponse>("/api/admin/users", newUser, token);
       setUsers((current) => [...current, { ...response.user, password: "" }].sort((left, right) => left.username.localeCompare(right.username)));
       setNewUser({ username: "", email: "", password: "", is_admin: false, is_active: true });
+      setNewUserConfirmPassword("");
       setNewApiKey((current) => ({ ...current, user_id: current.user_id || String(response.user.id) }));
       setSuccessMessage(`Created user ${response.user.username}.`);
     } catch (error) {
@@ -447,11 +462,16 @@ export default function SettingsPage() {
         is_active: user.is_active
       };
       if (user.password && user.password.trim()) {
+        if (user.password !== (user.passwordConfirm ?? "")) {
+          setErrorMessage("Passwords do not match.");
+          setSavingUserId(null);
+          return;
+        }
         payload.password = user.password;
       }
 
       const response = await apiPatch<Record<string, string | boolean>, UserResponse>(`/api/admin/users/${user.id}`, payload, token);
-      setUsers((current) => current.map((item) => (item.id === user.id ? { ...response.user, password: "" } : item)));
+      setUsers((current) => current.map((item) => (item.id === user.id ? { ...response.user, password: "", passwordConfirm: "" } : item)));
       setSuccessMessage(`Saved ${response.user.username}.`);
     } catch (error) {
       setErrorMessage(error instanceof Error ? error.message : "User update failed");
@@ -541,6 +561,10 @@ export default function SettingsPage() {
               Password
               <input className="rounded-xl border border-black/15 bg-white px-3 py-2 text-sm" type="password" value={bootstrapPassword} onChange={(event) => setBootstrapPassword(event.target.value)} autoComplete="new-password" />
             </label>
+            <label className="grid gap-1 text-sm text-black/70">
+              Confirm Password
+              <input className="rounded-xl border border-black/15 bg-white px-3 py-2 text-sm" type="password" value={bootstrapConfirmPassword} onChange={(event) => setBootstrapConfirmPassword(event.target.value)} autoComplete="new-password" />
+            </label>
             <div className="flex flex-wrap gap-2">
               <button className="rounded-xl bg-ink px-4 py-2 text-sm font-semibold text-white disabled:cursor-not-allowed disabled:opacity-60" type="submit" disabled={isSubmittingBootstrap}>
                 {isSubmittingBootstrap ? "Creating..." : "Create Admin"}
@@ -602,6 +626,10 @@ export default function SettingsPage() {
                     Password
                     <input className="rounded-xl border border-black/15 bg-white px-3 py-2 text-sm" type="password" value={newUser.password} onChange={(event) => setNewUser((current) => ({ ...current, password: event.target.value }))} />
                   </label>
+                  <label className="grid gap-1 text-sm text-black/70">
+                    Confirm Password
+                    <input className="rounded-xl border border-black/15 bg-white px-3 py-2 text-sm" type="password" value={newUserConfirmPassword} onChange={(event) => setNewUserConfirmPassword(event.target.value)} />
+                  </label>
                   <div className="flex flex-wrap gap-3 rounded-xl border border-black/10 bg-white px-3 py-2 text-sm text-black/70 md:self-end">
                     <label className="flex items-center gap-2">
                       <input type="checkbox" checked={newUser.is_admin} onChange={(event) => setNewUser((current) => ({ ...current, is_admin: event.target.checked }))} />
@@ -642,6 +670,10 @@ export default function SettingsPage() {
                       <label className="grid gap-1 text-sm text-black/70">
                         Reset Password
                         <input className="rounded-xl border border-black/15 bg-white px-3 py-2 text-sm" type="password" value={user.password ?? ""} onChange={(event) => updateUserDraft(user.id, { password: event.target.value })} placeholder="Leave blank to keep current password" />
+                      </label>
+                      <label className="grid gap-1 text-sm text-black/70">
+                        Confirm New Password
+                        <input className="rounded-xl border border-black/15 bg-white px-3 py-2 text-sm" type="password" value={user.passwordConfirm ?? ""} onChange={(event) => updateUserDraft(user.id, { passwordConfirm: event.target.value })} placeholder="Leave blank to keep current password" />
                       </label>
                       <div className="flex flex-wrap gap-3 rounded-xl border border-black/10 bg-white px-3 py-2 text-sm text-black/70 md:self-end">
                         <label className="flex items-center gap-2">

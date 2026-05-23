@@ -8,15 +8,22 @@ export default function SetupPage() {
   const [username, setUsername] = useState("admin");
   const [email, setEmail] = useState("admin@localhost");
   const [password, setPassword] = useState("");
+  const [confirmPassword, setConfirmPassword] = useState("");
   const [errorMessage, setErrorMessage] = useState("");
 
   async function handleBootstrap(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     setErrorMessage("");
 
+    if (password !== confirmPassword) {
+      setErrorMessage("Passwords do not match.");
+      return;
+    }
+
     try {
       await bootstrapAdmin(username, email, password);
       setPassword("");
+      setConfirmPassword("");
       navigate("/configuration", { replace: true });
     } catch (error) {
       const message = error instanceof Error ? error.message : "Initial admin creation failed";
@@ -48,6 +55,10 @@ export default function SetupPage() {
           <label className="grid gap-1 text-sm text-black/70">
             Password
             <input className="rounded-xl border border-black/15 bg-white px-3 py-2 text-sm" type="password" value={password} onChange={(event) => setPassword(event.target.value)} autoComplete="new-password" />
+          </label>
+          <label className="grid gap-1 text-sm text-black/70">
+            Confirm Password
+            <input className="rounded-xl border border-black/15 bg-white px-3 py-2 text-sm" type="password" value={confirmPassword} onChange={(event) => setConfirmPassword(event.target.value)} autoComplete="new-password" />
           </label>
           <div className="mt-2">
             <button className="rounded-xl bg-ink px-4 py-2 text-sm font-semibold text-white disabled:cursor-not-allowed disabled:opacity-60" type="submit" disabled={isAuthenticating}>

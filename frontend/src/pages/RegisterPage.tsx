@@ -7,6 +7,7 @@ export default function RegisterPage() {
   const [registerUsername, setRegisterUsername] = useState("");
   const [registerEmail, setRegisterEmail] = useState("");
   const [registerPassword, setRegisterPassword] = useState("");
+  const [registerConfirmPassword, setRegisterConfirmPassword] = useState("");
   const [errorMessage, setErrorMessage] = useState("");
   const [successMessage, setSuccessMessage] = useState("");
 
@@ -15,9 +16,15 @@ export default function RegisterPage() {
     setErrorMessage("");
     setSuccessMessage("");
 
+    if (registerPassword !== registerConfirmPassword) {
+      setErrorMessage("Passwords do not match.");
+      return;
+    }
+
     try {
       await register(registerUsername, registerEmail, registerPassword);
       setRegisterPassword("");
+      setRegisterConfirmPassword("");
       setSuccessMessage("Account created.");
     } catch (error) {
       setErrorMessage(error instanceof Error ? error.message : "Registration failed");
@@ -56,6 +63,10 @@ export default function RegisterPage() {
           <label className="grid gap-2 text-sm text-black/70">
             <span className="font-semibold text-black">Password</span>
             <input className="rounded-2xl border border-black/10 bg-[#fcfaf5] px-4 py-3 text-sm outline-none transition focus:border-black/25 focus:bg-white" type="password" value={registerPassword} onChange={(event) => setRegisterPassword(event.target.value)} autoComplete="new-password" />
+          </label>
+          <label className="grid gap-2 text-sm text-black/70">
+            <span className="font-semibold text-black">Confirm Password</span>
+            <input className="rounded-2xl border border-black/10 bg-[#fcfaf5] px-4 py-3 text-sm outline-none transition focus:border-black/25 focus:bg-white" type="password" value={registerConfirmPassword} onChange={(event) => setRegisterConfirmPassword(event.target.value)} autoComplete="new-password" />
           </label>
           <div className="flex items-center justify-between gap-4 mt-2">
             <button className="rounded-2xl bg-ink px-5 py-3 text-sm font-semibold text-white disabled:cursor-not-allowed disabled:opacity-60" type="submit" disabled={isAuthenticating}>
