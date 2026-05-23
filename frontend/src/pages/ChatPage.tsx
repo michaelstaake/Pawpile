@@ -455,11 +455,17 @@ export default function ChatPage() {
 
         {!isLoadingModels && models.length === 0 && (
           <div className="mb-3 rounded-lg border border-amber/40 bg-amber/10 px-3 py-2 text-sm text-black/70">
-            No models are active yet. Open the{" "}
-            <a className="font-semibold underline" href="/models">
-              Models
-            </a>{" "}
-            page to get started.
+            {user?.is_admin ? (
+              <>
+                No models are active yet. Open the{" "}
+                <a className="font-semibold underline" href="/models">
+                  Models
+                </a>{" "}
+                page to get started.
+              </>
+            ) : (
+              "No models are active. Contact your system administrator for assistance."
+            )}
           </div>
         )}
 
@@ -543,7 +549,7 @@ export default function ChatPage() {
             <button
               type="button"
               onClick={() => fileInputRef.current?.click()}
-              disabled={isSending}
+              disabled={isSending || models.length === 0}
               className="flex h-12 w-12 items-center justify-center rounded-xl border border-black/20 bg-white hover:bg-black/5 text-black disabled:opacity-50"
               title="Attach files"
             >
@@ -573,9 +579,9 @@ export default function ChatPage() {
               ref={inputRef}
               value={input}
               onChange={(event) => setInput(event.target.value)}
-              disabled={isSending}
-              className="flex-1 rounded-xl border border-black/20 bg-white px-4 py-3 text-sm h-12"
-              placeholder="Ask AI..."
+              disabled={isSending || models.length === 0}
+              className="flex-1 rounded-xl border border-black/20 bg-white px-4 py-3 text-sm h-12 disabled:opacity-50"
+              placeholder={models.length === 0 ? "No active models available" : "Ask AI..."}
             />
             <button
               type="submit"
