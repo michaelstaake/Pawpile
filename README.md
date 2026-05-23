@@ -1,10 +1,8 @@
 # Pawpile
 
-Pawpile is a mostly vibe-coded self-hosted AI platform designed to run completely in Docker on Ubuntu. It gives you a web UI where you can manage devices, models, users, and auth for web chat or to expose an OpenAI-compatible API to your local network.
+Pawpile turns your collection of GPUs (or CPUs) into a powerful, easy-to-use self-hosted AI server. It features a clean web interface and a fully OpenAI-compatible API that's ready to integrate with your workflow - all running via Docker on Ubuntu 26.04.
 
-## The Problem Pawpile Solves
-
-Hardware to run AI locally is expensive, but cloud AI solution pricing keeps going up and transparency and accountability keeps going down. Pawpile lets you run models of your choice on the hardware of your choice. It can run models on CPU/system RAM or using NVIDIA, AMD, or Intel Arc GPUs.
+It supports x86_64 CPUs, NVIDIA, AMD, and Intel Arc GPUs. You can have multiple cards and even mix multiple devices from different vendors in the same setup. Easy, private, and free.
 
 ## System Requirements
 
