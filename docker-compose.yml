@@ -25,6 +25,15 @@ services:
     depends_on:
       inference-cpu:
         condition: service_healthy
+      inference-nvidia:
+        condition: service_healthy
+        required: false
+      inference-amd:
+        condition: service_healthy
+        required: false
+      inference-intel:
+        condition: service_healthy
+        required: false
     restart: unless-stopped
 
   frontend:
@@ -53,6 +62,93 @@ services:
     volumes:
       - ./models:/app/models
       - ./logs:/app/logs
+    expose:
+      - "8100"
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8100/health"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 20s
+    restart: unless-stopped
+
+  inference-nvidia:
+    profiles: [nvidia]
+    build:
+      context: .
+      dockerfile: Dockerfile.inference.nvidia
+    container_name: pawpile-inference-nvidia
+    environment:
+      SUPPORTED_DEVICES: nvidia
+      LLAMA_SERVER_PATH: /opt/llama.cpp/build/bin/llama-server
+      LLAMA_STARTUP_TIMEOUT_SECONDS: ${LLAMA_STARTUP_TIMEOUT_SECONDS:-120}
+    volumes:
+      - ./models:/app/models
+      - ./logs:/app/logs
+    expose:
+      - "8100"
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8100/health"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 20s
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - capabilities: ["gpu"]
+    restart: unless-stopped
+
+  inference-amd:
+    profiles: [amd]
+    build:
+      context: .
+      dockerfile: Dockerfile.inference.amd
+      args:
+        AMDGPU_TARGETS: ${AMDGPU_TARGETS:-}
+    container_name: pawpile-inference-amd
+    environment:
+      SUPPORTED_DEVICES: amd
+      LLAMA_SERVER_PATH: /opt/llama.cpp/build/bin/llama-server
+      LLAMA_STARTUP_TIMEOUT_SECONDS: ${LLAMA_STARTUP_TIMEOUT_SECONDS:-120}
+    volumes:
+      - ./models:/app/models
+      - ./logs:/app/logs
+    expose:
+      - "8100"
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8100/health"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 20s
+    devices:
+      - /dev/kfd
+      - /dev/dri
+    group_add:
+      - video
+      - render
+    security_opt:
+      - seccomp=unconfined
+    restart: unless-stopped
+
+  inference-intel:
+    profiles: [intel]
+    build:
+      context: .
+      dockerfile: Dockerfile.inference.intel
+    container_name: pawpile-inference-intel
+    environment:
+      SUPPORTED_DEVICES: intel
+      LLAMA_SERVER_PATH: /opt/llama.cpp/build/bin/llama-server
+      GGML_SYCL_DEVICE: ${INTEL_DEVICE:-0}
+    volumes:
+      - ./models:/app/models
+      - ./logs:/app/logs
+      - /dev/dri:/dev/dri
+    device_cgroup_rules:
+      - 'c 226:* rwm'
     expose:
       - "8100"
     healthcheck:

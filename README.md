@@ -36,7 +36,7 @@ cd Pawpile
 cp .env.example .env
 ```
 
-3. Run it. The base stack always starts the CPU inference runtime. Add one or more vendor runtime overlays depending on the hardware in the host. You can mix different hardware types.
+3. Run it. The base stack always starts the CPU inference runtime. Add one or more GPU profiles depending on the hardware in the host. You can mix multiple hardware types.
 
 Choose one of these commands:
 
@@ -49,25 +49,25 @@ docker compose up -d --build
 #### CPU + NVIDIA:
 
 ```bash
-docker compose -f docker-compose.yml -f docker-compose.nvidia.yml up -d --build
+docker compose --profile nvidia up -d --build
 ```
 
 #### CPU + AMD:
 
 ```bash
-docker compose -f docker-compose.yml -f docker-compose.amd.yml up -d --build
+docker compose --profile amd up -d --build
 ```
 
 #### CPU + Intel:
 
 ```bash
-docker compose -f docker-compose.yml -f docker-compose.intel.yml up -d --build
+docker compose --profile intel up -d --build
 ```
 
 #### Mixed vendor example with NVIDIA and AMD:
 
 ```bash
-docker compose -f docker-compose.yml -f docker-compose.nvidia.yml -f docker-compose.amd.yml up -d --build
+docker compose --profile nvidia --profile amd up -d --build
 ```
 
 The backend stores its SQLite database in a Docker-managed volume. Model files stay in `models/` and runtime logs stay in `logs/` on the host.
@@ -80,7 +80,15 @@ The backend stores its SQLite database in a Docker-managed volume. Model files s
 
 7. On a new install you will be redirected to the setup page where you can create your first admin account. Once your account is created, go to Settings > Devices and set up at least one CPU or GPU device, then go to Settings > Models to upload and enable at least one AI model to use Pawpile.
 
-8. ENJOY! Next time you run Pawpile, run it without --build to speed up initialization.
+8. ENJOY! Next time you run Pawpile, run it without `--build` to speed up initialization.
+
+9. To stop Pawpile, run:
+
+```bash
+docker compose down
+```
+
+This stops all containers regardless of which GPU profiles were active when you started.
 
 ## Interacting with the AI Models
 
