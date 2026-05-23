@@ -33,7 +33,9 @@ services:
       dockerfile: frontend/Dockerfile
     container_name: pawpile-frontend
     ports:
-      - "5173:80"
+      - "5173:443"
+    volumes:
+      - ./certs:/etc/nginx/certs
     depends_on:
       backend:
         condition: service_healthy
