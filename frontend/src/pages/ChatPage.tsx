@@ -459,7 +459,7 @@ export default function ChatPage() {
             <a className="font-semibold underline" href="/models">
               Models
             </a>{" "}
-            page to scan and activate one.
+            page to get started.
           </div>
         )}
 
