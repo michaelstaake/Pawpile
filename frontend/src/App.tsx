@@ -148,8 +148,12 @@ export default function App() {
           </NavLink>
           {showMainNav ? (
             <nav ref={navRef} className="relative z-50 flex flex-wrap items-center gap-2 overflow-visible">
-              <NavLink to="/" end className={({ isActive }) => `rounded-lg px-3 py-2 text-sm ${isActive ? "bg-ink text-white" : "bg-black/5"}`}>Chat</NavLink>
-              <NavLink to="/status" className={({ isActive }) => `rounded-lg px-3 py-2 text-sm ${isActive ? "bg-ink text-white" : "bg-black/5"}`}>Status</NavLink>
+              {user ? (
+                <NavLink to="/" end className={({ isActive }) => `rounded-lg px-3 py-2 text-sm ${isActive ? "bg-ink text-white" : "bg-black/5"}`}>Chat</NavLink>
+              ) : null}
+              {user ? (
+                <NavLink to="/status" className={({ isActive }) => `rounded-lg px-3 py-2 text-sm ${isActive ? "bg-ink text-white" : "bg-black/5"}`}>Status</NavLink>
+              ) : null}
               {user ? (
                 <NavLink to="/apikeys" className={({ isActive }) => `rounded-lg px-3 py-2 text-sm ${isActive ? "bg-ink text-white" : "bg-black/5"}`}>API</NavLink>
               ) : null}
