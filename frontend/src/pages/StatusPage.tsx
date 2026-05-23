@@ -114,15 +114,12 @@ function DeviceCard({ device }: { device: DeviceStatusRecord }) {
           <div className="mt-4 space-y-3">
             {device.models.length > 0 ? device.models.map((model, index) => (
               <div key={`${device.id}-legend-${model.model_id}`} className="rounded-2xl border border-black/10 bg-white px-3 py-3">
-                <div className="flex items-center justify-between gap-3">
-                  <div className="flex items-center gap-3">
-                    <span className="h-3 w-3 rounded-full" style={{ backgroundColor: colorForModel(index) }} />
-                    <div>
-                      <p className="text-sm font-semibold text-ink">{model.alias}</p>
-                      <p className="text-xs text-black/50">Model #{model.model_id}{model.pid ? ` · PID ${model.pid}` : ""}</p>
-                    </div>
-                  </div>
-                  <p className="text-sm text-black/60">{formatMemory(model.memory_used_mb)}</p>
+                <div>
+                  <p className="text-sm font-semibold text-ink">{model.alias}</p>
+                  <p className="mt-0.5 flex items-center gap-1.5 text-xs text-black/50">
+                    <span className="h-2.5 w-2.5 shrink-0 rounded-full" style={{ backgroundColor: colorForModel(index) }} />
+                    Model #{model.model_id}{model.pid ? ` · PID ${model.pid}` : ""} · {formatMemory(model.memory_used_mb)}
+                  </p>
                 </div>
               </div>
             )) : (
