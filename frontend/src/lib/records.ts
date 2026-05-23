@@ -139,3 +139,12 @@ export type LogsResponse = {
   page_size: number;
   items: ActivityLogRecord[];
 };
+
+export type DockerContainersResponse = {
+  containers: string[];
+};
+
+export type DockerLogsResponse = {
+  container: string;
+  lines: string[];
+};

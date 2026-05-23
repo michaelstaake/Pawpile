@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends, Query
+from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.orm import Session
 
 from app.api.deps import get_admin_user
@@ -53,6 +53,51 @@ def list_logs(
         "page_size": page_size,
         "items": [_serialize(item) for item in items],
     }
+
+
+@router.get("/docker/containers")
+def list_docker_containers(
+    _: User = Depends(get_admin_user),
+) -> dict:
+    try:
+        import docker  # type: ignore
+
+        client = docker.from_env()
+        containers = client.containers.list(all=True)
+        names = sorted(
+            c.name for c in containers if c.name.startswith("pawpile-")
+        )
+        return {"containers": names}
+    except Exception as exc:
+        raise HTTPException(status_code=503, detail=f"Docker unavailable: {exc}") from exc
+
+
+@router.get("/docker/{container_name}")
+def get_docker_logs(
+    container_name: str,
+    _: User = Depends(get_admin_user),
+    tail: int = Query(default=200, ge=1, le=1000),
+) -> dict:
+    if not container_name.startswith("pawpile-"):
+        raise HTTPException(status_code=400, detail="Invalid container name")
+
+    try:
+        import docker  # type: ignore
+        import docker.errors  # type: ignore
+
+        client = docker.from_env()
+        try:
+            container = client.containers.get(container_name)
+        except docker.errors.NotFound:
+            raise HTTPException(status_code=404, detail=f"Container '{container_name}' not found")
+
+        raw: bytes = container.logs(tail=tail, timestamps=True)
+        lines = raw.decode("utf-8", errors="replace").splitlines()
+        return {"container": container_name, "lines": lines}
+    except HTTPException:
+        raise
+    except Exception as exc:
+        raise HTTPException(status_code=503, detail=f"Docker unavailable: {exc}") from exc
 
 
 def _serialize(log: ActivityLog) -> dict:

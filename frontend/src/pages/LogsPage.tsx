@@ -1,7 +1,7 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useAuth } from "../context/AuthContext";
 import { apiGet } from "../lib/api";
-import type { ActivityLogRecord, LogsResponse } from "../lib/records";
+import type { ActivityLogRecord, DockerContainersResponse, DockerLogsResponse, LogsResponse } from "../lib/records";
 
 const CATEGORIES = [
   { value: "", label: "All" },
@@ -11,6 +11,8 @@ const CATEGORIES = [
   { value: "chat", label: "Chat" },
   { value: "admin", label: "Admin" },
 ];
+
+const TAIL_OPTIONS = [100, 200, 500, 1000];
 
 function eventTypeBadgeClass(eventType: string): string {
   if (eventType === "auth.login_failed" || eventType === "model.activation_failed") {
@@ -24,7 +26,7 @@ function eventTypeBadgeClass(eventType: string): string {
   return "bg-black/5 text-black/60";
 }
 
-export default function LogsPage() {
+function ActivityLogsTab() {
   const { token } = useAuth();
   const [items, setItems] = useState<ActivityLogRecord[]>([]);
   const [total, setTotal] = useState(0);
@@ -186,6 +188,190 @@ export default function LogsPage() {
           </div>
         </div>
       )}
+    </div>
+  );
+}
+
+function DockerLogsTab() {
+  const { token } = useAuth();
+  const [containers, setContainers] = useState<string[]>([]);
+  const [containersError, setContainersError] = useState<string | null>(null);
+  const [selectedContainer, setSelectedContainer] = useState("");
+  const [tail, setTail] = useState(200);
+  const [lines, setLines] = useState<string[]>([]);
+  const [logsError, setLogsError] = useState<string | null>(null);
+  const [loadingContainers, setLoadingContainers] = useState(false);
+  const [loadingLogs, setLoadingLogs] = useState(false);
+  const [autoRefresh, setAutoRefresh] = useState(false);
+  const logEndRef = useRef<HTMLDivElement>(null);
+  const autoRefreshRef = useRef<ReturnType<typeof setInterval> | null>(null);
+
+  function fetchContainers() {
+    if (!token) return;
+    setLoadingContainers(true);
+    setContainersError(null);
+    apiGet<DockerContainersResponse>("/api/logs/docker/containers", token)
+      .then((data) => {
+        setContainers(data.containers);
+        setSelectedContainer((prev) => {
+          if (prev && data.containers.includes(prev)) return prev;
+          return data.containers[0] ?? "";
+        });
+      })
+      .catch((e: Error) => setContainersError(e.message))
+      .finally(() => setLoadingContainers(false));
+  }
+
+  function fetchLogs(container: string, tailCount: number) {
+    if (!token || !container) return;
+    setLoadingLogs(true);
+    setLogsError(null);
+    apiGet<DockerLogsResponse>(`/api/logs/docker/${encodeURIComponent(container)}?tail=${tailCount}`, token)
+      .then((data) => {
+        setLines(data.lines);
+      })
+      .catch((e: Error) => {
+        setLogsError(e.message);
+        setLines([]);
+      })
+      .finally(() => setLoadingLogs(false));
+  }
+
+  // Fetch containers whenever this tab mounts (re-fetches on each tab activation)
+  useEffect(() => {
+    fetchContainers();
+  }, [token]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Fetch logs when container or tail changes
+  useEffect(() => {
+    if (selectedContainer) fetchLogs(selectedContainer, tail);
+  }, [selectedContainer, tail, token]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Auto-refresh
+  useEffect(() => {
+    if (autoRefreshRef.current) clearInterval(autoRefreshRef.current);
+    if (autoRefresh && selectedContainer) {
+      autoRefreshRef.current = setInterval(() => {
+        fetchLogs(selectedContainer, tail);
+      }, 5000);
+    }
+    return () => {
+      if (autoRefreshRef.current) clearInterval(autoRefreshRef.current);
+    };
+  }, [autoRefresh, selectedContainer, tail]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Scroll to bottom when new lines arrive
+  useEffect(() => {
+    logEndRef.current?.scrollIntoView({ behavior: "smooth" });
+  }, [lines]);
+
+  return (
+    <div className="grid gap-4">
+      {/* Controls */}
+      <div className="flex flex-wrap items-center gap-3 rounded-2xl border border-black/10 bg-white/80 p-3 shadow-sm backdrop-blur">
+        {containersError ? (
+          <p className="text-sm text-red-600">{containersError}</p>
+        ) : (
+          <>
+            <select
+              value={selectedContainer}
+              onChange={(e) => setSelectedContainer(e.target.value)}
+              disabled={loadingContainers || containers.length === 0}
+              className="rounded-xl border border-black/15 bg-white px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-ink/30 disabled:opacity-50"
+            >
+              {containers.length === 0 && !loadingContainers && (
+                <option value="">No containers found</option>
+              )}
+              {containers.map((c) => (
+                <option key={c} value={c}>{c}</option>
+              ))}
+            </select>
+
+            <select
+              value={tail}
+              onChange={(e) => setTail(Number(e.target.value))}
+              className="rounded-xl border border-black/15 bg-white px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-ink/30"
+            >
+              {TAIL_OPTIONS.map((n) => (
+                <option key={n} value={n}>Last {n} lines</option>
+              ))}
+            </select>
+          </>
+        )}
+
+        <div className="ml-auto flex items-center gap-2">
+          <label className="flex cursor-pointer items-center gap-1.5 text-xs font-semibold text-black/70 select-none">
+            <input
+              type="checkbox"
+              checked={autoRefresh}
+              onChange={(e) => setAutoRefresh(e.target.checked)}
+              className="rounded"
+            />
+            Auto-refresh (5s)
+          </label>
+          <button
+            type="button"
+            onClick={() => {
+              fetchContainers();
+              if (selectedContainer) fetchLogs(selectedContainer, tail);
+            }}
+            disabled={loadingLogs || loadingContainers}
+            className="rounded-xl bg-ink px-3 py-1.5 text-xs font-semibold text-white transition hover:bg-ink/80 disabled:opacity-50"
+          >
+            Refresh
+          </button>
+        </div>
+      </div>
+
+      {/* Log output */}
+      <div className="overflow-hidden rounded-2xl border border-black/10 bg-white/80 shadow-sm backdrop-blur">
+        {logsError ? (
+          <p className="p-4 text-sm text-red-600">{logsError}</p>
+        ) : loadingLogs && lines.length === 0 ? (
+          <p className="p-6 text-center text-sm text-black/50">Loading…</p>
+        ) : lines.length === 0 ? (
+          <p className="p-6 text-center text-sm text-black/50">
+            {selectedContainer ? "No log output." : "Select a container above."}
+          </p>
+        ) : (
+          <div className="max-h-[600px] overflow-y-auto p-4">
+            <pre className="whitespace-pre-wrap break-all font-mono text-xs text-black/80 leading-5">
+              {lines.join("\n")}
+            </pre>
+            <div ref={logEndRef} />
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+type Tab = "activity" | "docker";
+
+export default function LogsPage() {
+  const [activeTab, setActiveTab] = useState<Tab>("activity");
+
+  return (
+    <div className="grid gap-4">
+      {/* Tab switcher */}
+      <div className="flex gap-1 rounded-2xl border border-black/10 bg-white/80 p-1.5 shadow-sm backdrop-blur w-fit">
+        <button
+          type="button"
+          onClick={() => setActiveTab("activity")}
+          className={`rounded-xl px-4 py-1.5 text-xs font-semibold transition ${activeTab === "activity" ? "bg-ink text-white" : "text-black/70 hover:bg-black/5"}`}
+        >
+          Activity Logs
+        </button>
+        <button
+          type="button"
+          onClick={() => setActiveTab("docker")}
+          className={`rounded-xl px-4 py-1.5 text-xs font-semibold transition ${activeTab === "docker" ? "bg-ink text-white" : "text-black/70 hover:bg-black/5"}`}
+        >
+          Docker Logs
+        </button>
+      </div>
+
+      {activeTab === "activity" ? <ActivityLogsTab /> : <DockerLogsTab />}
     </div>
   );
 }
