@@ -78,11 +78,11 @@ The backend stores its SQLite database in a Docker-managed volume. Model files s
 
 5. Initial setup will take a long time as we are building llama-cpp based on your selected devices.
 
-6. Once Docker reports the containers are healthy and started, open the Pawpile web interface: http://localhost:5173 or replace localhost with your server's local IP.
+6. Once Docker reports the containers are healthy and started, open the Pawpile web interface: https://localhost:5173 or replace localhost with your server's local IP. You will receive an SSL error since Pawpile generates a self-signed SSL certificate. It is safe to bypass this error.
 
-7. On a new install you will be redirected to the setup page. Once you have created your initial admin user and selected a device and model to start with, you can use Pawpile.
+7. On a new install you will be redirected to the setup page where you can create your first admin account. Once your account is created, go to Settings > Devices and set up at least one CPU or GPU device, then go to Settings > Models to upload and enable at least one AI model to use Pawpile.
 
-8. Next time you run Pawpile, run it without --build to speed up initialization.
+8. ENJOY! Next time you run Pawpile, run it without --build to speed up initialization.
 
 ## Interacting with the AI Models
 
