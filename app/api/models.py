@@ -105,6 +105,9 @@ def upload_model(
 
     log_event(db, "model.uploaded", details={"file_name": file_name, "alias": model.alias})
     return {"status": "ok", "model": _serialize_model(model)}
+
+
+@router.post("/scan")
 def scan_models(_: User = Depends(get_admin_user), db: Session = Depends(get_db)) -> dict:
     settings = get_settings()
     os.makedirs(settings.models_dir, exist_ok=True)

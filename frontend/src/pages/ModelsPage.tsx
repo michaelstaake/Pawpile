@@ -461,7 +461,13 @@ export default function ModelsPage({ setupMode = false, onComplete }: ModelsPage
         {errorMessage ? <p className="mt-4 rounded-xl border border-rose-200 bg-rose-50 px-3 py-2 text-sm text-rose-700">{errorMessage}</p> : null}
         {successMessage ? <p className="mt-4 rounded-xl border border-emerald-200 bg-emerald-50 px-3 py-2 text-sm text-emerald-700">{successMessage}</p> : null}
 
-        <form className="mt-5 grid gap-3 rounded-2xl border border-dashed border-black/15 bg-sand/70 p-4" onSubmit={handleUpload}>
+        <div className="mt-5 flex justify-end">
+          <button className="rounded-xl border border-black/15 px-4 py-2 text-sm font-semibold text-black disabled:cursor-not-allowed disabled:opacity-60" type="button" onClick={handleScan} disabled={isScanning}>
+            {isScanning ? "Scanning..." : "Scan Models Folder"}
+          </button>
+        </div>
+
+        <form className="mt-3 grid gap-3 rounded-2xl border border-dashed border-black/15 bg-sand/70 p-4" onSubmit={handleUpload}>
           <h3 className="font-display text-base">Upload GGUF Model</h3>
           <input id="model-upload-input" className="block w-full rounded-xl border border-black/15 bg-white px-3 py-2 text-sm file:mr-3 file:rounded-lg file:border-0 file:bg-amber file:px-3 file:py-2 file:font-semibold" type="file" accept=".gguf" onChange={(event) => setSelectedFile(event.target.files?.[0] ?? null)} />
           {isUploading && uploadTotal > 0 ? (
@@ -478,9 +484,6 @@ export default function ModelsPage({ setupMode = false, onComplete }: ModelsPage
           <div className="flex flex-wrap gap-2">
             <button className="rounded-xl bg-amber px-4 py-2 text-sm font-semibold text-black disabled:cursor-not-allowed disabled:opacity-60" type="submit" disabled={isUploading || !selectedFile}>
               {isUploading ? "Uploading..." : "Upload Model"}
-            </button>
-            <button className="rounded-xl border border-black/15 px-4 py-2 text-sm font-semibold text-black disabled:cursor-not-allowed disabled:opacity-60" type="button" onClick={handleScan} disabled={isScanning}>
-              {isScanning ? "Scanning..." : "Scan Models Folder"}
             </button>
           </div>
         </form>
