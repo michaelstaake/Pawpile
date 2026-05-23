@@ -170,7 +170,7 @@ export default function DevicesPage({ setupMode = false, onContinue }: DevicesPa
                 <button
                   type="button"
                   onClick={() => updateDeviceDraft(device.id, { enabled: !device.enabled })}
-                  className={`rounded-full px-3 py-1 text-xs font-semibold transition-colors ${device.enabled ? "bg-emerald-100 text-emerald-800 hover:bg-emerald-200" : "bg-black/5 text-black/55 hover:bg-black/10"}`}
+                  className={`cursor-pointer rounded-lg border px-3 py-1.5 text-xs font-semibold shadow-sm transition-colors ${device.enabled ? "border-emerald-300 bg-emerald-100 text-emerald-800 hover:bg-emerald-200" : "border-black/15 bg-white text-black/55 hover:bg-black/5"}`}
                 >
                   {device.enabled ? "Enabled" : "Disabled"}
                 </button>
