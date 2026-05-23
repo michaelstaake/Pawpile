@@ -384,11 +384,11 @@ export default function ChatPage() {
           {token ? (
             <div className="space-y-2">
               <div className="text-xs font-semibold uppercase tracking-wide text-black/40">
-                Saved chats {isLoadingChats ? "(loading...)" : `(${savedChats.length})`}
+                Chats {isLoadingChats ? "(loading...)" : `(${savedChats.length})`}
               </div>
               {savedChats.length === 0 && !isLoadingChats && (
                 <div className="rounded-lg bg-black/5 p-2 text-xs text-black/50">
-                  No saved chats yet. Send a message to start one.
+                  No chats yet. Send a message to start one.
                 </div>
               )}
               <ul className="max-h-[40vh] space-y-1 overflow-y-auto">
