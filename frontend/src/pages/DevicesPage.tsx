@@ -165,21 +165,21 @@ export default function DevicesPage({ setupMode = false, onContinue }: DevicesPa
               <div className="flex flex-wrap items-start justify-between gap-3">
                 <div>
                   <h3 className="font-display text-base">{device.name}</h3>
-                  <p className="mt-1 text-sm text-black/70">{device.vendor} {device.device_type}</p>
+                  <p className="mt-1 text-sm text-black/70">{device.vendor} {device.device_type} &mdash; {device.memory_mb.toLocaleString()} MB</p>
                 </div>
-                <span className={`rounded-full px-3 py-1 text-xs font-semibold ${device.enabled ? "bg-emerald-100 text-emerald-800" : "bg-black/5 text-black/55"}`}>
+                <button
+                  type="button"
+                  onClick={() => updateDeviceDraft(device.id, { enabled: !device.enabled })}
+                  className={`rounded-full px-3 py-1 text-xs font-semibold transition-colors ${device.enabled ? "bg-emerald-100 text-emerald-800 hover:bg-emerald-200" : "bg-black/5 text-black/55 hover:bg-black/10"}`}
+                >
                   {device.enabled ? "Enabled" : "Disabled"}
-                </span>
+                </button>
               </div>
 
               <div className="mt-4 grid gap-3 md:grid-cols-2">
                 <label className="grid gap-1 text-sm text-black/70">
                   Name
                   <input className="rounded-xl border border-black/15 bg-white px-3 py-2 text-sm" value={device.name} onChange={(event) => updateDeviceDraft(device.id, { name: event.target.value })} />
-                </label>
-                <label className="flex items-center gap-2 rounded-xl border border-black/10 bg-white px-3 py-2 text-sm text-black/70 md:self-end">
-                  <input type="checkbox" checked={device.enabled} onChange={(event) => updateDeviceDraft(device.id, { enabled: event.target.checked })} />
-                  Enabled
                 </label>
                 <label className="grid gap-1 text-sm text-black/70">
                   Priority
@@ -193,10 +193,6 @@ export default function DevicesPage({ setupMode = false, onContinue }: DevicesPa
                   Max Slots
                   <input className="rounded-xl border border-black/15 bg-white px-3 py-2 text-sm" type="number" min={1} value={device.max_slots} onChange={(event) => updateDeviceDraft(device.id, { max_slots: Number(event.target.value) || 1 })} />
                 </label>
-                <div className="rounded-xl border border-black/10 bg-white px-3 py-2 text-sm text-black/60">
-                  <p className="font-semibold text-black/75">Memory</p>
-                  <p>{device.memory_mb.toLocaleString()} MB</p>
-                </div>
               </div>
 
               <div className="mt-4 flex flex-wrap items-center justify-between gap-3">
