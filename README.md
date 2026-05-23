@@ -30,7 +30,7 @@ git clone https://github.com/michaelstaake/Pawpile.git
 cd Pawpile
 ```
 
-2. Copy environment file.
+2. Copy environment file. The default settings should work for most users, but feel free to explore it to see what customization is offered.
 
 ```bash
 cp .env.example .env
