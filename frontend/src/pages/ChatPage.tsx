@@ -388,7 +388,7 @@ export default function ChatPage() {
               </div>
               {savedChats.length === 0 && !isLoadingChats && (
                 <div className="rounded-lg bg-black/5 p-2 text-xs text-black/50">
-                  No chats yet. Send a message to start one.
+                  No chats to display.
                 </div>
               )}
               <ul className="max-h-[40vh] space-y-1 overflow-y-auto">
