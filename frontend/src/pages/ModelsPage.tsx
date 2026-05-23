@@ -2,6 +2,7 @@ import { type DragEvent, type FormEvent, useEffect, useRef, useState } from "rea
 import { apiGet, apiPatch, apiPost, apiPostFormWithProgress } from "../lib/api";
 import { useAuth } from "../context/AuthContext";
 import { DeviceRecord, ModelRecord, ModelUpdateResponse, ScanResponse, UploadResponse } from "../lib/records";
+import Modal from "../components/ui/Modal";
 
 const AUTO_SAVE_DELAY_MS = 700;
 
@@ -83,7 +84,11 @@ export default function ModelsPage({ setupMode = false, onComplete }: ModelsPage
   const { token } = useAuth();
   const [models, setModels] = useState<ModelRecord[]>([]);
   const [devices, setDevices] = useState<DeviceRecord[]>([]);
-  const [activeModelId, setActiveModelId] = useState<number | null>(null);
+  const [settingsModelId, setSettingsModelId] = useState<number | null>(null);
+  const [modalDraft, setModalDraft] = useState<ModelRecord | null>(null);
+  const [modalNumericDrafts, setModalNumericDraftsState] = useState<Record<string, string>>({});
+  const [isSavingModal, setIsSavingModal] = useState(false);
+  const [modalError, setModalError] = useState("");
   const [draggedModelId, setDraggedModelId] = useState<number | null>(null);
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [uploadProgress, setUploadProgress] = useState<UploadProgressState>({ loaded: 0, total: 0 });
@@ -93,7 +98,6 @@ export default function ModelsPage({ setupMode = false, onComplete }: ModelsPage
   const [isReordering, setIsReordering] = useState(false);
   const [savingModelIds, setSavingModelIds] = useState<number[]>([]);
   const [pendingModelIds, setPendingModelIds] = useState<number[]>([]);
-  const [localNumericDrafts, setLocalNumericDrafts] = useState<Record<number, Record<string, string>>>({});
   const [errorMessage, setErrorMessage] = useState("");
   const [successMessage, setSuccessMessage] = useState("");
   const latestModelsRef = useRef<ModelRecord[]>([]);
@@ -326,25 +330,81 @@ export default function ModelsPage({ setupMode = false, onComplete }: ModelsPage
     }
   }
 
-  function setNumericDraft(modelId: number, field: string, value: string) {
-    setLocalNumericDrafts((current) => ({
-      ...current,
-      [modelId]: { ...current[modelId], [field]: value },
-    }));
+  async function toggleModelActivation(model: ModelRecord) {
+    if (!token) {
+      return;
+    }
+    const nextActivated = !model.activated;
+    setModels((current) => current.map((item) => (item.id === model.id ? { ...item, activated: nextActivated } : item)));
+    setErrorMessage("");
+    setSuccessMessage("");
+    try {
+      await apiPost<Record<string, never>, { status: string }>(`/api/models/${model.id}/${nextActivated ? "activate" : "deactivate"}`, {}, token);
+      savedActivationRef.current[model.id] = nextActivated;
+      setSuccessMessage(`${model.alias} ${nextActivated ? "enabled" : "disabled"}.`);
+    } catch (error) {
+      setModels((current) => current.map((item) => (item.id === model.id ? { ...item, activated: model.activated } : item)));
+      setErrorMessage(error instanceof Error ? error.message : "Failed to update model activation");
+    }
   }
 
-  function commitNumericDraft(modelId: number, field: keyof ModelRecord, value: string, clamp: (n: number) => number) {
-    setLocalNumericDrafts((current) => {
+  function openSettingsModal(model: ModelRecord) {
+    setSettingsModelId(model.id);
+    setModalDraft({ ...model });
+    setModalNumericDraftsState({});
+    setModalError("");
+  }
+
+  function closeSettingsModal() {
+    setSettingsModelId(null);
+    setModalDraft(null);
+    setModalNumericDraftsState({});
+    setModalError("");
+  }
+
+  function updateModalDraft(updates: Partial<ModelRecord>) {
+    setModalDraft((current) => (current ? { ...current, ...updates } : null));
+  }
+
+  function setModalNumericDraft(field: string, value: string) {
+    setModalNumericDraftsState((current) => ({ ...current, [field]: value }));
+  }
+
+  function commitModalNumericDraft(field: keyof ModelRecord, value: string, clamp: (n: number) => number) {
+    setModalNumericDraftsState((current) => {
       const next = { ...current };
-      if (next[modelId]) {
-        const { [field]: _removed, ...rest } = next[modelId] as Record<string, string>;
-        next[modelId] = rest;
-      }
+      delete next[field as string];
       return next;
     });
     const parsed = parseFloat(value);
     if (!isNaN(parsed) && value.trim() !== "") {
-      updateModelDraft(modelId, { [field]: clamp(parsed) } as Partial<ModelRecord>);
+      updateModalDraft({ [field]: clamp(parsed) } as Partial<ModelRecord>);
+    }
+  }
+
+  async function saveModalDraft() {
+    if (!token || !modalDraft) {
+      return;
+    }
+    setIsSavingModal(true);
+    setModalError("");
+    try {
+      const response = await apiPatch<Record<string, string | number | boolean | null>, ModelUpdateResponse>(`/api/models/${modalDraft.id}`, buildModelPayload(modalDraft), token);
+      savedConfigRef.current[modalDraft.id] = serializeModelConfig(response.model);
+      setModels((current) =>
+        current.map((item) => {
+          if (item.id !== modalDraft.id) {
+            return item;
+          }
+          return { ...response.model, activated: item.activated };
+        })
+      );
+      setSuccessMessage(`Saved settings for ${response.model.alias}.`);
+      closeSettingsModal();
+    } catch (error) {
+      setModalError(error instanceof Error ? error.message : "Failed to save model settings");
+    } finally {
+      setIsSavingModal(false);
     }
   }
 
@@ -429,7 +489,7 @@ export default function ModelsPage({ setupMode = false, onComplete }: ModelsPage
           {models.map((model) => (
             <article
               key={model.id}
-              className={`rounded-2xl border border-black/10 bg-[#fffdf7] p-4 transition-shadow ${draggedModelId === model.id ? "shadow-lg ring-2 ring-amber/60" : ""} ${activeModelId === model.id ? "shadow-md ring-1 ring-black/10" : ""}`}
+              className={`rounded-2xl border border-black/10 bg-[#fffdf7] p-4 transition-shadow ${draggedModelId === model.id ? "shadow-lg ring-2 ring-amber/60" : ""}`}
               draggable={!isReordering}
               onDragStart={(event) => handleDragStart(event, model.id)}
               onDragOver={handleDragOver}
@@ -437,127 +497,31 @@ export default function ModelsPage({ setupMode = false, onComplete }: ModelsPage
               onDrop={() => handleModelDrop(model.id)}
             >
               <div className="flex flex-wrap items-start justify-between gap-3">
-                <div>
+                <div className="min-w-0 flex-1">
                   <h3 className="font-display text-base">{model.alias}</h3>
-                  <p className="mt-1 text-sm text-black/70">{model.file_name}</p>
+                  <p className="mt-0.5 text-sm text-black/55">{model.file_name}</p>
+                  {model.description ? <p className="mt-1 text-sm text-black/70">{model.description}</p> : null}
                 </div>
                 <div className="flex flex-wrap items-center gap-2">
-                  <span className={`rounded-full px-3 py-1 text-xs font-semibold ${model.activated ? "bg-emerald-100 text-emerald-800" : "bg-black/5 text-black/55"}`}>
-                    {model.activated ? "Enabled" : "Disabled"}
-                  </span>
+                  {savingModelIds.includes(model.id) || pendingModelIds.includes(model.id) ? (
+                    <span className="text-xs text-black/45">{savingModelIds.includes(model.id) ? "Saving..." : "Pending..."}</span>
+                  ) : null}
                   <button
-                    className="rounded-xl border border-black/15 bg-white px-4 py-2 text-sm font-semibold text-black"
                     type="button"
-                    aria-expanded={activeModelId === model.id}
-                    aria-controls={`model-config-${model.id}`}
-                    onClick={() => setActiveModelId((current) => (current === model.id ? null : model.id))}
+                    onClick={() => void toggleModelActivation(model)}
+                    className={`cursor-pointer rounded-lg border px-3 py-1.5 text-xs font-semibold shadow-sm transition-colors ${model.activated ? "border-emerald-300 bg-emerald-100 text-emerald-800 hover:bg-emerald-200" : "border-black/15 bg-white text-black/55 hover:bg-black/5"}`}
                   >
-                    {activeModelId === model.id ? "Hide Configuration" : "Configure"}
+                    {model.activated ? "Enabled" : "Disabled"}
+                  </button>
+                  <button
+                    className="cursor-pointer rounded-lg border border-black/15 bg-white px-3 py-1.5 text-xs font-semibold shadow-sm transition-colors hover:bg-black/5"
+                    type="button"
+                    onClick={() => openSettingsModal(model)}
+                  >
+                    Settings
                   </button>
                 </div>
               </div>
-
-              <div className="mt-4 flex flex-wrap items-center justify-between gap-3">
-                {savingModelIds.includes(model.id) || pendingModelIds.includes(model.id) ? (
-                  <p className="text-sm text-black/55">
-                    {savingModelIds.includes(model.id) ? "Saving..." : "Saving changes..."}
-                  </p>
-                ) : null}
-              </div>
-
-              {activeModelId === model.id ? (
-                <div id={`model-config-${model.id}`} className="mt-4 grid gap-5 border-t border-black/10 pt-4">
-
-                  <section>
-                    <p className="mb-3 text-xs font-semibold uppercase tracking-[0.2em] text-black/45">General</p>
-                    <div className="grid gap-3 md:grid-cols-2">
-                      <label className="grid gap-1 text-sm text-black/70">
-                        Name
-                        <input className="rounded-xl border border-black/15 bg-white px-3 py-2 text-sm" value={model.alias} onChange={(event) => updateModelDraft(model.id, { alias: event.target.value })} />
-                      </label>
-                      <label className="flex items-center gap-2 rounded-xl border border-black/10 bg-white px-3 py-2 text-sm text-black/70 md:self-end">
-                        <input type="checkbox" checked={model.activated} onChange={(event) => updateModelDraft(model.id, { activated: event.target.checked })} />
-                        Enabled
-                      </label>
-                      <label className="flex items-center gap-2 rounded-xl border border-black/10 bg-white px-3 py-2 text-sm text-black/70 md:self-end">
-                        <input type="checkbox" checked={model.tool_calling_enabled} onChange={(event) => updateModelDraft(model.id, { tool_calling_enabled: event.target.checked })} />
-                        Tool Calling Enabled
-                      </label>
-                      <label className="grid gap-1 text-sm text-black/70 md:col-span-2">
-                        Description
-                        <input className="rounded-xl border border-black/15 bg-white px-3 py-2 text-sm" value={model.description} onChange={(event) => updateModelDraft(model.id, { description: event.target.value })} />
-                      </label>
-                      <label className="grid gap-1 text-sm text-black/70">
-                        Context Length
-                        <input className="rounded-xl border border-black/15 bg-white px-3 py-2 text-sm" type="number" min={256} value={localNumericDrafts[model.id]?.context_length ?? String(model.context_length)} onChange={(event) => setNumericDraft(model.id, "context_length", event.target.value)} onBlur={(event) => commitNumericDraft(model.id, "context_length", event.target.value, (n) => Math.max(256, Math.round(n)))} />
-                      </label>
-                    </div>
-                  </section>
-
-                  <section>
-                    <p className="mb-3 text-xs font-semibold uppercase tracking-[0.2em] text-black/45">Devices</p>
-                    <div className="grid gap-3 md:grid-cols-2">
-                      <label className="grid gap-1 text-sm text-black/70">
-                        Assignment Mode
-                        <select className="rounded-xl border border-black/15 bg-white px-3 py-2 text-sm" value={model.assignment_mode} onChange={(event) => updateModelDraft(model.id, { assignment_mode: event.target.value, pinned_device_id: event.target.value === "pinned" ? model.pinned_device_id : null })}>
-                          {ASSIGNMENT_MODE_OPTIONS.map((option) => (
-                            <option key={option.value} value={option.value}>
-                              {option.label}
-                            </option>
-                          ))}
-                        </select>
-                      </label>
-                      <label className="grid gap-1 text-sm text-black/70">
-                        Pinned Device
-                        <select className="rounded-xl border border-black/15 bg-white px-3 py-2 text-sm disabled:bg-black/5" value={model.pinned_device_id ?? ""} onChange={(event) => updateModelDraft(model.id, { pinned_device_id: event.target.value ? Number(event.target.value) : null })} disabled={model.assignment_mode !== "pinned"}>
-                          <option value="">Choose a device</option>
-                          {devices.filter((device) => device.enabled).map((device) => (
-                            <option key={device.id} value={device.id}>
-                              {device.name} ({device.vendor})
-                            </option>
-                          ))}
-                        </select>
-                      </label>
-                      <label className="grid gap-1 text-sm text-black/70">
-                        GPU Layers
-                        <input className="rounded-xl border border-black/15 bg-white px-3 py-2 text-sm" type="number" value={localNumericDrafts[model.id]?.gpu_layers ?? String(model.gpu_layers)} onChange={(event) => setNumericDraft(model.id, "gpu_layers", event.target.value)} onBlur={(event) => commitNumericDraft(model.id, "gpu_layers", event.target.value, (n) => Math.max(0, Math.round(n)))} />
-                      </label>
-                      <label className="grid gap-1 text-sm text-black/70">
-                        Threads
-                        <input className="rounded-xl border border-black/15 bg-white px-3 py-2 text-sm" type="number" min={1} value={localNumericDrafts[model.id]?.threads ?? String(model.threads)} onChange={(event) => setNumericDraft(model.id, "threads", event.target.value)} onBlur={(event) => commitNumericDraft(model.id, "threads", event.target.value, (n) => Math.max(1, Math.round(n)))} />
-                      </label>
-                    </div>
-                  </section>
-
-                  <section>
-                    <p className="mb-3 text-xs font-semibold uppercase tracking-[0.2em] text-black/45">Behavior</p>
-                    <div className="grid gap-3 md:grid-cols-2">
-                      <label className="grid gap-1 text-sm text-black/70">
-                        Temperature
-                        <input className="rounded-xl border border-black/15 bg-white px-3 py-2 text-sm" type="number" min={0} max={2} step={0.05} value={localNumericDrafts[model.id]?.temperature ?? String(model.temperature)} onChange={(event) => setNumericDraft(model.id, "temperature", event.target.value)} onBlur={(event) => commitNumericDraft(model.id, "temperature", event.target.value, (n) => Math.min(2, Math.max(0, n)))} />
-                      </label>
-                      <label className="grid gap-1 text-sm text-black/70">
-                        Top P
-                        <input className="rounded-xl border border-black/15 bg-white px-3 py-2 text-sm" type="number" min={0} max={1} step={0.05} value={localNumericDrafts[model.id]?.top_p ?? String(model.top_p)} onChange={(event) => setNumericDraft(model.id, "top_p", event.target.value)} onBlur={(event) => commitNumericDraft(model.id, "top_p", event.target.value, (n) => Math.min(1, Math.max(0, n)))} />
-                      </label>
-                      <label className="grid gap-1 text-sm text-black/70 md:col-span-2">
-                        System Prompt
-                        <textarea className="min-h-24 rounded-xl border border-black/15 bg-white px-3 py-2 text-sm" value={model.system_prompt} onChange={(event) => updateModelDraft(model.id, { system_prompt: event.target.value })} />
-                      </label>
-                      <label className="grid gap-1 text-sm text-black/70 md:col-span-2">
-                        Chat Template
-                        <textarea className="min-h-24 rounded-xl border border-black/15 bg-white px-3 py-2 text-sm" value={model.chat_template} onChange={(event) => updateModelDraft(model.id, { chat_template: event.target.value })} />
-                      </label>
-                    </div>
-                  </section>
-
-                  <div className="flex flex-wrap items-center justify-between gap-3 border-t border-black/10 pt-4">
-                    <p className="text-sm text-black/55">
-                      {isReordering ? "Saving order..." : savingModelIds.includes(model.id) ? "Saving settings..." : pendingModelIds.includes(model.id) ? "Saving changes..." : "Changes save automatically."}
-                    </p>
-                  </div>
-                </div>
-              ) : null}
             </article>
           ))}
           {models.length === 0 ? <p className="rounded-2xl border border-dashed border-black/15 bg-sand/60 px-4 py-6 text-sm text-black/60">No models registered yet.</p> : null}
@@ -572,6 +536,111 @@ export default function ModelsPage({ setupMode = false, onComplete }: ModelsPage
           </div>
         ) : null}
       </article>
+
+      {modalDraft ? (
+        <Modal
+          open={settingsModelId !== null}
+          onClose={closeSettingsModal}
+          labelledBy="model-settings-modal-title"
+          panelClassName="w-full max-w-2xl"
+        >
+          <div className="p-6">
+            <h2 id="model-settings-modal-title" className="font-display text-xl">{modalDraft.alias} — Settings</h2>
+
+            {modalError ? (
+              <p className="mt-4 rounded-xl border border-rose-200 bg-rose-50 px-3 py-2 text-sm text-rose-700">{modalError}</p>
+            ) : null}
+
+            <div className="mt-5 grid gap-5">
+              <section>
+                <p className="mb-3 text-xs font-semibold uppercase tracking-[0.2em] text-black/45">General</p>
+                <div className="grid gap-3 md:grid-cols-2">
+                  <label className="flex items-center gap-2 rounded-xl border border-black/10 bg-white px-3 py-2 text-sm text-black/70 md:col-span-2">
+                    <input type="checkbox" checked={modalDraft.tool_calling_enabled} onChange={(event) => updateModalDraft({ tool_calling_enabled: event.target.checked })} />
+                    Tool Calling Enabled
+                  </label>
+                  <label className="grid gap-1 text-sm text-black/70">
+                    Context Length
+                    <input className="rounded-xl border border-black/15 bg-white px-3 py-2 text-sm" type="number" min={256} value={modalNumericDrafts.context_length ?? String(modalDraft.context_length)} onChange={(event) => setModalNumericDraft("context_length", event.target.value)} onBlur={(event) => commitModalNumericDraft("context_length", event.target.value, (n) => Math.max(256, Math.round(n)))} />
+                  </label>
+                </div>
+              </section>
+
+              <section>
+                <p className="mb-3 text-xs font-semibold uppercase tracking-[0.2em] text-black/45">Devices</p>
+                <div className="grid gap-3 md:grid-cols-2">
+                  <label className="grid gap-1 text-sm text-black/70">
+                    Assignment Mode
+                    <select className="rounded-xl border border-black/15 bg-white px-3 py-2 text-sm" value={modalDraft.assignment_mode} onChange={(event) => updateModalDraft({ assignment_mode: event.target.value, pinned_device_id: event.target.value === "pinned" ? modalDraft.pinned_device_id : null })}>
+                      {ASSIGNMENT_MODE_OPTIONS.map((option) => (
+                        <option key={option.value} value={option.value}>{option.label}</option>
+                      ))}
+                    </select>
+                  </label>
+                  <label className="grid gap-1 text-sm text-black/70">
+                    Pinned Device
+                    <select className="rounded-xl border border-black/15 bg-white px-3 py-2 text-sm disabled:bg-black/5" value={modalDraft.pinned_device_id ?? ""} onChange={(event) => updateModalDraft({ pinned_device_id: event.target.value ? Number(event.target.value) : null })} disabled={modalDraft.assignment_mode !== "pinned"}>
+                      <option value="">Choose a device</option>
+                      {devices.filter((device) => device.enabled).map((device) => (
+                        <option key={device.id} value={device.id}>{device.name} ({device.vendor})</option>
+                      ))}
+                    </select>
+                  </label>
+                  <label className="grid gap-1 text-sm text-black/70">
+                    GPU Layers
+                    <input className="rounded-xl border border-black/15 bg-white px-3 py-2 text-sm" type="number" value={modalNumericDrafts.gpu_layers ?? String(modalDraft.gpu_layers)} onChange={(event) => setModalNumericDraft("gpu_layers", event.target.value)} onBlur={(event) => commitModalNumericDraft("gpu_layers", event.target.value, (n) => Math.max(0, Math.round(n)))} />
+                  </label>
+                  <label className="grid gap-1 text-sm text-black/70">
+                    Threads
+                    <input className="rounded-xl border border-black/15 bg-white px-3 py-2 text-sm" type="number" min={1} value={modalNumericDrafts.threads ?? String(modalDraft.threads)} onChange={(event) => setModalNumericDraft("threads", event.target.value)} onBlur={(event) => commitModalNumericDraft("threads", event.target.value, (n) => Math.max(1, Math.round(n)))} />
+                  </label>
+                </div>
+              </section>
+
+              <section>
+                <p className="mb-3 text-xs font-semibold uppercase tracking-[0.2em] text-black/45">Behavior</p>
+                <div className="grid gap-3 md:grid-cols-2">
+                  <label className="grid gap-1 text-sm text-black/70">
+                    Temperature
+                    <input className="rounded-xl border border-black/15 bg-white px-3 py-2 text-sm" type="number" min={0} max={2} step={0.05} value={modalNumericDrafts.temperature ?? String(modalDraft.temperature)} onChange={(event) => setModalNumericDraft("temperature", event.target.value)} onBlur={(event) => commitModalNumericDraft("temperature", event.target.value, (n) => Math.min(2, Math.max(0, n)))} />
+                  </label>
+                  <label className="grid gap-1 text-sm text-black/70">
+                    Top P
+                    <input className="rounded-xl border border-black/15 bg-white px-3 py-2 text-sm" type="number" min={0} max={1} step={0.05} value={modalNumericDrafts.top_p ?? String(modalDraft.top_p)} onChange={(event) => setModalNumericDraft("top_p", event.target.value)} onBlur={(event) => commitModalNumericDraft("top_p", event.target.value, (n) => Math.min(1, Math.max(0, n)))} />
+                  </label>
+                  <label className="grid gap-1 text-sm text-black/70 md:col-span-2">
+                    System Prompt
+                    <textarea className="min-h-24 rounded-xl border border-black/15 bg-white px-3 py-2 text-sm" value={modalDraft.system_prompt} onChange={(event) => updateModalDraft({ system_prompt: event.target.value })} />
+                  </label>
+                  <label className="grid gap-1 text-sm text-black/70 md:col-span-2">
+                    Chat Template
+                    <textarea className="min-h-24 rounded-xl border border-black/15 bg-white px-3 py-2 text-sm" value={modalDraft.chat_template} onChange={(event) => updateModalDraft({ chat_template: event.target.value })} />
+                  </label>
+                </div>
+              </section>
+            </div>
+
+            <div className="mt-6 flex items-center justify-end gap-3 border-t border-black/10 pt-4">
+              <button
+                type="button"
+                className="rounded-xl border border-black/15 px-4 py-2 text-sm font-semibold text-black hover:bg-black/5 disabled:cursor-not-allowed disabled:opacity-60"
+                onClick={closeSettingsModal}
+                disabled={isSavingModal}
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                className="rounded-xl bg-ink px-4 py-2 text-sm font-semibold text-white disabled:cursor-not-allowed disabled:opacity-60"
+                onClick={() => void saveModalDraft()}
+                disabled={isSavingModal}
+              >
+                {isSavingModal ? "Saving..." : "Save Settings"}
+              </button>
+            </div>
+          </div>
+        </Modal>
+      ) : null}
     </section>
   );
 }
