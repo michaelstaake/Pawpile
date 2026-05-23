@@ -1,20 +1,14 @@
-import { FormEvent, useEffect, useState } from "react";
+import { FormEvent, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "../context/AuthContext";
 
 export default function SetupPage() {
   const navigate = useNavigate();
-  const { bootstrapAdmin, isAuthenticating, setupStatus } = useAuth();
+  const { bootstrapAdmin, isAuthenticating } = useAuth();
   const [username, setUsername] = useState("admin");
   const [email, setEmail] = useState("admin@localhost");
   const [password, setPassword] = useState("");
   const [errorMessage, setErrorMessage] = useState("");
-
-  useEffect(() => {
-    if (setupStatus?.has_admin_user) {
-      navigate("/configuration", { replace: true });
-    }
-  }, [navigate, setupStatus]);
 
   async function handleBootstrap(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();

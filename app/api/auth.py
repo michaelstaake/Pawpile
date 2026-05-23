@@ -28,7 +28,7 @@ def bootstrap_status(db: Session = Depends(get_db)) -> BootstrapStatusResponse:
     app_settings = get_or_create_app_settings(db)
     setup_complete = _setup_complete_path().exists()
 
-    if not setup_complete and has_admin_user and has_enabled_device and has_active_model:
+    if not setup_complete and has_admin_user:
         _mark_setup_complete()
         setup_complete = True
 

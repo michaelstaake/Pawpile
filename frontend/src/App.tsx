@@ -59,7 +59,7 @@ function HomeRoute() {
 }
 
 function SetupRoute() {
-  const { bootstrapError, isBootstrapping, requiresSetup } = useAuth();
+  const { bootstrapError, isBootstrapping, requiresSetup, user } = useAuth();
 
   if (isBootstrapping) {
     return <section className="rounded-2xl border border-black/10 bg-white/80 p-5 text-sm text-black/60 shadow-sm">Checking installation state...</section>;
@@ -68,7 +68,7 @@ function SetupRoute() {
     return <section className="rounded-2xl border border-rose-200 bg-rose-50 p-5 text-sm text-rose-700 shadow-sm">Unable to check installation state. Confirm the backend is running and reload after resolving the API error.</section>;
   }
   if (!requiresSetup) {
-    return <Navigate to="/login" replace />;
+    return <Navigate to={user ? "/configuration" : "/login"} replace />;
   }
   return <SetupPage />;
 }
