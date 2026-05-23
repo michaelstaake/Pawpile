@@ -2,7 +2,7 @@ import { FormEvent, useEffect, useState } from "react";
 import { useAuth } from "../context/AuthContext";
 
 export default function ProfilePage() {
-  const { updateProfile, user } = useAuth();
+  const { logout, updateProfile, user } = useAuth();
   const [email, setEmail] = useState(user?.email ?? "");
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
@@ -86,8 +86,19 @@ export default function ProfilePage() {
   return (
     <section className="grid gap-4">
       <article className="overflow-hidden rounded-3xl border border-black/10 bg-[linear-gradient(135deg,rgba(17,24,39,0.96),rgba(56,189,248,0.84))] p-6 text-white shadow-sm">
-        <p className="text-xs font-semibold uppercase tracking-[0.24em] text-white/65">{roleLabel}</p>
-        <h1 className="mt-3 font-display text-3xl leading-tight">Welcome back, {user?.username ?? "there"}</h1>
+        <div className="flex items-start justify-between gap-4">
+          <div>
+            <p className="text-xs font-semibold uppercase tracking-[0.24em] text-white/65">{roleLabel}</p>
+            <h1 className="mt-3 font-display text-3xl leading-tight">Welcome back, {user?.username ?? "there"}</h1>
+          </div>
+          <button
+            type="button"
+            onClick={logout}
+            className="mt-1 shrink-0 rounded-xl border border-white/20 bg-white/10 px-4 py-2 text-sm font-semibold text-white hover:bg-white/20 transition"
+          >
+            Log out
+          </button>
+        </div>
       </article>
 
       <div className="grid gap-4 xl:grid-cols-2">

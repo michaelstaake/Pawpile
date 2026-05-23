@@ -1,4 +1,4 @@
-import { MouseEvent, useEffect, useRef, useState, type ReactNode } from "react";
+import { useEffect, type ReactNode } from "react";
 import { NavLink, Navigate, Route, Routes, useLocation } from "react-router-dom";
 import ChatPage from "./pages/ChatPage";
 import AuthPage from "./pages/AuthPage";
@@ -13,7 +13,6 @@ import ForbiddenPage from "./pages/ForbiddenPage";
 import { useAuth } from "./context/AuthContext";
 
 const appVersionLabel = `v${__APP_VERSION__}`;
-type HeaderMenu = "user";
 
 function RequireAdmin({ children }: { children: ReactNode }) {
   const { isBootstrapping, requiresSetup, user } = useAuth();
@@ -93,10 +92,8 @@ function SetupRoute() {
 export default function App() {
   const { bootstrapError, isBootstrapping, logout, requiresSetup, user, sitename } = useAuth();
   const location = useLocation();
-  const [openMenu, setOpenMenu] = useState<HeaderMenu | null>(null);
   const showMainNav = !isBootstrapping && !requiresSetup;
   const authRouteActive = location.pathname === "/login" || location.pathname === "/register";
-  const userMenuActive = !!user && location.pathname === "/profile";
 
   const pageTitle = ((): string => {
     const path = location.pathname;
@@ -117,29 +114,6 @@ export default function App() {
     const base = sitename || "Pawpile";
     document.title = pageTitle ? `${base} ~ ${pageTitle}` : base;
   }, [sitename, pageTitle]);
-
-  useEffect(() => {
-    setOpenMenu(null);
-  }, [location.pathname]);
-
-  const navRef = useRef<HTMLElement>(null);
-
-  useEffect(() => {
-    function handleClickOutside(event: Event) {
-      if (navRef.current && !navRef.current.contains(event.target as Node)) {
-        setOpenMenu(null);
-      }
-    }
-    document.addEventListener("mousedown", handleClickOutside);
-    return () => document.removeEventListener("mousedown", handleClickOutside);
-  }, []);
-
-  function handleMenuToggle(menu: HeaderMenu) {
-    return (event: MouseEvent<HTMLElement>) => {
-      event.preventDefault();
-      setOpenMenu((currentMenu) => (currentMenu === menu ? null : menu));
-    };
-  }
 
   if (!isBootstrapping && bootstrapError) {
     return (
@@ -166,7 +140,7 @@ export default function App() {
             <h1 className="font-display text-2xl font-semibold tracking-tight">{sitename}</h1>
           </NavLink>
           {showMainNav ? (
-            <nav ref={navRef} className="relative z-50 flex flex-wrap items-center gap-2 overflow-visible">
+            <nav className="flex flex-wrap items-center gap-2">
               {user ? (
                 <NavLink to="/" end className={({ isActive }) => `rounded-lg px-3 py-2 text-sm ${isActive ? "bg-ink text-white" : "bg-black/5"}`}>Chat</NavLink>
               ) : null}
@@ -180,29 +154,9 @@ export default function App() {
                 <NavLink to="/settings" className={({ isActive }) => `rounded-lg px-3 py-2 text-sm ${isActive ? "bg-ink text-white" : "bg-black/5"}`}>Settings</NavLink>
               ) : null}
               {user ? (
-                <details open={openMenu === "user"} className="group relative z-50">
-                  <summary onClick={handleMenuToggle("user")} className={`list-none cursor-pointer rounded-lg px-3 py-2 text-sm ${userMenuActive ? "bg-ink text-white" : "bg-black/5"}`}>
-                    <span className="flex items-center gap-2">
-                      {user.username}
-                      <span className="text-xs transition group-open:rotate-180">▾</span>
-                    </span>
-                  </summary>
-                  <div className="absolute right-0 top-full z-50 mt-2 min-w-40 rounded-xl border border-black/10 bg-white/95 p-2 shadow-lg backdrop-blur space-y-1">
-                    <NavLink
-                      to="/profile"
-                      className={({ isActive }) => `block rounded-lg px-3 py-2 text-sm ${isActive ? "bg-ink text-white" : "text-black/70 hover:bg-black/5"}`}
-                    >
-                      Profile
-                    </NavLink>
-                    <button
-                      type="button"
-                      onClick={logout}
-                      className="block w-full rounded-lg px-3 py-2 text-left text-sm text-black/70 hover:bg-black/5"
-                    >
-                      Logout
-                    </button>
-                  </div>
-                </details>
+                <NavLink to="/profile" className={({ isActive }) => `rounded-lg px-3 py-2 text-sm ${isActive ? "bg-ink text-white" : "bg-black/5"}`}>
+                  {user.username}
+                </NavLink>
               ) : null}
             </nav>
           ) : null}
