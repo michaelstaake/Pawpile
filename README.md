@@ -19,7 +19,7 @@ Ensure Docker is installed and running in the system context.
 - **CPU**: x86_64
 - **NVIDIA**: CUDA
 - **AMD**: ROCm
-- **Intel Arc**: Note: `xe` is the correct driver for supported Arc GPUs — `i915` is not supported.
+- **Intel Arc**: Note: `xe` is the correct driver for supported Arc GPUs - `i915` is not supported.
 
 ### Quick Start
 
