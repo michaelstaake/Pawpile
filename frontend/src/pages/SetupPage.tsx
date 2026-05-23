@@ -36,11 +36,6 @@ export default function SetupPage() {
 
   return (
     <section className="grid gap-4">
-      <article className="rounded-2xl border border-black/10 bg-white/80 p-5 shadow-sm backdrop-blur">
-        <h2 className="font-display text-xl">Pawpile Setup</h2>
-        <p className="mt-1 text-sm text-black/60">Create your admin account to get started. You can configure devices and models after signing in.</p>
-      </article>
-
       {errorMessage ? (
         <p className="rounded-xl border border-rose-200 bg-rose-50 px-3 py-2 text-sm text-rose-700">{errorMessage}</p>
       ) : null}
