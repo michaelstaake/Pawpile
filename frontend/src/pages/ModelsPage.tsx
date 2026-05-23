@@ -546,7 +546,10 @@ export default function ModelsPage({ setupMode = false, onComplete }: ModelsPage
         >
           <div className="p-6">
             <h2 id="model-settings-modal-title" className="font-display text-xl">Model Settings</h2>
-            <p className="mt-1 text-sm text-black/55">{modalDraft.file_name}</p>
+            <p className="mt-1 text-sm text-black/55">
+              {modalDraft.file_name}
+              {modalDraft.file_size != null ? <span className="ml-2">({formatFileSize(modalDraft.file_size)})</span> : null}
+            </p>
 
             {modalError ? (
               <p className="mt-4 rounded-xl border border-rose-200 bg-rose-50 px-3 py-2 text-sm text-rose-700">{modalError}</p>

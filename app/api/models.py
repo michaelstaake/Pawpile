@@ -342,11 +342,16 @@ def _estimate_model_size_mb(file_path: str) -> int:
 
 
 def _serialize_model(model: ModelConfig) -> dict:
+    try:
+        file_size = os.path.getsize(model.file_path)
+    except OSError:
+        file_size = None
     return {
         "id": model.id,
         "priority": model.priority,
         "file_name": model.file_name,
         "file_path": model.file_path,
+        "file_size": file_size,
         "alias": model.alias,
         "description": model.description,
         "system_prompt": model.system_prompt,

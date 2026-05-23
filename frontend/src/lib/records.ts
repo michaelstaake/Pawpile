@@ -20,6 +20,7 @@ export type ModelRecord = {
   priority: number;
   file_name: string;
   file_path: string;
+  file_size: number | null;
   alias: string;
   description: string;
   system_prompt: string;
