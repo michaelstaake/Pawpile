@@ -71,7 +71,7 @@ function DeviceCard({ device }: { device: DeviceStatusRecord }) {
             <div className="flex items-center justify-between gap-3">
               <div>
                 <p className="text-xs font-semibold uppercase tracking-[0.24em] text-black/45">Usage</p>
-                {!hasUsage && <p className="mt-1 text-sm text-black/65">Live utilization unavailable</p>}
+                {!hasUsage && <p className="mt-1 text-sm text-black/65">Usage unavailable for this device.</p>}
               </div>
               <p className="font-display text-2xl text-ink">{hasUsage ? `${usagePercent.toFixed(1)}%` : "N/A"}</p>
             </div>
@@ -215,7 +215,7 @@ export default function StatusPage() {
             <div className="rounded-2xl border border-black/10 bg-white/75 p-4">
               <p className="text-xs font-semibold uppercase tracking-[0.24em] text-black/45">Average Usage</p>
               <p className="mt-2 font-display text-3xl text-ink">{summary.devicesWithUsageCount > 0 ? `${summary.averageUsage.toFixed(1)}%` : "N/A"}</p>
-              <p className="mt-2 text-xs text-black/50">{summary.devicesWithUsageCount > 0 ? `From ${summary.devicesWithUsageCount} device${summary.devicesWithUsageCount === 1 ? "" : "s"}` : "No live telemetry available"}</p>
+              <p className="mt-2 text-xs text-black/50">{summary.devicesWithUsageCount > 0 ? `From ${summary.devicesWithUsageCount} device${summary.devicesWithUsageCount === 1 ? "" : "s"}` : "N/A"}</p>
             </div>
           </div>
         </div>
@@ -224,7 +224,7 @@ export default function StatusPage() {
       {errorMessage ? <p className="rounded-2xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700">{errorMessage}</p> : null}
 
       {isLoading ? (
-        <div className="rounded-2xl border border-black/10 bg-white/80 px-4 py-8 text-sm text-black/55 shadow-sm">Loading live device telemetry...</div>
+        <div className="rounded-2xl border border-black/10 bg-white/80 px-4 py-8 text-sm text-black/55 shadow-sm">Loading...</div>
       ) : visibleDevices.length > 0 ? (
         <div className="grid gap-4">
           {visibleDevices.map((device) => <DeviceCard key={device.id} device={device} />)}

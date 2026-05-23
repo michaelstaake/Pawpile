@@ -92,8 +92,7 @@ export default function ProfilePage() {
 
       <div className="grid gap-4 xl:grid-cols-2">
         <article className="rounded-2xl border border-black/10 bg-white/80 p-5 shadow-sm backdrop-blur">
-          <p className="text-xs font-semibold uppercase tracking-[0.24em] text-black/45">Update Email</p>
-          <h2 className="mt-2 font-display text-xl">Change your email address</h2>
+          <h2 className="font-display text-xl">Update email</h2>
 
           <form className="mt-5 space-y-4" onSubmit={handleEmailSubmit}>
             <label className="block text-sm text-black/70">
@@ -120,8 +119,7 @@ export default function ProfilePage() {
         </article>
 
         <article className="rounded-2xl border border-black/10 bg-white/80 p-5 shadow-sm backdrop-blur">
-          <p className="text-xs font-semibold uppercase tracking-[0.24em] text-black/45">Update Password</p>
-          <h2 className="mt-2 font-display text-xl">Set a new password</h2>
+          <h2 className="font-display text-xl">Update password</h2>
 
           <form className="mt-5 space-y-4" onSubmit={handlePasswordSubmit}>
             <label className="block text-sm text-black/70">
