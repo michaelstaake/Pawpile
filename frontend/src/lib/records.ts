@@ -122,3 +122,20 @@ export type ApiKeyCreateResponse = {
   api_key: ApiKeyRecord;
   plain_text_key: string;
 };
+
+export type ActivityLogRecord = {
+  id: number;
+  created_at: string | null;
+  event_type: string;
+  user_id: number | null;
+  username: string | null;
+  ip_address: string | null;
+  details: string | null;
+};
+
+export type LogsResponse = {
+  total: number;
+  page: number;
+  page_size: number;
+  items: ActivityLogRecord[];
+};

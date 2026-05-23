@@ -1,3 +1,4 @@
+import asyncio
 from contextlib import asynccontextmanager
 import logging
 from pathlib import Path
@@ -5,7 +6,8 @@ from pathlib import Path
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
-from app.api import admin, auth, chat, devices, models, openai_compat, status
+from app.api import admin, auth, chat, devices, logs, models, openai_compat, status
+from app.core.activity_logger import prune_old_logs, schedule_daily_pruning
 from app.core.app_settings import get_or_create_app_settings
 from app.core.config import get_settings
 from app.core.db import Base, SessionLocal, engine
@@ -29,6 +31,7 @@ async def lifespan(_: FastAPI):
 
     db = SessionLocal()
     try:
+        prune_old_logs(db)
         device_manager.sync_detected_devices(db)
         app_settings = get_or_create_app_settings(db)
         if app_settings.auto_load_enabled_models_on_startup:
@@ -52,7 +55,11 @@ async def lifespan(_: FastAPI):
     finally:
         db.close()
 
+    pruning_task = asyncio.create_task(schedule_daily_pruning())
+
     yield
+
+    pruning_task.cancel()
 
     for model_id in list(inference_manager._running.keys()):
         inference_manager.deactivate_model(model_id)
@@ -77,6 +84,7 @@ app.include_router(devices.router)
 app.include_router(models.router)
 app.include_router(chat.router)
 app.include_router(admin.router)
+app.include_router(logs.router)
 app.include_router(openai_compat.router)
 app.include_router(status.router)
 

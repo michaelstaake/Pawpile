@@ -2,6 +2,7 @@ from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 
 from app.api.deps import get_admin_user
+from app.core.activity_logger import log_event
 from app.core.config import get_settings
 from app.core.db import get_db
 from app.core.device_manager import DeviceManager, get_supported_vendors
@@ -33,6 +34,8 @@ def update_device(device_id: int, payload: DeviceUpdateRequest, _: User = Depend
     if not device:
         raise HTTPException(status_code=404, detail="Device not found")
 
+    enabled_before = device.enabled
+
     for field in ["name", "enabled", "priority", "max_threads", "max_slots"]:
         value = getattr(payload, field)
         if value is not None:
@@ -41,6 +44,13 @@ def update_device(device_id: int, payload: DeviceUpdateRequest, _: User = Depend
     db.add(device)
     db.commit()
     db.refresh(device)
+
+    if payload.enabled is not None and payload.enabled != enabled_before:
+        event_type = "device.enabled" if device.enabled else "device.disabled"
+        log_event(db, event_type, details={"device_name": device.name, "hardware_id": device.hardware_id})
+    elif payload.enabled is None:
+        log_event(db, "device.updated", details={"device_name": device.name, "hardware_id": device.hardware_id})
+
     return {"status": "ok", "device": _serialize_device(device)}
 
 

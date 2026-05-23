@@ -6,6 +6,7 @@ from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.orm import Session
 
 from app.api.deps import get_admin_user
+from app.core.activity_logger import log_event
 from app.core.config import get_settings
 from app.core.db import get_db
 from app.core.device_manager import is_supported_vendor
@@ -102,10 +103,8 @@ def upload_model(
         destination.unlink(missing_ok=True)
         raise HTTPException(status_code=500, detail="Uploaded model could not be registered") from exc
 
+    log_event(db, "model.uploaded", details={"file_name": file_name, "alias": model.alias})
     return {"status": "ok", "model": _serialize_model(model)}
-
-
-@router.post("/scan")
 def scan_models(_: User = Depends(get_admin_user), db: Session = Depends(get_db)) -> dict:
     settings = get_settings()
     os.makedirs(settings.models_dir, exist_ok=True)
@@ -131,6 +130,7 @@ def scan_models(_: User = Depends(get_admin_user), db: Session = Depends(get_db)
         added += 1
 
     db.commit()
+    log_event(db, "model.scanned", details={"discovered": len(files), "added": added})
     return {"status": "ok", "discovered": len(files), "added": added}
 
 
@@ -178,6 +178,7 @@ def update_model(model_id: int, payload: ModelUpdateRequest, _: User = Depends(g
     db.add(model)
     db.commit()
     db.refresh(model)
+    log_event(db, "model.updated", details={"alias": model.alias, "model_id": model_id})
     return {"status": "ok", "model": _serialize_model(model)}
 
 
@@ -195,10 +196,12 @@ async def activate_model(model_id: int, _: User = Depends(get_admin_user), db: S
     try:
         await inference.activate_model(model, device)
     except RuntimeError as exc:
+        log_event(db, "model.activation_failed", details={"alias": model.alias, "error": str(exc)})
         raise HTTPException(status_code=400, detail=str(exc)) from exc
     model.activated = True
     db.add(model)
     db.commit()
+    log_event(db, "model.activated", details={"alias": model.alias, "device_id": device.id, "device_name": device.name})
     return {"status": "ok", "model_id": model.id, "device_id": device.id}
 
 
@@ -212,6 +215,7 @@ def deactivate_model(model_id: int, _: User = Depends(get_admin_user), db: Sessi
     model.activated = False
     db.add(model)
     db.commit()
+    log_event(db, "model.deactivated", details={"alias": model.alias})
     return {"status": "ok"}
 
 

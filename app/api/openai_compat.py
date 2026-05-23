@@ -6,6 +6,7 @@ from fastapi.responses import StreamingResponse
 from sqlalchemy.orm import Session
 
 from app.api.deps import require_api_access
+from app.core.activity_logger import log_event
 from app.core.db import get_db
 from app.core.inference_manager import InferenceManager
 from app.models.model_config import ModelConfig
@@ -38,7 +39,7 @@ def v1_models(_: User = Depends(require_api_access), db: Session = Depends(get_d
 
 
 @router.post("/chat/completions")
-async def v1_chat_completions(payload: OpenAIChatRequest, _: User = Depends(require_api_access), db: Session = Depends(get_db)):
+async def v1_chat_completions(payload: OpenAIChatRequest, current_user: User = Depends(require_api_access), db: Session = Depends(get_db)):
     inference: InferenceManager = router.inference_manager  # type: ignore[attr-defined]
     model = (
         db.query(ModelConfig)
@@ -54,6 +55,14 @@ async def v1_chat_completions(payload: OpenAIChatRequest, _: User = Depends(requ
                 status_code=400,
                 detail="Tool calling is disabled for this model. Enable tool calling in the model settings before sending tool requests.",
             )
+
+    log_event(
+        db,
+        "chat.completion",
+        user_id=current_user.id,
+        username=current_user.username,
+        details={"model": model.alias, "stream": payload.stream},
+    )
 
     request_payload = payload.model_dump(exclude_none=True)
     if "temperature" not in request_payload:

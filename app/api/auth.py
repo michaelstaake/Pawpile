@@ -1,11 +1,12 @@
 import logging
 from pathlib import Path
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Request
 from sqlalchemy.exc import IntegrityError, OperationalError, SQLAlchemyError
 from sqlalchemy.orm import Session
 
 from app.api.deps import get_current_user
+from app.core.activity_logger import log_event
 from app.core.app_settings import get_or_create_app_settings
 from app.core.config import get_settings
 from app.core.db import get_db
@@ -43,7 +44,7 @@ def bootstrap_status(db: Session = Depends(get_db)) -> BootstrapStatusResponse:
 
 
 @router.post("/bootstrap-admin", response_model=LoginResponse)
-def bootstrap_admin(payload: BootstrapAdminRequest, db: Session = Depends(get_db)) -> LoginResponse:
+def bootstrap_admin(payload: BootstrapAdminRequest, request: Request, db: Session = Depends(get_db)) -> LoginResponse:
     try:
         if db.query(User.id).first() is not None:
             raise HTTPException(status_code=409, detail="Initial admin has already been created")
@@ -58,6 +59,7 @@ def bootstrap_admin(payload: BootstrapAdminRequest, db: Session = Depends(get_db
         db.add(admin_user)
         db.commit()
         db.refresh(admin_user)
+        log_event(db, "auth.bootstrap_admin", user_id=admin_user.id, username=admin_user.username, ip_address=request.client.host if request.client else None)
         token = create_access_token(admin_user.username)
         return LoginResponse(access_token=token)
     except HTTPException:
@@ -88,16 +90,19 @@ def bootstrap_admin(payload: BootstrapAdminRequest, db: Session = Depends(get_db
 
 
 @router.post("/login", response_model=LoginResponse)
-def login(payload: LoginRequest, db: Session = Depends(get_db)) -> LoginResponse:
+def login(payload: LoginRequest, request: Request, db: Session = Depends(get_db)) -> LoginResponse:
+    ip = request.client.host if request.client else None
     user = db.query(User).filter(User.username == payload.username, User.is_active.is_(True)).first()
     if not user or not verify_password(payload.password, user.password_hash):
+        log_event(db, "auth.login_failed", username=payload.username, ip_address=ip)
         raise HTTPException(status_code=401, detail="Invalid username or password")
+    log_event(db, "auth.login", user_id=user.id, username=user.username, ip_address=ip)
     token = create_access_token(user.username)
     return LoginResponse(access_token=token)
 
 
 @router.post("/register", response_model=LoginResponse)
-def register(payload: UserRegistrationRequest, db: Session = Depends(get_db)) -> LoginResponse:
+def register(payload: UserRegistrationRequest, request: Request, db: Session = Depends(get_db)) -> LoginResponse:
     app_settings = get_or_create_app_settings(db)
     if not app_settings.users_can_register:
         raise HTTPException(status_code=403, detail="User registration is disabled")
@@ -116,6 +121,7 @@ def register(payload: UserRegistrationRequest, db: Session = Depends(get_db)) ->
     db.add(user)
     db.commit()
     db.refresh(user)
+    log_event(db, "auth.register", user_id=user.id, username=user.username, ip_address=request.client.host if request.client else None)
     token = create_access_token(user.username)
     return LoginResponse(access_token=token)
 
@@ -134,11 +140,15 @@ def current_user(current_user: User = Depends(get_current_user)) -> UserResponse
 @router.patch("/me", response_model=UserResponse)
 def update_current_user(
     payload: ProfileUpdateRequest,
+    request: Request,
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ) -> UserResponse:
     if payload.email is None and payload.password is None:
         raise HTTPException(status_code=400, detail="No profile changes were provided")
+
+    email_changed = payload.email is not None
+    password_changed = payload.password is not None
 
     if payload.email is not None:
         existing_user = (
@@ -156,6 +166,13 @@ def update_current_user(
     db.add(current_user)
     db.commit()
     db.refresh(current_user)
+
+    ip = request.client.host if request.client else None
+    if email_changed:
+        log_event(db, "auth.email_changed", user_id=current_user.id, username=current_user.username, ip_address=ip)
+    if password_changed:
+        log_event(db, "auth.password_changed", user_id=current_user.id, username=current_user.username, ip_address=ip)
+
     return UserResponse(
         id=current_user.id,
         username=current_user.username,

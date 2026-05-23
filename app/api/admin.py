@@ -2,6 +2,7 @@ from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 
 from app.api.deps import get_admin_user
+from app.core.activity_logger import log_event
 from app.core.app_settings import get_or_create_app_settings
 from app.core.db import get_db
 from app.core.security import generate_api_key, hash_api_key, hash_password
@@ -23,7 +24,7 @@ def get_settings(_: User = Depends(get_admin_user), db: Session = Depends(get_db
 
 
 @router.patch("/settings", response_model=AppSettingsResponse)
-def update_settings(payload: AppSettingsUpdateRequest, _: User = Depends(get_admin_user), db: Session = Depends(get_db)) -> AppSettingsResponse:
+def update_settings(payload: AppSettingsUpdateRequest, admin_user: User = Depends(get_admin_user), db: Session = Depends(get_db)) -> AppSettingsResponse:
     settings = get_or_create_app_settings(db)
 
     if payload.users_can_register is not None:
@@ -36,6 +37,7 @@ def update_settings(payload: AppSettingsUpdateRequest, _: User = Depends(get_adm
     db.add(settings)
     db.commit()
     db.refresh(settings)
+    log_event(db, "admin.settings_changed", user_id=admin_user.id, username=admin_user.username)
     return AppSettingsResponse(
         users_can_register=settings.users_can_register,
         auto_load_enabled_models_on_startup=settings.auto_load_enabled_models_on_startup,
@@ -50,7 +52,7 @@ def list_users(_: User = Depends(get_admin_user), db: Session = Depends(get_db))
 
 
 @router.post("/users")
-def create_user(payload: UserCreateRequest, _: User = Depends(get_admin_user), db: Session = Depends(get_db)) -> dict:
+def create_user(payload: UserCreateRequest, admin_user: User = Depends(get_admin_user), db: Session = Depends(get_db)) -> dict:
     _ensure_user_uniqueness(db, payload.username, payload.email)
 
     user = User(
@@ -63,11 +65,12 @@ def create_user(payload: UserCreateRequest, _: User = Depends(get_admin_user), d
     db.add(user)
     db.commit()
     db.refresh(user)
+    log_event(db, "admin.user_created", user_id=admin_user.id, username=admin_user.username, details={"new_username": user.username})
     return {"status": "ok", "user": _serialize_user(user)}
 
 
 @router.patch("/users/{user_id}")
-def update_user(user_id: int, payload: UserUpdateRequest, _: User = Depends(get_admin_user), db: Session = Depends(get_db)) -> dict:
+def update_user(user_id: int, payload: UserUpdateRequest, admin_user: User = Depends(get_admin_user), db: Session = Depends(get_db)) -> dict:
     user = db.query(User).filter(User.id == user_id).first()
     if not user:
         raise HTTPException(status_code=404, detail="User not found")
@@ -101,6 +104,7 @@ def update_user(user_id: int, payload: UserUpdateRequest, _: User = Depends(get_
     db.add(user)
     db.commit()
     db.refresh(user)
+    log_event(db, "admin.user_updated", user_id=admin_user.id, username=admin_user.username, details={"target_username": user.username})
     return {"status": "ok", "user": _serialize_user(user)}
 
 
