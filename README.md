@@ -164,7 +164,7 @@ Use this in your OpenCode config file to connect to Pawpile's OpenAI-compatible 
   - Run `docker system prune` to clean up old images
 
 - **Docker Desktop**:
-  - If you have Docker Desktop installed, ensure Pawpile is running in the system's context not Docker Desktop's context
+  - If you are using Ubuntu Desktop not Ubuntu Server and have Docker Desktop installed, ensure Pawpile is running in the system's context not Docker Desktop's context
   - Run `docker context use default` to correct the system context.
 
 
