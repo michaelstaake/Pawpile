@@ -29,17 +29,26 @@ ENV ROCM_PATH=/opt/rocm
 ARG AMDGPU_TARGETS="gfx1030;gfx1100;gfx1101;gfx1102;gfx1200;gfx1201"
 
 RUN git clone --depth 1 https://github.com/ggerganov/llama.cpp.git /opt/llama.cpp \
-    && CMAKE_GPU_TARGETS="" \
-    && if [ -n "$AMDGPU_TARGETS" ]; then CMAKE_GPU_TARGETS="-DGPU_TARGETS=$AMDGPU_TARGETS"; fi \
-    && HIPCXX=/opt/rocm/llvm/bin/clang++ HIP_PATH=/opt/rocm \
-       cmake -S /opt/llama.cpp -B /opt/llama.cpp/build \
-        -DLLAMA_BUILD_SERVER=ON \
-        -DGGML_HIP=ON \
-        -DCMAKE_PREFIX_PATH=/opt/rocm/lib/cmake:/opt/rocm \
-        -DCMAKE_C_COMPILER=/opt/rocm/llvm/bin/clang \
-        -DCMAKE_CXX_COMPILER=/opt/rocm/llvm/bin/clang++ \
-        -DCMAKE_BUILD_TYPE=Release \
-        $CMAKE_GPU_TARGETS \
+        && if [ -n "$AMDGPU_TARGETS" ]; then \
+                HIPCXX=/opt/rocm/llvm/bin/clang++ HIP_PATH=/opt/rocm \
+                cmake -S /opt/llama.cpp -B /opt/llama.cpp/build \
+                    -DLLAMA_BUILD_SERVER=ON \
+                    -DGGML_HIP=ON \
+                    -DCMAKE_PREFIX_PATH=/opt/rocm/lib/cmake:/opt/rocm \
+                    -DCMAKE_C_COMPILER=/opt/rocm/llvm/bin/clang \
+                    -DCMAKE_CXX_COMPILER=/opt/rocm/llvm/bin/clang++ \
+                    -DCMAKE_BUILD_TYPE=Release \
+                    "-DGPU_TARGETS=$AMDGPU_TARGETS"; \
+             else \
+                HIPCXX=/opt/rocm/llvm/bin/clang++ HIP_PATH=/opt/rocm \
+                cmake -S /opt/llama.cpp -B /opt/llama.cpp/build \
+                    -DLLAMA_BUILD_SERVER=ON \
+                    -DGGML_HIP=ON \
+                    -DCMAKE_PREFIX_PATH=/opt/rocm/lib/cmake:/opt/rocm \
+                    -DCMAKE_C_COMPILER=/opt/rocm/llvm/bin/clang \
+                    -DCMAKE_CXX_COMPILER=/opt/rocm/llvm/bin/clang++ \
+                    -DCMAKE_BUILD_TYPE=Release; \
+             fi \
     && cmake --build /opt/llama.cpp/build --config Release --target llama-server -j2
 
 COPY app ./app
