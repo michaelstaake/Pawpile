@@ -62,7 +62,7 @@ export default function SetupPage() {
           </label>
           <div className="mt-2">
             <button className="rounded-xl bg-ink px-4 py-2 text-sm font-semibold text-white disabled:cursor-not-allowed disabled:opacity-60" type="submit" disabled={isAuthenticating}>
-              {isAuthenticating ? "Creating..." : "Create Account"}
+              {isAuthenticating ? "Creating..." : "Get Started"}
             </button>
           </div>
         </form>
