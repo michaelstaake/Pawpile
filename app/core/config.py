@@ -36,6 +36,8 @@ class Settings(BaseSettings):
     llama_health_timeout_seconds: int = 5
     llama_startup_timeout_seconds: int = 120
     llama_request_timeout_seconds: int = 300
+    amd_llama_disable_warmup: bool = False
+    amd_llama_extra_args: str = ""
 
     default_context_length: int = 32768
     default_threads: int = 8

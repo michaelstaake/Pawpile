@@ -4,6 +4,7 @@ import json
 import logging
 import os
 import re
+import shlex
 import subprocess
 import time
 from dataclasses import dataclass, field
@@ -41,6 +42,8 @@ class RunningModel:
     vendor: str
     port: int
     process: subprocess.Popen
+    command: list[str] = field(default_factory=list, compare=False)
+    log_path: str = field(default="", compare=False)
     log_file: Optional[IO[bytes]] = field(default=None, compare=False)
 
 
@@ -72,6 +75,7 @@ class InferenceRuntime:
             "--n-gpu-layers",
             str(payload.gpu_layers),
         ]
+        command.extend(self._build_vendor_args(payload.vendor))
 
         logs_dir = Path(self.settings.logs_dir)
         logs_dir.mkdir(parents=True, exist_ok=True)
@@ -79,6 +83,15 @@ class InferenceRuntime:
 
         try:
             log_file: IO[bytes] = open(log_path, "wb")
+            logger.info(
+                "Launching llama-server for model %d (%s) on %s %s; log=%s; command=%s",
+                payload.model_id,
+                payload.alias,
+                payload.vendor,
+                payload.hardware_id,
+                log_path,
+                shlex.join(command),
+            )
             process = subprocess.Popen(command, env=env, stdout=log_file, stderr=log_file)
         except FileNotFoundError as exc:
             raise RuntimeError(f"llama-server executable not found at {self.settings.llama_server_path}") from exc
@@ -90,6 +103,8 @@ class InferenceRuntime:
             vendor=payload.vendor,
             port=port,
             process=process,
+            command=command,
+            log_path=str(log_path),
             log_file=log_file,
         )
         if not await self.wait_until_healthy(payload.model_id):
@@ -124,11 +139,14 @@ class InferenceRuntime:
             exit_code = running.process.poll()
             if exit_code is not None:
                 logger.error(
-                    "llama-server for model %d (%s) exited early with code %d — check logs/%s",
+                    "llama-server for model %d (%s) on %s %s exited early with code %d; log=%s; command=%s",
                     model_id,
                     running.alias,
+                    running.vendor,
+                    running.hardware_id,
                     exit_code,
-                    f"llama-{model_id}.log",
+                    running.log_path,
+                    shlex.join(running.command),
                 )
                 return False
             try:
@@ -141,11 +159,14 @@ class InferenceRuntime:
             await asyncio.sleep(0.5)
 
         logger.error(
-            "llama-server for model %d (%s) did not become healthy within %d seconds — check logs/%s",
+            "llama-server for model %d (%s) on %s %s did not become healthy within %d seconds; log=%s; command=%s",
             model_id,
             running.alias,
+            running.vendor,
+            running.hardware_id,
             max(timeout, self.settings.llama_startup_timeout_seconds),
-            f"llama-{model_id}.log",
+            running.log_path,
+            shlex.join(running.command),
         )
         return False
 
@@ -197,6 +218,20 @@ class InferenceRuntime:
         else:
             raise RuntimeError(f"Unknown device vendor: {vendor}")
         return env
+
+    def _build_vendor_args(self, vendor: str) -> list[str]:
+        if vendor != "amd":
+            return []
+
+        args: list[str] = []
+        if self.settings.amd_llama_disable_warmup:
+            args.append("--no-warmup")
+
+        extra_args = self.settings.amd_llama_extra_args.strip()
+        if extra_args:
+            args.extend(shlex.split(extra_args))
+
+        return args
 
     def status_payload(self) -> dict:
         supported_vendors = get_supported_vendors()

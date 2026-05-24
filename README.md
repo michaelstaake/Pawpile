@@ -58,6 +58,8 @@ docker compose --profile nvidia up -d --build
 docker compose --profile amd up -d --build
 ```
 
+The AMD image builds llama.cpp for a portable set of common ROCm desktop targets by default. If you want a narrower build for a known fleet or need to work around a host-specific ROCm issue, set `AMDGPU_TARGETS` in `.env` before building. Use semicolons to provide multiple targets, for example `gfx1100;gfx1101;gfx1201`.
+
 #### CPU + Intel:
 
 ```bash
@@ -94,7 +96,7 @@ This stops all containers regardless of which GPU profiles were active when you 
 
 ### Web Interface Chat
 
-You can chat with your enabled models through the web interface. This is the easiest, but least powerful way to interact with Pawpile.
+You can chat with your enabled models through the web interface. This is the easiest but least powerful way to interact with Pawpile.
 
 ### OpenAI Compatible API
 
@@ -176,6 +178,8 @@ Use this in your OpenCode config file to connect to Pawpile's OpenAI-compatible 
   - Confirm `LLAMA_SERVER_PATH` in `.env` is set correctly inside the container (defaults to `/opt/llama.cpp/build/bin/llama-server`).
   - Confirm the model path exists and is readable under the `models/` directory in the project root (which is mounted into the containers).
   - Ensure the models are not too large for the device you are running it on.
+  - On AMD, if the runtime log shows ROCm warmup failures or `invalid device function`, rebuild the AMD image first. The default image includes a multi-target ROCm build; override `AMDGPU_TARGETS` only when you need a narrower target set for a specific deployment.
+  - On AMD, you can also set `AMD_LLAMA_DISABLE_WARMUP=true` to skip llama.cpp warmup or provide additional AMD-only launch arguments with `AMD_LLAMA_EXTRA_ARGS`.
 
 ## License
 
