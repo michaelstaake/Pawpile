@@ -82,6 +82,22 @@ async def v1_chat_completions(payload: OpenAIChatRequest, current_user: User = D
         for message in payload.messages
     ]
 
+    # When thinking is disabled, inject /no_think into the system message so
+    # that models with a built-in thinking template (e.g. Qwen3) reliably skip
+    # the thinking phase.  Some llama-server builds ignore the enable_thinking
+    # API parameter, but all compliant Qwen3 builds respect this control token.
+    if not request_payload.get("enable_thinking", True):
+        msgs = request_payload["messages"]
+        if msgs and msgs[0].get("role") == "system":
+            existing = msgs[0].get("content") or ""
+            if "/no_think" not in existing:
+                request_payload["messages"] = [
+                    {**msgs[0], "content": "/no_think\n" + existing if existing else "/no_think"},
+                    *msgs[1:],
+                ]
+        else:
+            request_payload["messages"] = [{"role": "system", "content": "/no_think"}, *msgs]
+
     if payload.stream:
         async def event_stream():
             try:
