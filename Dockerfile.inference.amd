@@ -24,9 +24,9 @@ RUN python3 -m venv /opt/venv \
 ENV PATH=/opt/venv/bin:/opt/rocm/bin:/opt/rocm/llvm/bin:$PATH
 ENV ROCM_PATH=/opt/rocm
 
-# Build a portable fat binary for the most common ROCm desktop targets by default.
-# Override AMDGPU_TARGETS at build time to narrow the image for a specific deployment.
-ARG AMDGPU_TARGETS="gfx1030;gfx1100;gfx1101;gfx1102;gfx1200;gfx1201"
+# Leave GPU_TARGETS unset by default so llama.cpp/ROCm can use its stable toolchain defaults.
+# Override AMDGPU_TARGETS at build time to target a specific deployment or custom multi-target build.
+ARG AMDGPU_TARGETS=""
 
 RUN git clone --depth 1 https://github.com/ggerganov/llama.cpp.git /opt/llama.cpp \
         && if [ -n "$AMDGPU_TARGETS" ]; then \
