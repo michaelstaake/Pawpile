@@ -62,6 +62,8 @@ docker compose --profile amd up -d --build
 
 By default the AMD image lets llama.cpp and ROCm use their standard build target selection. If you need to pin a known-good GPU target for a deployment or build a custom multi-target image, set `AMDGPU_TARGETS` in `.env` before building. Use semicolons to provide multiple targets, for example `gfx1100;gfx1101;gfx1201`.
 
+All inference images pin llama.cpp to a specific release via `LLAMA_CPP_TAG` (default `b9297`). Override this build arg in `.env` to upgrade or downgrade the llama.cpp version across all runtimes.
+
 #### CPU + Intel:
 
 ```bash

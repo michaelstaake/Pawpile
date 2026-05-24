@@ -1,4 +1,4 @@
-FROM rocm/dev-ubuntu-24.04:6.4.1
+FROM rocm/dev-ubuntu-24.04:7.2.3
 
 WORKDIR /app
 
@@ -24,11 +24,14 @@ RUN python3 -m venv /opt/venv \
 ENV PATH=/opt/venv/bin:/opt/rocm/bin:/opt/rocm/llvm/bin:$PATH
 ENV ROCM_PATH=/opt/rocm
 
+# Pin llama.cpp to a specific release tag. Override LLAMA_CPP_TAG at build time to use a different version.
+ARG LLAMA_CPP_TAG="b9297"
+
 # Leave GPU_TARGETS unset by default so llama.cpp/ROCm can use its stable toolchain defaults.
 # Override AMDGPU_TARGETS at build time to target a specific deployment or custom multi-target build.
 ARG AMDGPU_TARGETS=""
 
-RUN git clone --depth 1 https://github.com/ggerganov/llama.cpp.git /opt/llama.cpp \
+RUN git clone --depth 1 --branch "${LLAMA_CPP_TAG}" https://github.com/ggml-org/llama.cpp.git /opt/llama.cpp \
         && if [ -n "$AMDGPU_TARGETS" ]; then \
                 HIPCXX=/opt/rocm/llvm/bin/clang++ HIP_PATH=/opt/rocm \
                 cmake -S /opt/llama.cpp -B /opt/llama.cpp/build \

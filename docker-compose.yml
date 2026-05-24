@@ -55,6 +55,8 @@ services:
     build:
       context: .
       dockerfile: Dockerfile.inference.cpu
+      args:
+        LLAMA_CPP_TAG: ${LLAMA_CPP_TAG:-b9297}
     container_name: pawpile-inference-cpu
     environment:
       SUPPORTED_DEVICES: cpu
@@ -78,6 +80,8 @@ services:
     build:
       context: .
       dockerfile: Dockerfile.inference.nvidia
+      args:
+        LLAMA_CPP_TAG: ${LLAMA_CPP_TAG:-b9297}
     container_name: pawpile-inference-nvidia
     environment:
       SUPPORTED_DEVICES: nvidia
@@ -107,6 +111,7 @@ services:
       context: .
       dockerfile: Dockerfile.inference.amd
       args:
+        LLAMA_CPP_TAG: ${LLAMA_CPP_TAG:-b9297}
         AMDGPU_TARGETS: ${AMDGPU_TARGETS:-}
     container_name: pawpile-inference-amd
     environment:
@@ -139,6 +144,8 @@ services:
     build:
       context: .
       dockerfile: Dockerfile.inference.intel
+      args:
+        LLAMA_CPP_TAG: ${LLAMA_CPP_TAG:-b9297}
     container_name: pawpile-inference-intel
     environment:
       SUPPORTED_DEVICES: intel
