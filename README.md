@@ -52,6 +52,8 @@ docker compose up -d --build
 docker compose --profile nvidia up -d --build
 ```
 
+Ensure the NVIDIA Container Toolkit is installed and configured.
+
 #### CPU + AMD:
 
 ```bash
