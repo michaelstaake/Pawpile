@@ -6,14 +6,6 @@ It supports x86_64 CPUs, NVIDIA GPUs, AMD GPUs, and Intel Arc GPUs. You can have
 
 ## System Requirements
 
-### Ubuntu 26.04
-
-If it works on other operating systems, cool, but supporting that is outside the scope of this project.
-
-### Docker
-
-Ensure Docker is installed and running in the system context.
-
 ### Supported Devices
 
 - **CPU**: x86_64
@@ -21,7 +13,13 @@ Ensure Docker is installed and running in the system context.
 - **AMD**: ROCm
 - **Intel Arc**: Note: `xe` is the correct driver for supported Arc GPUs - `i915` is not supported.
 
-Ensure the correct GPU drivers and necessary extras (e.g., NVIDIA Container Toolkit) for your hardware are installed.
+### Ubuntu 26.04
+
+If it works on other operating systems, cool, but supporting that is outside the scope of this project. Ensure the correct GPU drivers and necessary extras (e.g., NVIDIA Container Toolkit) for your hardware are installed.
+
+### Docker
+
+Ensure Docker is installed and running in the system context and is using the correct runtimes for your hardware.
 
 ### Quick Start
 
