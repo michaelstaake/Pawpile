@@ -21,6 +21,8 @@ Ensure Docker is installed and running in the system context.
 - **AMD**: ROCm
 - **Intel Arc**: Note: `xe` is the correct driver for supported Arc GPUs - `i915` is not supported.
 
+Ensure the correct GPU drivers and necessary extras (e.g., NVIDIA Container Toolkit) for your hardware are installed.
+
 ### Quick Start
 
 1. Clone or download the repository.
@@ -52,17 +54,11 @@ docker compose up -d --build
 docker compose --profile nvidia up -d --build
 ```
 
-Ensure the NVIDIA Container Toolkit is installed and configured.
-
 #### CPU + AMD:
 
 ```bash
 docker compose --profile amd up -d --build
 ```
-
-By default the AMD image lets llama.cpp and ROCm use their standard build target selection. If you need to pin a known-good GPU target for a deployment or build a custom multi-target image, set `AMDGPU_TARGETS` in `.env` before building. Use semicolons to provide multiple targets, for example `gfx1100;gfx1101;gfx1201`.
-
-All inference images pin llama.cpp to a specific release via `LLAMA_CPP_TAG` (default `b9297`). Override this build arg in `.env` to upgrade or downgrade the llama.cpp version across all runtimes.
 
 #### CPU + Intel:
 
