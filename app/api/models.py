@@ -171,6 +171,7 @@ def update_model(model_id: int, payload: ModelUpdateRequest, _: User = Depends(g
         "temperature",
         "top_p",
         "tool_calling_enabled",
+        "thinking_enabled",
         "assignment_mode",
         "pinned_device_id",
     ]:
@@ -369,6 +370,7 @@ def _serialize_model(model: ModelConfig) -> dict:
         "temperature": model.temperature,
         "top_p": model.top_p,
         "tool_calling_enabled": model.tool_calling_enabled,
+        "thinking_enabled": model.thinking_enabled,
         "assignment_mode": model.assignment_mode,
         "pinned_device_id": model.pinned_device_id,
         "activated": model.activated,

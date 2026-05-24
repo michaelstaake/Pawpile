@@ -33,6 +33,7 @@ function buildModelPayload(model: ModelRecord) {
     temperature: model.temperature,
     top_p: model.top_p,
     tool_calling_enabled: model.tool_calling_enabled,
+    thinking_enabled: model.thinking_enabled,
     assignment_mode: model.assignment_mode,
     pinned_device_id: model.assignment_mode === "pinned" ? model.pinned_device_id : null,
   };
@@ -577,6 +578,10 @@ export default function ModelsPage({ setupMode = false, onComplete }: ModelsPage
                   <label className="flex items-center gap-2 rounded-xl border border-black/10 bg-white px-3 py-2 text-sm text-black/70 md:self-end">
                     <input type="checkbox" checked={modalDraft.tool_calling_enabled} onChange={(event) => updateModalDraft({ tool_calling_enabled: event.target.checked })} />
                     Tool Calling Enabled
+                  </label>
+                  <label className="flex items-center gap-2 rounded-xl border border-black/10 bg-white px-3 py-2 text-sm text-black/70 md:self-end">
+                    <input type="checkbox" checked={modalDraft.thinking_enabled} onChange={(event) => updateModalDraft({ thinking_enabled: event.target.checked })} />
+                    Thinking Enabled
                   </label>
                 </div>
               </section>

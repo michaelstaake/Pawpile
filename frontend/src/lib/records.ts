@@ -31,6 +31,7 @@ export type ModelRecord = {
   temperature: number;
   top_p: number;
   tool_calling_enabled: boolean;
+  thinking_enabled: boolean;
   assignment_mode: string;
   pinned_device_id: number | null;
   activated: boolean;

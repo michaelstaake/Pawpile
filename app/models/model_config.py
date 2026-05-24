@@ -23,6 +23,7 @@ class ModelConfig(Base):
     temperature: Mapped[float] = mapped_column(Float, default=0.7, nullable=False)
     top_p: Mapped[float] = mapped_column(Float, default=0.95, nullable=False)
     tool_calling_enabled: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
+    thinking_enabled: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
     assignment_mode: Mapped[str] = mapped_column(String(32), default="auto", nullable=False)
     pinned_device_id: Mapped[int | None] = mapped_column(ForeignKey("devices.id"), nullable=True)
     activated: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)

@@ -32,6 +32,7 @@ def v1_models(_: User = Depends(require_api_access), db: Session = Depends(get_d
                 "object": "model",
                 "created": int(time.time()),
                 "owned_by": "pawpile",
+                "thinking_enabled": m.thinking_enabled,
             }
             for m in models
         ],
@@ -69,6 +70,8 @@ async def v1_chat_completions(payload: OpenAIChatRequest, current_user: User = D
         request_payload["temperature"] = model.temperature
     if "top_p" not in request_payload:
         request_payload["top_p"] = model.top_p
+    if "enable_thinking" not in request_payload:
+        request_payload["enable_thinking"] = model.thinking_enabled
     request_payload["messages"] = [
         {
             key: value

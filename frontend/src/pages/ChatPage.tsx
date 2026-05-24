@@ -8,6 +8,7 @@ type ChatRole = "system" | "user" | "assistant";
 type ChatMessage = {
   role: ChatRole;
   content: string;
+  thinking?: string;
   phase?: "thinking" | "streaming" | "complete";
   stats?: ChatCompletionStats | null;
 };
@@ -22,7 +23,7 @@ type ChatCompletionStats = {
 
 type ModelListResponse = {
   object: string;
-  data: { id: string; object: string; created: number; owned_by: string }[];
+  data: { id: string; object: string; created: number; owned_by: string; thinking_enabled?: boolean }[];
 };
 
 type ChatSummary = {
@@ -61,7 +62,10 @@ type Attachment = {
 export default function ChatPage() {
   const { token, user } = useAuth();
   const [models, setModels] = useState<string[]>([]);
+  const [modelThinkingDefaults, setModelThinkingDefaults] = useState<Record<string, boolean>>({});
   const [selectedModel, setSelectedModel] = useState<string>("");
+  const [thinkingEnabled, setThinkingEnabled] = useState(false);
+  const [thinkingExpandedByIndex, setThinkingExpandedByIndex] = useState<Record<number, boolean>>({});
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [input, setInput] = useState("");
   const [isSending, setIsSending] = useState(false);
@@ -103,8 +107,17 @@ export default function ChatPage() {
     try {
       const response = await apiGet<ModelListResponse>("/v1/models", token || undefined);
       const aliases = response.data.map((entry) => entry.id);
+      const defaults: Record<string, boolean> = {};
+      for (const entry of response.data) {
+        defaults[entry.id] = entry.thinking_enabled ?? false;
+      }
+      setModelThinkingDefaults(defaults);
       setModels(aliases);
-      setSelectedModel((current) => current || aliases[0] || "");
+      setSelectedModel((current) => {
+        const next = current || aliases[0] || "";
+        setThinkingEnabled(defaults[next] ?? false);
+        return next;
+      });
     } catch (error) {
       setErrorMessage(error instanceof Error ? error.message : "Failed to load models");
     } finally {
@@ -309,25 +322,39 @@ export default function ChatPage() {
     }
 
     let assistantBuffer = "";
+    let thinkingBuffer = "";
     try {
       const stats = await streamCompletion(
         selectedModel,
         nextMessages.map((message) => ({ role: message.role, content: message.content })),
-        (delta) => {
-        assistantBuffer += delta;
-        setMessages((current) => {
-          if (current.length === 0) {
-            return current;
-          }
-          const updated = [...current];
-          const last = updated[updated.length - 1];
-          updated[updated.length - 1] = {
-            ...last,
-            content: last.content + delta,
-            phase: "streaming",
-          };
-          return updated;
-        });
+        thinkingEnabled,
+        (delta, type) => {
+        if (type === "thinking") {
+          thinkingBuffer += delta;
+          setMessages((current) => {
+            if (current.length === 0) return current;
+            const updated = [...current];
+            const last = updated[updated.length - 1];
+            updated[updated.length - 1] = { ...last, thinking: (last.thinking ?? "") + delta, phase: "streaming" };
+            return updated;
+          });
+          setThinkingExpandedByIndex((current) => ({ ...current, [nextMessages.length]: true }));
+        } else {
+          assistantBuffer += delta;
+          setMessages((current) => {
+            if (current.length === 0) {
+              return current;
+            }
+            const updated = [...current];
+            const last = updated[updated.length - 1];
+            updated[updated.length - 1] = {
+              ...last,
+              content: last.content + delta,
+              phase: "streaming",
+            };
+            return updated;
+          });
+        }
         }
       );
       setMessages((current) => {
@@ -338,12 +365,14 @@ export default function ChatPage() {
         const last = updated[updated.length - 1];
         updated[updated.length - 1] = {
           ...last,
+          thinking: thinkingBuffer || last.thinking,
           content: assistantBuffer,
           phase: "complete",
           stats,
         };
         return updated;
       });
+      setThinkingExpandedByIndex((current) => ({ ...current, [nextMessages.length]: false }));
       if (chatId !== null && assistantBuffer) {
         void persistMessage(chatId, "assistant", assistantBuffer);
       }
@@ -429,12 +458,28 @@ export default function ChatPage() {
           <div>
             <h2 className="font-display text-lg">Chat</h2>
           </div>
-          <select
-            value={selectedModel}
-            onChange={(event) => setSelectedModel(event.target.value)}
-            disabled={isLoadingModels || models.length === 0}
-            className="rounded-lg border border-black/20 bg-white px-3 py-2 text-sm"
-          >
+          <div className="flex items-center gap-2">
+            <button
+              type="button"
+              onClick={() => setThinkingEnabled((v) => !v)}
+              disabled={isLoadingModels || models.length === 0}
+              title={thinkingEnabled ? "Thinking on — click to disable" : "Thinking off — click to enable"}
+              className={`flex items-center gap-1.5 rounded-lg border px-3 py-2 text-sm font-medium transition-colors disabled:opacity-40 ${thinkingEnabled ? "border-amber/60 bg-amber/10 text-amber-700" : "border-black/20 bg-white text-black/50 hover:bg-black/5"}`}
+            >
+              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="h-4 w-4">
+                <path d="M11.983 1.907a.75.75 0 0 0-1.292-.657l-8.5 9.5A.75.75 0 0 0 2.75 12h6.572l-1.305 6.093a.75.75 0 0 0 1.292.657l8.5-9.5A.75.75 0 0 0 17.25 8h-6.572l1.305-6.093Z" />
+              </svg>
+              Think
+            </button>
+            <select
+              value={selectedModel}
+              onChange={(event) => {
+                setSelectedModel(event.target.value);
+                setThinkingEnabled(modelThinkingDefaults[event.target.value] ?? false);
+              }}
+              disabled={isLoadingModels || models.length === 0}
+              className="rounded-lg border border-black/20 bg-white px-3 py-2 text-sm"
+            >
             {models.length === 0 ? (
               <option value="">{isLoadingModels ? "Loading models..." : "No active models"}</option>
             ) : (
@@ -445,6 +490,7 @@ export default function ChatPage() {
               ))
             )}
           </select>
+          </div>
         </div>
 
         {errorMessage && (
@@ -478,7 +524,7 @@ export default function ChatPage() {
           ) : (
             <div className="space-y-3">
               {messages.map((message, index) => (
-                message.role === "assistant" && message.phase === "thinking" && !message.content ? (
+                message.role === "assistant" && message.phase === "thinking" && !message.content && !message.thinking ? (
                   <div key={index} className="px-1 py-1 text-sm font-medium text-black/45">
                     <span className="inline-flex items-center gap-2">
                       <span className="animate-pulse">Processing...</span>
@@ -496,9 +542,47 @@ export default function ChatPage() {
                     <div className="mb-2 text-xs font-semibold uppercase tracking-[0.2em] text-black/45">
                       {message.role}
                     </div>
+                    {message.role === "assistant" && message.thinking ? (
+                      <div className="mb-3">
+                        <button
+                          type="button"
+                          onClick={() => setThinkingExpandedByIndex((current) => ({ ...current, [index]: !current[index] }))}
+                          className="flex w-full items-center gap-2 rounded-lg px-2 py-1 text-left text-xs font-medium text-black/40 hover:bg-black/5"
+                        >
+                          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="h-3.5 w-3.5 shrink-0 text-amber-500/70">
+                            <path d="M11.983 1.907a.75.75 0 0 0-1.292-.657l-8.5 9.5A.75.75 0 0 0 2.75 12h6.572l-1.305 6.093a.75.75 0 0 0 1.292.657l8.5-9.5A.75.75 0 0 0 17.25 8h-6.572l1.305-6.093Z" />
+                          </svg>
+                          <span className="flex-1">
+                            {message.phase === "streaming" || message.phase === "thinking" ? (
+                              <span className="animate-pulse">Thinking…</span>
+                            ) : (
+                              "Thought"
+                            )}
+                          </span>
+                          <svg
+                            xmlns="http://www.w3.org/2000/svg"
+                            viewBox="0 0 20 20"
+                            fill="currentColor"
+                            className={`h-3.5 w-3.5 shrink-0 transition-transform ${thinkingExpandedByIndex[index] ? "rotate-180" : ""}`}
+                          >
+                            <path fillRule="evenodd" d="M5.22 8.22a.75.75 0 0 1 1.06 0L10 11.94l3.72-3.72a.75.75 0 1 1 1.06 1.06l-4.25 4.25a.75.75 0 0 1-1.06 0L5.22 9.28a.75.75 0 0 1 0-1.06Z" clipRule="evenodd" />
+                          </svg>
+                        </button>
+                        {thinkingExpandedByIndex[index] ? (
+                          <div className="ml-2 mt-1 border-l-2 border-dashed border-amber-300/60 pl-3">
+                            <div className="whitespace-pre-wrap text-[13px] leading-6 text-black/40 italic">
+                              {message.thinking}
+                              {(message.phase === "streaming" || message.phase === "thinking") && !message.content ? (
+                                <span className="ml-1 inline-block h-4 w-1.5 animate-pulse rounded-full bg-amber/50 align-middle" />
+                              ) : null}
+                            </div>
+                          </div>
+                        ) : null}
+                      </div>
+                    ) : null}
                     <div className="whitespace-pre-wrap leading-7 text-[15px] text-black/85">
                       {message.content}
-                      {message.role === "assistant" && message.phase === "streaming" ? (
+                      {message.role === "assistant" && message.phase === "streaming" && message.content ? (
                         <span className="ml-1 inline-block h-5 w-2 animate-pulse rounded-full bg-amber align-middle" />
                       ) : null}
                     </div>
@@ -600,7 +684,8 @@ export default function ChatPage() {
 async function streamCompletion(
   model: string,
   messages: ChatMessage[],
-  onDelta: (delta: string) => void
+  enableThinking: boolean,
+  onDelta: (delta: string, type: "thinking" | "content") => void
 ): Promise<ChatCompletionStats> {
   const token = getStoredToken() || undefined;
   const headers: Record<string, string> = { "Content-Type": "application/json" };
@@ -613,7 +698,7 @@ async function streamCompletion(
   const response = await fetch(`${BASE_URL}/v1/chat/completions`, {
     method: "POST",
     headers,
-    body: JSON.stringify({ model, messages, stream: true })
+    body: JSON.stringify({ model, messages, stream: true, enable_thinking: enableThinking })
   });
 
   if (!response.ok) {
@@ -682,13 +767,15 @@ async function streamCompletion(
           if (parsed.usage) {
             usage = parsed.usage;
           }
-          const delta =
-            (parsed.choices?.[0]?.delta as any)?.content ||
+          const deltaContent = (parsed.choices?.[0]?.delta as any)?.content;
+          const deltaThinking =
             (parsed.choices?.[0]?.delta as any)?.reasoning_content ||
             (parsed.choices?.[0]?.delta as any)?.reasoning ||
             (parsed.choices?.[0]?.delta as any)?.thought;
-          if (delta) {
-            onDelta(delta);
+          if (deltaThinking) {
+            onDelta(deltaThinking, "thinking");
+          } else if (deltaContent) {
+            onDelta(deltaContent, "content");
           }
         } catch (error) {
           if (error instanceof Error) {
@@ -735,13 +822,15 @@ async function streamCompletion(
         if (parsed.usage) {
           usage = parsed.usage;
         }
-        const delta =
-          (parsed.choices?.[0]?.delta as any)?.content ||
+        const deltaContent = (parsed.choices?.[0]?.delta as any)?.content;
+        const deltaThinking =
           (parsed.choices?.[0]?.delta as any)?.reasoning_content ||
           (parsed.choices?.[0]?.delta as any)?.reasoning ||
           (parsed.choices?.[0]?.delta as any)?.thought;
-        if (delta) {
-          onDelta(delta);
+        if (deltaThinking) {
+          onDelta(deltaThinking, "thinking");
+        } else if (deltaContent) {
+          onDelta(deltaContent, "content");
         }
       } catch (error) {
         if (error instanceof Error) {
