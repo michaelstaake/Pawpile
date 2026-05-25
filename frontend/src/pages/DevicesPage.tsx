@@ -165,11 +165,39 @@ export default function DevicesPage({ setupMode = false, onContinue }: DevicesPa
 
   const nvidiaDevices = devices.filter((d) => d.vendor === "nvidia");
   const showPoolSection = !setupMode && nvidiaDevices.length > 1;
+  const poolDeviceIds = new Set(pool?.devices.map((d) => d.id) ?? []);
+  const poolEnabled = pool !== null && pool.devices.length > 0 &&
+    pool.devices.every((poolDevice) => devices.find((d) => d.id === poolDevice.id)?.enabled === true);
 
   function togglePoolDevice(deviceId: number) {
     setSelectedPoolDeviceIds((current) =>
       current.includes(deviceId) ? current.filter((id) => id !== deviceId) : [...current, deviceId],
     );
+  }
+
+  async function handleTogglePool() {
+    if (!token || !pool) return;
+    const nextEnabled = !poolEnabled;
+    setPoolLoading(true);
+    setErrorMessage("");
+    try {
+      await Promise.all(
+        pool.devices.map((poolDevice) =>
+          apiPatch<{ enabled: boolean }, { status: string; device: DeviceRecord }>(
+            `/api/devices/${poolDevice.id}`,
+            { enabled: nextEnabled },
+            token,
+          ),
+        ),
+      );
+      await refreshDevices(token);
+      setSuccessMessage(`GPU pool ${nextEnabled ? "enabled" : "disabled"}.`);
+    } catch (error) {
+      setErrorMessage(error instanceof Error ? error.message : "Failed to toggle pool");
+      await refreshDevices(token);
+    } finally {
+      setPoolLoading(false);
+    }
   }
 
   async function handleCreatePool() {
@@ -189,13 +217,27 @@ export default function DevicesPage({ setupMode = false, onContinue }: DevicesPa
   }
 
   async function handleUpdatePool() {
-    if (!token || selectedPoolDeviceIds.length < 2) return;
+    if (!token || selectedPoolDeviceIds.length < 2 || !pool) return;
+    const removedDeviceIds = pool.devices.map((d) => d.id).filter((id) => !selectedPoolDeviceIds.includes(id));
     setPoolLoading(true);
     setErrorMessage("");
     try {
       const response = await apiPatch<{ device_ids: number[] }, { pool: GpuPoolRecord }>("/api/devices/pool", { device_ids: selectedPoolDeviceIds }, token);
+      // Disable any devices that were removed from the pool
+      if (removedDeviceIds.length > 0) {
+        await Promise.all(
+          removedDeviceIds.map((deviceId) =>
+            apiPatch<{ enabled: boolean }, { status: string; device: DeviceRecord }>(
+              `/api/devices/${deviceId}`,
+              { enabled: false },
+              token,
+            ),
+          ),
+        );
+      }
       setPool(response.pool);
       setPoolEditing(false);
+      await refreshDevices(token);
       setSuccessMessage("GPU pool updated.");
     } catch (error) {
       setErrorMessage(error instanceof Error ? error.message : "Failed to update GPU pool");
@@ -206,13 +248,27 @@ export default function DevicesPage({ setupMode = false, onContinue }: DevicesPa
 
   async function handleDeletePool() {
     if (!token) return;
+    const memberDeviceIds = pool?.devices.map((d) => d.id) ?? [];
     setPoolLoading(true);
     setErrorMessage("");
     setShowDeletePoolConfirm(false);
     try {
       await apiDelete<{ status: string }>("/api/devices/pool", token);
+      // Disable all former pool member devices
+      if (memberDeviceIds.length > 0) {
+        await Promise.all(
+          memberDeviceIds.map((deviceId) =>
+            apiPatch<{ enabled: boolean }, { status: string; device: DeviceRecord }>(
+              `/api/devices/${deviceId}`,
+              { enabled: false },
+              token,
+            ),
+          ),
+        );
+      }
       setPool(null);
       setSelectedPoolDeviceIds([]);
+      await refreshDevices(token);
       setSuccessMessage("GPU pool deleted. Any models assigned to the pool have been reverted to Auto.");
     } catch (error) {
       setErrorMessage(error instanceof Error ? error.message : "Failed to delete GPU pool");
@@ -245,7 +301,15 @@ export default function DevicesPage({ setupMode = false, onContinue }: DevicesPa
                   </p>
                 </div>
                 {pool && !poolEditing ? (
-                  <div className="flex gap-2">
+                  <div className="flex flex-wrap gap-2">
+                    <button
+                      type="button"
+                      onClick={() => void handleTogglePool()}
+                      disabled={poolLoading}
+                      className={`cursor-pointer rounded-lg border px-3 py-1.5 text-xs font-semibold shadow-sm transition-colors disabled:cursor-not-allowed disabled:opacity-60 ${poolEnabled ? "border-emerald-300 bg-emerald-100 text-emerald-800 hover:bg-emerald-200" : "border-black/15 bg-white text-black/55 hover:bg-black/5"}`}
+                    >
+                      {poolLoading ? "Saving..." : poolEnabled ? "Enabled" : "Disabled"}
+                    </button>
                     <button
                       type="button"
                       onClick={() => { setPoolEditing(true); setSelectedPoolDeviceIds(pool.devices.map((d) => d.id)); }}
@@ -266,9 +330,9 @@ export default function DevicesPage({ setupMode = false, onContinue }: DevicesPa
 
               {showDeletePoolConfirm ? (
                 <div className="mt-3 rounded-xl border border-rose-200 bg-rose-50 px-4 py-3">
-                  <p className="text-sm text-rose-800">Delete the GPU pool? Models assigned to it will be unloaded and reverted to Auto.</p>
+                  <p className="text-sm text-rose-800">Delete the GPU pool? Models assigned to it will be unloaded and reverted to Auto. Pool member GPUs will be disabled.</p>
                   <div className="mt-3 flex gap-2">
-                    <button type="button" onClick={handleDeletePool} disabled={poolLoading} className="cursor-pointer rounded-lg border border-rose-300 bg-rose-600 px-3 py-1.5 text-xs font-semibold text-white hover:bg-rose-700 disabled:opacity-60">
+                    <button type="button" onClick={() => void handleDeletePool()} disabled={poolLoading} className="cursor-pointer rounded-lg border border-rose-300 bg-rose-600 px-3 py-1.5 text-xs font-semibold text-white hover:bg-rose-700 disabled:opacity-60">
                       {poolLoading ? "Deleting..." : "Confirm Delete"}
                     </button>
                     <button type="button" onClick={() => setShowDeletePoolConfirm(false)} className="cursor-pointer rounded-lg border border-black/15 bg-white px-3 py-1.5 text-xs font-semibold text-black/70 hover:bg-black/5">
@@ -296,6 +360,11 @@ export default function DevicesPage({ setupMode = false, onContinue }: DevicesPa
                   <p className="mb-2 text-xs font-semibold uppercase tracking-[0.15em] text-violet-600">
                     {poolEditing ? "Edit Pool Members" : "Select GPUs for Pool"}
                   </p>
+                  {!poolEditing && nvidiaDevices.some((d) => d.enabled) ? (
+                    <p className="mb-3 rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-800">
+                      Disable all devices before creating a pool. Pool enable/disable will manage these GPUs.
+                    </p>
+                  ) : null}
                   <div className="space-y-2">
                     {nvidiaDevices.map((d) => (
                       <label key={d.id} className="flex cursor-pointer items-center gap-3 rounded-xl border border-violet-200 bg-white px-3 py-2 text-sm text-black/80 hover:bg-violet-50">
@@ -312,8 +381,8 @@ export default function DevicesPage({ setupMode = false, onContinue }: DevicesPa
                   <div className="mt-3 flex gap-2">
                     <button
                       type="button"
-                      disabled={selectedPoolDeviceIds.length < 2 || poolLoading}
-                      onClick={poolEditing ? handleUpdatePool : handleCreatePool}
+                      disabled={selectedPoolDeviceIds.length < 2 || poolLoading || (!poolEditing && nvidiaDevices.some((d) => d.enabled))}
+                      onClick={poolEditing ? () => void handleUpdatePool() : () => void handleCreatePool()}
                       className="cursor-pointer rounded-lg border border-violet-400 bg-violet-600 px-4 py-1.5 text-sm font-semibold text-white hover:bg-violet-700 disabled:cursor-not-allowed disabled:opacity-60"
                     >
                       {poolLoading ? "Saving..." : poolEditing ? "Save Pool" : "Create Pool"}
@@ -336,23 +405,36 @@ export default function DevicesPage({ setupMode = false, onContinue }: DevicesPa
             </article>
           ) : null}
 
-          {devices.map((device) => (
+          {devices.map((device) => {
+            const inPool = poolDeviceIds.has(device.id);
+            return (
             <article
               key={device.id}
               className="rounded-2xl border border-black/10 bg-[#fffdf7] p-4"
             >
               <div className="flex flex-wrap items-start justify-between gap-3">
                 <div>
-                  <h3 className="font-display text-base">{device.name}</h3>
+                  <div className="flex flex-wrap items-center gap-2">
+                    <h3 className="font-display text-base">{device.name}</h3>
+                    {inPool && (
+                      <span className="rounded-full border border-violet-200 bg-violet-100 px-2 py-0.5 text-xs font-semibold text-violet-700">In Pool</span>
+                    )}
+                  </div>
                   <p className="mt-1 text-sm text-black/70">{device.vendor} {device.device_type} · {device.hardware_id} · {device.memory_mb.toLocaleString()} MB</p>
                 </div>
-                <button
-                  type="button"
-                  onClick={() => updateDeviceDraft(device.id, { enabled: !device.enabled })}
-                  className={`cursor-pointer rounded-lg border px-3 py-1.5 text-xs font-semibold shadow-sm transition-colors ${device.enabled ? "border-emerald-300 bg-emerald-100 text-emerald-800 hover:bg-emerald-200" : "border-black/15 bg-white text-black/55 hover:bg-black/5"}`}
-                >
-                  {device.enabled ? "Enabled" : "Disabled"}
-                </button>
+                {inPool ? (
+                  <span className="rounded-lg border border-violet-200 bg-violet-50 px-3 py-1.5 text-xs font-semibold text-violet-600">
+                    Managed by Pool
+                  </span>
+                ) : (
+                  <button
+                    type="button"
+                    onClick={() => updateDeviceDraft(device.id, { enabled: !device.enabled })}
+                    className={`cursor-pointer rounded-lg border px-3 py-1.5 text-xs font-semibold shadow-sm transition-colors ${device.enabled ? "border-emerald-300 bg-emerald-100 text-emerald-800 hover:bg-emerald-200" : "border-black/15 bg-white text-black/55 hover:bg-black/5"}`}
+                  >
+                    {device.enabled ? "Enabled" : "Disabled"}
+                  </button>
+                )}
               </div>
 
               <div className="mt-4 grid gap-3 md:grid-cols-2">
@@ -383,7 +465,8 @@ export default function DevicesPage({ setupMode = false, onContinue }: DevicesPa
                 ) : null}
               </div>
             </article>
-          ))}
+            );
+          })}
           {devices.length === 0 ? <p className="rounded-2xl border border-dashed border-black/15 bg-sand/60 px-4 py-6 text-sm text-black/60">No devices detected yet.</p> : null}
         </div>
 

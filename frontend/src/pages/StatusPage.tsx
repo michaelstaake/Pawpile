@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { apiGet } from "../lib/api";
-import { DeviceStatusRecord, StatusModelRecord, StatusResponse } from "../lib/records";
+import { DeviceStatusRecord, GpuPoolRecord, StatusModelRecord, StatusResponse } from "../lib/records";
 import { useAuth } from "../context/AuthContext";
 
 const POLL_INTERVAL_MS = 5000;
@@ -47,7 +47,7 @@ function colorForModel(index: number) {
   return FALLBACK_MODEL_COLORS[(index - PRIMARY_MODEL_COLORS.length) % FALLBACK_MODEL_COLORS.length];
 }
 
-function DeviceCard({ device }: { device: DeviceStatusRecord }) {
+function DeviceCard({ device, isPooled }: { device: DeviceStatusRecord; isPooled: boolean }) {
   const usagePercent = clampPercent(device.usage_percent);
   const hasUsage = device.usage_percent !== null;
   const memoryPercent = clampPercent((device.memory_used_mb / Math.max(1, device.memory_total_mb)) * 100);
@@ -58,7 +58,12 @@ function DeviceCard({ device }: { device: DeviceStatusRecord }) {
     <article className="overflow-hidden rounded-[28px] border border-black/10 bg-white/80 p-5 shadow-sm backdrop-blur">
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div>
-          <h3 className="font-display text-xl text-ink">{device.name}</h3>
+          <div className="flex flex-wrap items-center gap-2">
+            <h3 className="font-display text-xl text-ink">{device.name}</h3>
+            {isPooled && (
+              <span className="rounded-full border border-violet-200 bg-violet-100 px-2 py-0.5 text-xs font-semibold text-violet-700">Pooled</span>
+            )}
+          </div>
           <p className="mt-2 text-sm text-black/65">
             {device.vendor} {device.device_type} · {device.hardware_id} · {device.models.length}/{device.max_slots} slots active
           </p>
@@ -137,6 +142,7 @@ function DeviceCard({ device }: { device: DeviceStatusRecord }) {
 export default function StatusPage() {
   const { token } = useAuth();
   const [devices, setDevices] = useState<DeviceStatusRecord[]>([]);
+  const [pool, setPool] = useState<GpuPoolRecord | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [errorMessage, setErrorMessage] = useState("");
 
@@ -179,7 +185,15 @@ export default function StatusPage() {
     };
   }, [token]);
 
+  useEffect(() => {
+    if (!token) {
+      return;
+    }
+    apiGet<GpuPoolRecord | null>("/api/devices/pool", token).then(setPool).catch(() => {});
+  }, [token]);
+
   const visibleDevices = useMemo(() => devices.filter((device) => device.enabled), [devices]);
+  const poolDeviceIds = useMemo(() => new Set(pool?.devices.map((d) => d.id) ?? []), [pool]);
 
   const summary = useMemo(() => {
     const activeModels = visibleDevices.reduce((sum, device) => sum + device.models.length, 0);
@@ -227,7 +241,7 @@ export default function StatusPage() {
         <div className="rounded-2xl border border-black/10 bg-white/80 px-4 py-8 text-sm text-black/55 shadow-sm">Loading...</div>
       ) : visibleDevices.length > 0 ? (
         <div className="grid gap-4">
-          {visibleDevices.map((device) => <DeviceCard key={device.id} device={device} />)}
+          {visibleDevices.map((device) => <DeviceCard key={device.id} device={device} isPooled={poolDeviceIds.has(device.id)} />)}
         </div>
       ) : (
         <div className="rounded-2xl border border-dashed border-black/15 bg-white/60 px-4 py-8 text-sm text-black/55 shadow-sm">No ready devices are available.</div>
