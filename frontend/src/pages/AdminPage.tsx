@@ -140,6 +140,7 @@ export default function SettingsPage() {
   const [isSubmittingLogin, setIsSubmittingLogin] = useState(false);
   const [isSubmittingBootstrap, setIsSubmittingBootstrap] = useState(false);
   const [isUploading, setIsUploading] = useState(false);
+  const [isProcessing, setIsProcessing] = useState(false);
   const [isScanning, setIsScanning] = useState(false);
   const [savingModelId, setSavingModelId] = useState<number | null>(null);
   const [togglingModelId, setTogglingModelId] = useState<number | null>(null);
@@ -301,13 +302,15 @@ export default function SettingsPage() {
     setErrorMessage("");
     setSuccessMessage("");
     setIsUploading(true);
+    setIsProcessing(false);
     setUploadProgress({ loaded: 0, total: selectedFile.size });
     try {
       const response = await apiPostFormWithProgress<UploadResponse>("/api/models/upload", formData, token, (progress) => {
-        setUploadProgress({
-          loaded: progress.loaded,
-          total: progress.total || selectedFile.size,
-        });
+        const total = progress.total || selectedFile.size;
+        setUploadProgress({ loaded: progress.loaded, total });
+        if (progress.loaded >= total) {
+          setIsProcessing(true);
+        }
       });
       setModels((current) => [response.model, ...current.filter((model) => model.id !== response.model.id)].sort((left, right) => left.alias.localeCompare(right.alias)));
       setSelectedFile(null);
@@ -321,6 +324,7 @@ export default function SettingsPage() {
       setErrorMessage(error instanceof Error ? error.message : "Upload failed");
     } finally {
       setIsUploading(false);
+      setIsProcessing(false);
     }
   }
 
@@ -769,7 +773,7 @@ export default function SettingsPage() {
                 ) : null}
                 <div className="flex flex-wrap gap-2">
                   <button className="rounded-xl bg-amber px-4 py-2 text-sm font-semibold text-black disabled:cursor-not-allowed disabled:opacity-60" type="submit" disabled={isUploading || !selectedFile}>
-                    {isUploading ? "Uploading..." : "Upload Model"}
+                    {isProcessing ? "Processing..." : isUploading ? "Uploading..." : "Upload Model"}
                   </button>
                   <button className="rounded-xl border border-black/15 px-4 py-2 text-sm font-semibold text-black disabled:cursor-not-allowed disabled:opacity-60" type="button" onClick={handleScan} disabled={isScanning || isUploading}>
                     {isScanning ? "Scanning..." : isUploading ? "Upload in progress..." : "Scan Models Folder"}
