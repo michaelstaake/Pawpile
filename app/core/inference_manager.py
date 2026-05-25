@@ -59,6 +59,7 @@ class RunningModel:
     base_url: str
     device_id: int | None
     vendor: str
+    pool_device_ids: list[int] = field(default_factory=list)
 
 
 class InferenceManager:
@@ -182,6 +183,7 @@ class InferenceManager:
             base_url=runtime_url,
             device_id=None,
             vendor="nvidia_pool",
+            pool_device_ids=[d.id for d in target.devices],
         )
 
         ok = await self.wait_until_healthy(model.id)

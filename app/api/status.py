@@ -21,23 +21,43 @@ async def get_status(db: Session = Depends(get_db)) -> dict:
     models_by_id = {model.id: model for model in db.query(ModelConfig).all()}
     runtime_devices, runtime_errors = await _fetch_runtime_devices(settings)
     fallback_models_by_device_id: dict[int, list[dict]] = {}
+    # pool_model_device_ids maps model_id -> set of device IDs it spans (for pool models)
+    pool_model_device_ids: dict[int, set[int]] = {}
 
     for running in inference._running.values():
         model = models_by_id.get(running.model_id)
-        fallback_models_by_device_id.setdefault(running.device_id, []).append(
-            {
-                "model_id": running.model_id,
-                "alias": model.alias if model else f"Model {running.model_id}",
-                "memory_used_mb": 0,
-                "pid": None,
-            }
-        )
+        entry = {
+            "model_id": running.model_id,
+            "alias": model.alias if model else f"Model {running.model_id}",
+            "memory_used_mb": 0,
+            "pid": None,
+        }
+        if running.pool_device_ids:
+            pool_model_device_ids[running.model_id] = set(running.pool_device_ids)
+            for device_id in running.pool_device_ids:
+                fallback_models_by_device_id.setdefault(device_id, []).append(entry)
+        elif running.device_id is not None:
+            fallback_models_by_device_id.setdefault(running.device_id, []).append(entry)
 
     serialized_devices: list[dict] = []
     for device in devices:
         runtime_device = runtime_devices.get(device.hardware_id, {})
         runtime_models = runtime_device.get("models")
-        raw_models = runtime_models if isinstance(runtime_models, list) and runtime_models else fallback_models_by_device_id.get(device.id, [])
+        raw_models = list(runtime_models) if isinstance(runtime_models, list) and runtime_models else list(fallback_models_by_device_id.get(device.id, []))
+
+        # For pool models that the runtime only reports on the primary GPU,
+        # inject them into all other pool member devices as well.
+        raw_model_ids = {row.get("model_id") for row in raw_models if isinstance(row, dict)}
+        for model_id, device_ids in pool_model_device_ids.items():
+            if device.id in device_ids and model_id not in raw_model_ids:
+                model = models_by_id.get(model_id)
+                raw_models.append({
+                    "model_id": model_id,
+                    "alias": model.alias if model else f"Model {model_id}",
+                    "memory_used_mb": 0,
+                    "pid": None,
+                })
+
         models = [_serialize_status_model(row, models_by_id) for row in raw_models]
         models.sort(key=lambda row: row["model_id"])
 
