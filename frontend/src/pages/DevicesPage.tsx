@@ -416,9 +416,6 @@ export default function DevicesPage({ setupMode = false, onContinue }: DevicesPa
                 <div>
                   <div className="flex flex-wrap items-center gap-2">
                     <h3 className="font-display text-base">{device.name}</h3>
-                    {inPool && (
-                      <span className="rounded-full border border-violet-200 bg-violet-100 px-2 py-0.5 text-xs font-semibold text-violet-700">In Pool</span>
-                    )}
                   </div>
                   <p className="mt-1 text-sm text-black/70">{device.vendor} {device.device_type} · {device.hardware_id} · {device.memory_mb.toLocaleString()} MB</p>
                 </div>
