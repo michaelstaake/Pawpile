@@ -77,6 +77,7 @@ export default function ChatPage() {
   const transcriptRef = useRef<HTMLDivElement | null>(null);
   const inputRef = useRef<HTMLInputElement | null>(null);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
+  const abortControllerRef = useRef<AbortController | null>(null);
   const [attachments, setAttachments] = useState<Attachment[]>([]);
 
   useEffect(() => {
@@ -321,6 +322,9 @@ export default function ChatPage() {
       void persistMessage(chatId, "user", combinedContent);
     }
 
+    const abortController = new AbortController();
+    abortControllerRef.current = abortController;
+
     let assistantBuffer = "";
     let thinkingBuffer = "";
     try {
@@ -328,6 +332,7 @@ export default function ChatPage() {
         selectedModel,
         nextMessages.map((message) => ({ role: message.role, content: message.content })),
         thinkingEnabled,
+        abortController.signal,
         (delta, type) => {
         if (type === "thinking") {
           thinkingBuffer += delta;
@@ -377,24 +382,42 @@ export default function ChatPage() {
         void persistMessage(chatId, "assistant", assistantBuffer);
       }
     } catch (error) {
-      const detail = error instanceof Error ? error.message : "Chat request failed";
-      setErrorMessage(detail);
-      setMessages((current) => {
-        if (current.length === 0) {
+      if (error instanceof Error && error.name === "AbortError") {
+        setMessages((current) => {
+          if (current.length === 0) return current;
+          const last = current[current.length - 1];
+          if (last.role === "assistant") {
+            if (!last.content && !last.thinking) return current.slice(0, -1);
+            const updated = [...current];
+            updated[updated.length - 1] = { ...last, phase: "complete" };
+            return updated;
+          }
           return current;
+        });
+        if (chatId !== null && assistantBuffer) {
+          void persistMessage(chatId, "assistant", assistantBuffer);
         }
-        const last = current[current.length - 1];
-        if (last.role === "assistant" && last.content === "") {
-          return current.slice(0, -1);
-        }
-        if (last.role === "assistant") {
-          const updated = [...current];
-          updated[updated.length - 1] = { ...last, phase: "complete" };
-          return updated;
-        }
-        return current;
-      });
+      } else {
+        const detail = error instanceof Error ? error.message : "Chat request failed";
+        setErrorMessage(detail);
+        setMessages((current) => {
+          if (current.length === 0) {
+            return current;
+          }
+          const last = current[current.length - 1];
+          if (last.role === "assistant" && last.content === "") {
+            return current.slice(0, -1);
+          }
+          if (last.role === "assistant") {
+            const updated = [...current];
+            updated[updated.length - 1] = { ...last, phase: "complete" };
+            return updated;
+          }
+          return current;
+        });
+      }
     } finally {
+      abortControllerRef.current = null;
       setIsSending(false);
     }
   }
@@ -667,13 +690,23 @@ export default function ChatPage() {
               className="flex-1 rounded-xl border border-black/20 bg-white px-4 py-3 text-sm h-12 disabled:opacity-50"
               placeholder={models.length === 0 ? "No active models available" : "Ask AI..."}
             />
-            <button
-              type="submit"
-              disabled={isSending || !selectedModel || (!input.trim() && attachments.length === 0)}
-              className="rounded-xl bg-amber px-4 h-12 text-sm font-semibold text-black disabled:opacity-50"
-            >
-              Send
-            </button>
+            {isSending ? (
+              <button
+                type="button"
+                onClick={() => abortControllerRef.current?.abort()}
+                className="rounded-xl bg-red-500 px-4 h-12 text-sm font-semibold text-white hover:bg-red-600"
+              >
+                Stop
+              </button>
+            ) : (
+              <button
+                type="submit"
+                disabled={!selectedModel || (!input.trim() && attachments.length === 0)}
+                className="rounded-xl bg-amber px-4 h-12 text-sm font-semibold text-black disabled:opacity-50"
+              >
+                Send
+              </button>
+            )}
           </div>
         </form>
       </main>
@@ -685,6 +718,7 @@ async function streamCompletion(
   model: string,
   messages: ChatMessage[],
   enableThinking: boolean,
+  signal: AbortSignal,
   onDelta: (delta: string, type: "thinking" | "content") => void
 ): Promise<ChatCompletionStats> {
   const token = getStoredToken() || undefined;
@@ -698,6 +732,7 @@ async function streamCompletion(
   const response = await fetch(`${BASE_URL}/v1/chat/completions`, {
     method: "POST",
     headers,
+    signal,
     body: JSON.stringify({ model, messages, stream: true, enable_thinking: enableThinking })
   });
 
@@ -729,6 +764,10 @@ async function streamCompletion(
   let resolvedModel = model;
 
   while (true) {
+    if (signal.aborted) {
+      await reader.cancel();
+      throw new DOMException("Aborted", "AbortError");
+    }
     const { value, done } = await reader.read();
     buffer += decoder.decode(value, { stream: !done });
     buffer = buffer.replace(/\r\n/g, "\n");
