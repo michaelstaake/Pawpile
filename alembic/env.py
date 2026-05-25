@@ -4,7 +4,7 @@ from alembic import context
 from sqlalchemy import engine_from_config, pool
 
 from app.core.db import Base
-from app.models import api_key, app_settings, chat, device, inference_job, model_config, user  # noqa: F401
+from app.models import api_key, app_settings, chat, device, gpu_pool, inference_job, model_config, user  # noqa: F401
 
 config = context.config
 

@@ -26,6 +26,7 @@ class ModelConfig(Base):
     thinking_enabled: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
     assignment_mode: Mapped[str] = mapped_column(String(32), default="auto", nullable=False)
     pinned_device_id: Mapped[int | None] = mapped_column(ForeignKey("devices.id"), nullable=True)
+    pinned_pool_id: Mapped[int | None] = mapped_column(ForeignKey("gpu_pools.id"), nullable=True)
     activated: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), nullable=False)
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now(), nullable=False)

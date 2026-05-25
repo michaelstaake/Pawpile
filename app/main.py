@@ -12,7 +12,7 @@ from app.core.app_settings import get_or_create_app_settings
 from app.core.config import get_settings
 from app.core.db import Base, SessionLocal, engine
 from app.core.device_manager import DeviceManager
-from app.core.inference_manager import InferenceManager
+from app.core.inference_manager import InferenceManager, PoolActivationTarget
 from app.core.logging import configure_logging
 from app.models.model_config import ModelConfig
 
@@ -43,10 +43,13 @@ async def lifespan(_: FastAPI):
             )
             for model in activated_models:
                 try:
-                    device = await models._resolve_device_for_model(db, model, inference_manager)
-                    if device is None:
+                    resolution = await models._resolve_device_for_model(db, model, inference_manager)
+                    if resolution is None:
                         raise RuntimeError("No enabled device available for model")
-                    await inference_manager.activate_model(model, device)
+                    if isinstance(resolution, PoolActivationTarget):
+                        await inference_manager.activate_model_on_pool(model, resolution)
+                    else:
+                        await inference_manager.activate_model(model, resolution)
                 except Exception:
                     logger.exception("Failed to auto-load model %s during startup", model.alias)
                     model.activated = False
@@ -78,6 +81,7 @@ app.add_middleware(
 models.router.inference_manager = inference_manager  # type: ignore[attr-defined]
 openai_compat.router.inference_manager = inference_manager  # type: ignore[attr-defined]
 status.router.inference_manager = inference_manager  # type: ignore[attr-defined]
+devices.router.inference_manager = inference_manager  # type: ignore[attr-defined]
 
 app.include_router(auth.router)
 app.include_router(devices.router)

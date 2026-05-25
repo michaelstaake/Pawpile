@@ -7,8 +7,10 @@ from app.core.config import get_settings
 from app.core.db import get_db
 from app.core.device_manager import DeviceManager, get_supported_vendors
 from app.models.device import Device
+from app.models.gpu_pool import GpuPool, GpuPoolDevice
+from app.models.model_config import ModelConfig
 from app.models.user import User
-from app.utils.schemas import DeviceReorderRequest, DeviceUpdateRequest
+from app.utils.schemas import DeviceReorderRequest, DeviceUpdateRequest, GpuPoolCreateRequest, GpuPoolUpdateRequest
 
 router = APIRouter(prefix="/api/devices", tags=["devices"])
 device_manager = DeviceManager()
@@ -63,6 +65,119 @@ def reorder_devices(payload: DeviceReorderRequest, _: User = Depends(get_admin_u
             db.add(device)
     db.commit()
     return {"status": "ok"}
+
+
+# ---------------------------------------------------------------------------
+# GPU Pool endpoints
+# ---------------------------------------------------------------------------
+
+
+@router.get("/pool")
+def get_pool(_: User = Depends(get_admin_user), db: Session = Depends(get_db)) -> dict | None:
+    pool = db.query(GpuPool).first()
+    if not pool:
+        return None
+    return _serialize_pool(pool, db)
+
+
+@router.post("/pool")
+def create_pool(payload: GpuPoolCreateRequest, _: User = Depends(get_admin_user), db: Session = Depends(get_db)) -> dict:
+    existing = db.query(GpuPool).first()
+    if existing:
+        raise HTTPException(status_code=409, detail="A GPU pool already exists. Delete it before creating a new one.")
+
+    devices = _validate_pool_devices(payload.device_ids, db)
+
+    pool = GpuPool(name=payload.name)
+    db.add(pool)
+    db.flush()
+
+    for device in devices:
+        db.add(GpuPoolDevice(pool_id=pool.id, device_id=device.id))
+
+    db.commit()
+    db.refresh(pool)
+
+    log_event(db, "pool.created", details={"pool_name": pool.name, "device_ids": payload.device_ids})
+    return {"status": "ok", "pool": _serialize_pool(pool, db)}
+
+
+@router.patch("/pool")
+def update_pool(payload: GpuPoolUpdateRequest, _: User = Depends(get_admin_user), db: Session = Depends(get_db)) -> dict:
+    pool = db.query(GpuPool).first()
+    if not pool:
+        raise HTTPException(status_code=404, detail="No GPU pool exists")
+
+    devices = _validate_pool_devices(payload.device_ids, db)
+
+    db.query(GpuPoolDevice).filter(GpuPoolDevice.pool_id == pool.id).delete()
+    for device in devices:
+        db.add(GpuPoolDevice(pool_id=pool.id, device_id=device.id))
+
+    db.commit()
+    db.refresh(pool)
+
+    log_event(db, "pool.updated", details={"pool_name": pool.name, "device_ids": payload.device_ids})
+    return {"status": "ok", "pool": _serialize_pool(pool, db)}
+
+
+@router.delete("/pool")
+def delete_pool(_: User = Depends(get_admin_user), db: Session = Depends(get_db)) -> dict:
+    pool = db.query(GpuPool).first()
+    if not pool:
+        raise HTTPException(status_code=404, detail="No GPU pool exists")
+
+    # Deactivate and revert any models pinned to this pool
+    from app.core.inference_manager import InferenceManager
+    inference: InferenceManager = router.inference_manager  # type: ignore[attr-defined]
+
+    pool_models = db.query(ModelConfig).filter(
+        ModelConfig.assignment_mode == "pool",
+        ModelConfig.pinned_pool_id == pool.id,
+    ).all()
+    for model in pool_models:
+        if model.activated:
+            inference.deactivate_model(model.id)
+            model.activated = False
+        model.assignment_mode = "auto"
+        model.pinned_pool_id = None
+        db.add(model)
+
+    db.flush()
+
+    # Cascade deletes gpu_pool_devices rows via FK ondelete=CASCADE
+    db.delete(pool)
+    db.commit()
+
+    log_event(db, "pool.deleted", details={})
+    return {"status": "ok"}
+
+
+def _validate_pool_devices(device_ids: list[int], db: Session) -> list[Device]:
+    if len(device_ids) < 2:
+        raise HTTPException(status_code=400, detail="A GPU pool requires at least two devices")
+
+    devices: list[Device] = []
+    for device_id in device_ids:
+        device = db.query(Device).filter(Device.id == device_id).first()
+        if not device:
+            raise HTTPException(status_code=404, detail=f"Device {device_id} not found")
+        if device.vendor != "nvidia":
+            raise HTTPException(status_code=400, detail=f"Device {device.name} is not an NVIDIA GPU and cannot be added to the pool")
+        devices.append(device)
+
+    return devices
+
+
+def _serialize_pool(pool: GpuPool, db: Session) -> dict:
+    pool_device_rows = db.query(GpuPoolDevice).filter(GpuPoolDevice.pool_id == pool.id).all()
+    device_ids = [row.device_id for row in pool_device_rows]
+    devices = db.query(Device).filter(Device.id.in_(device_ids)).all()
+    return {
+        "id": pool.id,
+        "name": pool.name,
+        "devices": [_serialize_device(d) for d in devices],
+    }
 
 
 def _serialize_device(device: Device) -> dict:

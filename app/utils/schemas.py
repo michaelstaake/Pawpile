@@ -140,6 +140,15 @@ class DeviceUpdateRequest(BaseModel):
     max_slots: int | None = None
 
 
+class GpuPoolCreateRequest(BaseModel):
+    name: str = "GPU Pool"
+    device_ids: list[int] = Field(min_length=2)
+
+
+class GpuPoolUpdateRequest(BaseModel):
+    device_ids: list[int] = Field(min_length=2)
+
+
 class DeviceReorderItem(BaseModel):
     id: int
     priority: int
@@ -172,6 +181,7 @@ class ModelUpdateRequest(BaseModel):
     thinking_enabled: bool | None = None
     assignment_mode: str | None = None
     pinned_device_id: int | None = None
+    pinned_pool_id: int | None = None
 
 
 class ChatMessageRequest(BaseModel):

@@ -1,7 +1,7 @@
 import asyncio
 import time
 import logging
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 import json
 from collections.abc import AsyncIterator
 
@@ -12,6 +12,27 @@ from app.models.device import Device
 from app.models.model_config import ModelConfig
 
 logger = logging.getLogger(__name__)
+
+
+@dataclass
+class PoolActivationTarget:
+    """Represents a pool of NVIDIA GPUs to use together for a single model."""
+
+    pool_id: int
+    pool_name: str
+    devices: list[Device]
+
+    @property
+    def hardware_ids(self) -> list[str]:
+        return [d.hardware_id for d in self.devices]
+
+    @property
+    def vram_ratios(self) -> list[int]:
+        return [max(1, d.memory_mb) for d in self.devices]
+
+    @property
+    def combined_available_mb(self) -> int:
+        return sum(max(0, d.memory_mb) for d in self.devices)
 
 
 def _runtime_error_detail(response: httpx.Response) -> str:
@@ -36,7 +57,7 @@ def _runtime_error_detail(response: httpx.Response) -> str:
 class RunningModel:
     model_id: int
     base_url: str
-    device_id: int
+    device_id: int | None
     vendor: str
 
 
@@ -49,7 +70,9 @@ class InferenceManager:
         return model_id in self._running
 
     def runtime_url_for_vendor(self, vendor: str) -> str | None:
-        return self.settings.inference_runtime_url_for_vendor(vendor)
+        # nvidia_pool uses the same runtime as nvidia
+        effective_vendor = "nvidia" if vendor == "nvidia_pool" else vendor
+        return self.settings.inference_runtime_url_for_vendor(effective_vendor)
 
     def has_runtime_for_vendor(self, vendor: str) -> bool:
         return self.runtime_url_for_vendor(vendor) is not None
@@ -127,6 +150,44 @@ class InferenceManager:
         if not ok:
             self.deactivate_model(model.id)
             raise RuntimeError(f"Model {model.alias} failed health check")
+
+    async def activate_model_on_pool(self, model: ModelConfig, target: PoolActivationTarget) -> None:
+        if model.id in self._running:
+            return
+
+        runtime_url = self.runtime_url_for_vendor("nvidia_pool")
+        if not runtime_url:
+            raise RuntimeError("No inference runtime configured for NVIDIA (required for GPU pool)")
+
+        payload = {
+            "model_id": model.id,
+            "alias": model.alias,
+            "file_path": model.file_path,
+            "context_length": model.context_length,
+            "threads": model.threads,
+            "gpu_layers": model.gpu_layers,
+            "vendor": "nvidia_pool",
+            "hardware_id": target.hardware_ids[0],
+            "hardware_ids": target.hardware_ids,
+            "vram_ratios": target.vram_ratios,
+        }
+        timeout = self.settings.inference_service_timeout_seconds
+        async with httpx.AsyncClient(timeout=timeout) as client:
+            response = await client.post(f"{runtime_url}/runtime/models/activate", json=payload)
+            if response.is_error:
+                raise RuntimeError(_runtime_error_detail(response))
+
+        self._running[model.id] = RunningModel(
+            model_id=model.id,
+            base_url=runtime_url,
+            device_id=None,
+            vendor="nvidia_pool",
+        )
+
+        ok = await self.wait_until_healthy(model.id)
+        if not ok:
+            self.deactivate_model(model.id)
+            raise RuntimeError(f"Model {model.alias} failed health check on GPU pool")
 
     def deactivate_model(self, model_id: int) -> None:
         running = self._running.pop(model_id, None)

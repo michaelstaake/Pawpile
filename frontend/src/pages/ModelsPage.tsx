@@ -1,13 +1,14 @@
 import { type DragEvent, type FormEvent, useEffect, useRef, useState } from "react";
 import { apiGet, apiPatch, apiPost, apiPostFormWithProgress } from "../lib/api";
 import { useAuth } from "../context/AuthContext";
-import { DeviceRecord, ModelRecord, ModelUpdateResponse, ScanResponse, UploadResponse } from "../lib/records";
+import { DeviceRecord, GpuPoolRecord, ModelRecord, ModelUpdateResponse, ScanResponse, UploadResponse } from "../lib/records";
 import Modal from "../components/ui/Modal";
 
 const AUTO_SAVE_DELAY_MS = 700;
 
 const ASSIGNMENT_MODE_OPTIONS = [
   { label: "Auto", value: "auto" },
+  { label: "GPU Pool", value: "pool" },
   { label: "Pinned device", value: "pinned" },
 ] as const;
 
@@ -36,6 +37,7 @@ function buildModelPayload(model: ModelRecord) {
     thinking_enabled: model.thinking_enabled,
     assignment_mode: model.assignment_mode,
     pinned_device_id: model.assignment_mode === "pinned" ? model.pinned_device_id : null,
+    pinned_pool_id: model.assignment_mode === "pool" ? model.pinned_pool_id : null,
   };
 }
 
@@ -85,6 +87,7 @@ export default function ModelsPage({ setupMode = false, onComplete }: ModelsPage
   const { token } = useAuth();
   const [models, setModels] = useState<ModelRecord[]>([]);
   const [devices, setDevices] = useState<DeviceRecord[]>([]);
+  const [pool, setPool] = useState<GpuPoolRecord | null>(null);
   const [settingsModelId, setSettingsModelId] = useState<number | null>(null);
   const [modalDraft, setModalDraft] = useState<ModelRecord | null>(null);
   const [modalNumericDrafts, setModalNumericDraftsState] = useState<Record<string, string>>({});
@@ -122,15 +125,17 @@ export default function ModelsPage({ setupMode = false, onComplete }: ModelsPage
   async function refreshData(activeToken: string) {
     setIsLoading(true);
     try {
-      const [modelsResponse, devicesResponse] = await Promise.all([
+      const [modelsResponse, devicesResponse, poolResponse] = await Promise.all([
         apiGet<ModelRecord[]>("/api/models", activeToken),
         apiGet<DeviceRecord[]>("/api/devices", activeToken),
+        apiGet<GpuPoolRecord | null>("/api/devices/pool", activeToken),
       ]);
       const orderedModels = sortModels(modelsResponse);
       savedConfigRef.current = Object.fromEntries(orderedModels.map((model) => [model.id, serializeModelConfig(model)]));
       savedActivationRef.current = Object.fromEntries(orderedModels.map((model) => [model.id, model.activated]));
       setModels(orderedModels);
       setDevices(devicesResponse);
+      setPool(poolResponse);
       setPendingModelIds([]);
     } catch (error) {
       setErrorMessage(error instanceof Error ? error.message : "Failed to load model data");
@@ -591,21 +596,37 @@ export default function ModelsPage({ setupMode = false, onComplete }: ModelsPage
                 <div className="grid gap-3 md:grid-cols-2">
                   <label className="grid gap-1 text-sm text-black/70">
                     Assignment Mode
-                    <select className="rounded-xl border border-black/15 bg-white px-3 py-2 text-sm" value={modalDraft.assignment_mode} onChange={(event) => updateModalDraft({ assignment_mode: event.target.value, pinned_device_id: event.target.value === "pinned" ? modalDraft.pinned_device_id : null })}>
-                      {ASSIGNMENT_MODE_OPTIONS.map((option) => (
+                    <select className="rounded-xl border border-black/15 bg-white px-3 py-2 text-sm" value={modalDraft.assignment_mode} onChange={(event) => {
+                      const mode = event.target.value;
+                      updateModalDraft({
+                        assignment_mode: mode,
+                        pinned_device_id: mode === "pinned" ? modalDraft.pinned_device_id : null,
+                        pinned_pool_id: mode === "pool" ? (pool?.id ?? null) : null,
+                      });
+                    }}>
+                      {ASSIGNMENT_MODE_OPTIONS.filter((option) => option.value !== "pool" || pool !== null).map((option) => (
                         <option key={option.value} value={option.value}>{option.label}</option>
                       ))}
                     </select>
                   </label>
-                  <label className="grid gap-1 text-sm text-black/70">
-                    Pinned Device
-                    <select className="rounded-xl border border-black/15 bg-white px-3 py-2 text-sm disabled:bg-black/5" value={modalDraft.pinned_device_id ?? ""} onChange={(event) => updateModalDraft({ pinned_device_id: event.target.value ? Number(event.target.value) : null })} disabled={modalDraft.assignment_mode !== "pinned"}>
-                      <option value="">Choose a device</option>
-                      {devices.filter((device) => device.enabled).map((device) => (
-                        <option key={device.id} value={device.id}>{device.name} ({device.vendor})</option>
-                      ))}
-                    </select>
-                  </label>
+                  {modalDraft.assignment_mode === "pool" ? (
+                    <div className="grid gap-1 text-sm text-black/70">
+                      GPU Pool
+                      <div className="rounded-xl border border-black/15 bg-black/5 px-3 py-2 text-sm text-black/60">
+                        {pool ? `${pool.name} (${pool.devices.length} GPUs)` : "No pool configured"}
+                      </div>
+                    </div>
+                  ) : (
+                    <label className="grid gap-1 text-sm text-black/70">
+                      Pinned Device
+                      <select className="rounded-xl border border-black/15 bg-white px-3 py-2 text-sm disabled:bg-black/5" value={modalDraft.pinned_device_id ?? ""} onChange={(event) => updateModalDraft({ pinned_device_id: event.target.value ? Number(event.target.value) : null })} disabled={modalDraft.assignment_mode !== "pinned"}>
+                        <option value="">Choose a device</option>
+                        {devices.filter((device) => device.enabled).map((device) => (
+                          <option key={device.id} value={device.id}>{device.name} ({device.vendor})</option>
+                        ))}
+                      </select>
+                    </label>
+                  )}
                   <label className="grid gap-1 text-sm text-black/70">
                     GPU Layers
                     <input className="rounded-xl border border-black/15 bg-white px-3 py-2 text-sm" type="number" value={modalNumericDrafts.gpu_layers ?? String(modalDraft.gpu_layers)} onChange={(event) => setModalNumericDraft("gpu_layers", event.target.value)} onBlur={(event) => commitModalNumericDraft("gpu_layers", event.target.value, (n) => Math.max(0, Math.round(n)))} />

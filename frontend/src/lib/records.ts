@@ -34,6 +34,7 @@ export type ModelRecord = {
   thinking_enabled: boolean;
   assignment_mode: string;
   pinned_device_id: number | null;
+  pinned_pool_id: number | null;
   activated: boolean;
 };
 
@@ -48,6 +49,12 @@ export type DeviceRecord = {
   priority: number;
   max_threads: number;
   max_slots: number;
+};
+
+export type GpuPoolRecord = {
+  id: number;
+  name: string;
+  devices: DeviceRecord[];
 };
 
 export type StatusModelRecord = {

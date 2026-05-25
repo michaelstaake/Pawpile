@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from "react";
-import { apiGet, apiPatch } from "../lib/api";
+import { apiDelete, apiGet, apiPatch, apiPost } from "../lib/api";
 import { useAuth } from "../context/AuthContext";
-import { DeviceRecord, DeviceUpdateResponse } from "../lib/records";
+import { DeviceRecord, DeviceUpdateResponse, GpuPoolRecord } from "../lib/records";
 
 const AUTO_SAVE_DELAY_MS = 700;
 
@@ -38,6 +38,13 @@ export default function DevicesPage({ setupMode = false, onContinue }: DevicesPa
   const savingIdsRef = useRef<Set<number>>(new Set());
   const resaveRequestedRef = useRef<Set<number>>(new Set());
 
+  // GPU Pool state
+  const [pool, setPool] = useState<GpuPoolRecord | null>(null);
+  const [poolLoading, setPoolLoading] = useState(false);
+  const [selectedPoolDeviceIds, setSelectedPoolDeviceIds] = useState<number[]>([]);
+  const [poolEditing, setPoolEditing] = useState(false);
+  const [showDeletePoolConfirm, setShowDeletePoolConfirm] = useState(false);
+
   useEffect(() => {
     latestDevicesRef.current = devices;
   }, [devices]);
@@ -47,6 +54,7 @@ export default function DevicesPage({ setupMode = false, onContinue }: DevicesPa
       return;
     }
     void refreshDevices(token);
+    void refreshPool(token);
   }, [token]);
 
   async function refreshDevices(activeToken: string) {
@@ -60,6 +68,18 @@ export default function DevicesPage({ setupMode = false, onContinue }: DevicesPa
       setErrorMessage(error instanceof Error ? error.message : "Failed to load devices");
     } finally {
       setIsLoading(false);
+    }
+  }
+
+  async function refreshPool(activeToken: string) {
+    try {
+      const response = await apiGet<GpuPoolRecord | null>("/api/devices/pool", activeToken);
+      setPool(response);
+      if (response) {
+        setSelectedPoolDeviceIds(response.devices.map((d) => d.id));
+      }
+    } catch {
+      // pool endpoint errors are non-fatal
     }
   }
 
@@ -143,6 +163,64 @@ export default function DevicesPage({ setupMode = false, onContinue }: DevicesPa
 
   const enabledDevices = devices.filter((device) => device.enabled).length;
 
+  const nvidiaDevices = devices.filter((d) => d.vendor === "nvidia");
+  const showPoolSection = !setupMode && nvidiaDevices.length > 1;
+
+  function togglePoolDevice(deviceId: number) {
+    setSelectedPoolDeviceIds((current) =>
+      current.includes(deviceId) ? current.filter((id) => id !== deviceId) : [...current, deviceId],
+    );
+  }
+
+  async function handleCreatePool() {
+    if (!token || selectedPoolDeviceIds.length < 2) return;
+    setPoolLoading(true);
+    setErrorMessage("");
+    try {
+      const response = await apiPost<{ device_ids: number[] }, { pool: GpuPoolRecord }>("/api/devices/pool", { device_ids: selectedPoolDeviceIds }, token);
+      setPool(response.pool);
+      setPoolEditing(false);
+      setSuccessMessage("GPU pool created.");
+    } catch (error) {
+      setErrorMessage(error instanceof Error ? error.message : "Failed to create GPU pool");
+    } finally {
+      setPoolLoading(false);
+    }
+  }
+
+  async function handleUpdatePool() {
+    if (!token || selectedPoolDeviceIds.length < 2) return;
+    setPoolLoading(true);
+    setErrorMessage("");
+    try {
+      const response = await apiPatch<{ device_ids: number[] }, { pool: GpuPoolRecord }>("/api/devices/pool", { device_ids: selectedPoolDeviceIds }, token);
+      setPool(response.pool);
+      setPoolEditing(false);
+      setSuccessMessage("GPU pool updated.");
+    } catch (error) {
+      setErrorMessage(error instanceof Error ? error.message : "Failed to update GPU pool");
+    } finally {
+      setPoolLoading(false);
+    }
+  }
+
+  async function handleDeletePool() {
+    if (!token) return;
+    setPoolLoading(true);
+    setErrorMessage("");
+    setShowDeletePoolConfirm(false);
+    try {
+      await apiDelete<{ status: string }>("/api/devices/pool", token);
+      setPool(null);
+      setSelectedPoolDeviceIds([]);
+      setSuccessMessage("GPU pool deleted. Any models assigned to the pool have been reverted to Auto.");
+    } catch (error) {
+      setErrorMessage(error instanceof Error ? error.message : "Failed to delete GPU pool");
+    } finally {
+      setPoolLoading(false);
+    }
+  }
+
   return (
     <section className="grid gap-4">
       <article className="rounded-2xl border border-black/10 bg-white/80 p-5 shadow-sm backdrop-blur">
@@ -157,6 +235,107 @@ export default function DevicesPage({ setupMode = false, onContinue }: DevicesPa
         {successMessage ? <p className="mt-4 rounded-xl border border-emerald-200 bg-emerald-50 px-3 py-2 text-sm text-emerald-700">{successMessage}</p> : null}
 
         <div className="mt-5 space-y-4">
+          {showPoolSection ? (
+            <article className="rounded-2xl border border-violet-200 bg-violet-50/60 p-4">
+              <div className="flex flex-wrap items-start justify-between gap-3">
+                <div>
+                  <h3 className="font-display text-base text-violet-900">GPU Pool</h3>
+                  <p className="mt-1 text-sm text-violet-700/80">
+                    Combine multiple NVIDIA GPUs to load larger models across them using llama.cpp tensor splitting.
+                  </p>
+                </div>
+                {pool && !poolEditing ? (
+                  <div className="flex gap-2">
+                    <button
+                      type="button"
+                      onClick={() => { setPoolEditing(true); setSelectedPoolDeviceIds(pool.devices.map((d) => d.id)); }}
+                      className="cursor-pointer rounded-lg border border-violet-300 bg-white px-3 py-1.5 text-xs font-semibold text-violet-800 shadow-sm hover:bg-violet-100"
+                    >
+                      Edit
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setShowDeletePoolConfirm(true)}
+                      className="cursor-pointer rounded-lg border border-rose-200 bg-white px-3 py-1.5 text-xs font-semibold text-rose-700 shadow-sm hover:bg-rose-50"
+                    >
+                      Delete Pool
+                    </button>
+                  </div>
+                ) : null}
+              </div>
+
+              {showDeletePoolConfirm ? (
+                <div className="mt-3 rounded-xl border border-rose-200 bg-rose-50 px-4 py-3">
+                  <p className="text-sm text-rose-800">Delete the GPU pool? Models assigned to it will be unloaded and reverted to Auto.</p>
+                  <div className="mt-3 flex gap-2">
+                    <button type="button" onClick={handleDeletePool} disabled={poolLoading} className="cursor-pointer rounded-lg border border-rose-300 bg-rose-600 px-3 py-1.5 text-xs font-semibold text-white hover:bg-rose-700 disabled:opacity-60">
+                      {poolLoading ? "Deleting..." : "Confirm Delete"}
+                    </button>
+                    <button type="button" onClick={() => setShowDeletePoolConfirm(false)} className="cursor-pointer rounded-lg border border-black/15 bg-white px-3 py-1.5 text-xs font-semibold text-black/70 hover:bg-black/5">
+                      Cancel
+                    </button>
+                  </div>
+                </div>
+              ) : null}
+
+              {pool && !poolEditing ? (
+                <div className="mt-3">
+                  <p className="text-xs font-semibold uppercase tracking-[0.15em] text-violet-600">Pool Members</p>
+                  <ul className="mt-2 space-y-1">
+                    {pool.devices.map((d) => (
+                      <li key={d.id} className="text-sm text-violet-900">
+                        {d.name} <span className="text-violet-500">· {d.hardware_id} · {d.memory_mb.toLocaleString()} MB</span>
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              ) : null}
+
+              {(!pool || poolEditing) ? (
+                <div className="mt-3">
+                  <p className="mb-2 text-xs font-semibold uppercase tracking-[0.15em] text-violet-600">
+                    {poolEditing ? "Edit Pool Members" : "Select GPUs for Pool"}
+                  </p>
+                  <div className="space-y-2">
+                    {nvidiaDevices.map((d) => (
+                      <label key={d.id} className="flex cursor-pointer items-center gap-3 rounded-xl border border-violet-200 bg-white px-3 py-2 text-sm text-black/80 hover:bg-violet-50">
+                        <input
+                          type="checkbox"
+                          checked={selectedPoolDeviceIds.includes(d.id)}
+                          onChange={() => togglePoolDevice(d.id)}
+                        />
+                        <span className="flex-1">{d.name}</span>
+                        <span className="text-xs text-black/45">{d.hardware_id} · {d.memory_mb.toLocaleString()} MB</span>
+                      </label>
+                    ))}
+                  </div>
+                  <div className="mt-3 flex gap-2">
+                    <button
+                      type="button"
+                      disabled={selectedPoolDeviceIds.length < 2 || poolLoading}
+                      onClick={poolEditing ? handleUpdatePool : handleCreatePool}
+                      className="cursor-pointer rounded-lg border border-violet-400 bg-violet-600 px-4 py-1.5 text-sm font-semibold text-white hover:bg-violet-700 disabled:cursor-not-allowed disabled:opacity-60"
+                    >
+                      {poolLoading ? "Saving..." : poolEditing ? "Save Pool" : "Create Pool"}
+                    </button>
+                    {poolEditing ? (
+                      <button
+                        type="button"
+                        onClick={() => { setPoolEditing(false); setSelectedPoolDeviceIds(pool?.devices.map((d) => d.id) ?? []); }}
+                        className="cursor-pointer rounded-lg border border-black/15 bg-white px-3 py-1.5 text-sm font-semibold text-black/70 hover:bg-black/5"
+                      >
+                        Cancel
+                      </button>
+                    ) : null}
+                  </div>
+                  {selectedPoolDeviceIds.length < 2 ? (
+                    <p className="mt-2 text-xs text-violet-500">Select at least 2 NVIDIA GPUs to create a pool.</p>
+                  ) : null}
+                </div>
+              ) : null}
+            </article>
+          ) : null}
+
           {devices.map((device) => (
             <article
               key={device.id}

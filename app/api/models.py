@@ -10,15 +10,16 @@ from app.core.activity_logger import log_event
 from app.core.config import get_settings
 from app.core.db import get_db
 from app.core.device_manager import is_supported_vendor
-from app.core.inference_manager import InferenceManager
+from app.core.inference_manager import InferenceManager, PoolActivationTarget
 from app.models.device import Device
+from app.models.gpu_pool import GpuPool, GpuPoolDevice
 from app.models.model_config import ModelConfig
 from app.models.user import User
 from app.utils.schemas import ModelReorderRequest, ModelUpdateRequest
 
 router = APIRouter(prefix="/api/models", tags=["models"])
 
-ALLOWED_ASSIGNMENT_MODES = {"auto", "pinned"}
+ALLOWED_ASSIGNMENT_MODES = {"auto", "pinned", "pool"}
 UPLOAD_CHUNK_BYTES = 1024 * 1024
 
 
@@ -151,6 +152,11 @@ def update_model(model_id: int, payload: ModelUpdateRequest, _: User = Depends(g
         if not pinned_device:
             raise HTTPException(status_code=404, detail="Pinned device not found")
 
+    if payload.pinned_pool_id is not None:
+        pinned_pool = db.query(GpuPool).filter(GpuPool.id == payload.pinned_pool_id).first()
+        if not pinned_pool:
+            raise HTTPException(status_code=404, detail="GPU pool not found")
+
     if payload.alias is not None:
         alias_conflict = (
             db.query(ModelConfig)
@@ -174,6 +180,7 @@ def update_model(model_id: int, payload: ModelUpdateRequest, _: User = Depends(g
         "thinking_enabled",
         "assignment_mode",
         "pinned_device_id",
+        "pinned_pool_id",
     ]:
         value = getattr(payload, field)
         if value is not None:
@@ -193,20 +200,28 @@ async def activate_model(model_id: int, _: User = Depends(get_admin_user), db: S
     if not model:
         raise HTTPException(status_code=404, detail="Model not found")
 
-    device = await _resolve_device_for_model(db, model, inference)
-    if not device:
+    resolution = await _resolve_device_for_model(db, model, inference)
+    if resolution is None:
         raise HTTPException(status_code=409, detail="No enabled device available for model")
 
     try:
-        await inference.activate_model(model, device)
+        if isinstance(resolution, PoolActivationTarget):
+            await inference.activate_model_on_pool(model, resolution)
+            model.activated = True
+            db.add(model)
+            db.commit()
+            log_event(db, "model.activated", details={"alias": model.alias, "pool_id": resolution.pool_id, "pool_name": resolution.pool_name})
+            return {"status": "ok", "model_id": model.id, "pool_id": resolution.pool_id}
+        else:
+            await inference.activate_model(model, resolution)
+            model.activated = True
+            db.add(model)
+            db.commit()
+            log_event(db, "model.activated", details={"alias": model.alias, "device_id": resolution.id, "device_name": resolution.name})
+            return {"status": "ok", "model_id": model.id, "device_id": resolution.id}
     except RuntimeError as exc:
         log_event(db, "model.activation_failed", details={"alias": model.alias, "error": str(exc)})
         raise HTTPException(status_code=400, detail=str(exc)) from exc
-    model.activated = True
-    db.add(model)
-    db.commit()
-    log_event(db, "model.activated", details={"alias": model.alias, "device_id": device.id, "device_name": device.name})
-    return {"status": "ok", "model_id": model.id, "device_id": device.id}
 
 
 @router.post("/{model_id}/deactivate")
@@ -223,10 +238,41 @@ def deactivate_model(model_id: int, _: User = Depends(get_admin_user), db: Sessi
     return {"status": "ok"}
 
 
-async def _resolve_device_for_model(db: Session, model: ModelConfig, inference: InferenceManager) -> Device | None:
+async def _resolve_device_for_model(db: Session, model: ModelConfig, inference: InferenceManager) -> Device | PoolActivationTarget | None:
     supported_vendors = [vendor for vendor in ["cpu", "nvidia", "amd", "intel"] if is_supported_vendor(vendor)]
     model_size_mb = _estimate_model_size_mb(model.file_path)
     memory_metrics = await inference.get_device_memory_mb()
+
+    # POOL mode — model is pinned to the GPU pool
+    if model.assignment_mode == "pool" and model.pinned_pool_id:
+        pool = db.query(GpuPool).filter(GpuPool.id == model.pinned_pool_id).first()
+        if not pool:
+            raise HTTPException(status_code=409, detail="Assigned GPU pool no longer exists")
+        if not inference.has_runtime_for_vendor("nvidia_pool"):
+            raise HTTPException(status_code=409, detail="No inference runtime configured for NVIDIA (required for GPU pool)")
+
+        pool_device_rows = db.query(GpuPoolDevice).filter(GpuPoolDevice.pool_id == pool.id).all()
+        device_ids = [row.device_id for row in pool_device_rows]
+        pool_devices = db.query(Device).filter(Device.id.in_(device_ids)).all()
+
+        if len(pool_devices) < 2:
+            raise HTTPException(status_code=409, detail="GPU pool has fewer than two devices")
+
+        target = PoolActivationTarget(pool_id=pool.id, pool_name=pool.name, devices=pool_devices)
+        if model_size_mb > 0:
+            combined_available = _pool_combined_available_mb(target, memory_metrics)
+            combined_total = sum(
+                memory_metrics.get(d.hardware_id, {}).get("total_mb", 0) for d in pool_devices
+            )
+            if combined_total > 0 and model_size_mb > combined_available:
+                raise HTTPException(
+                    status_code=409,
+                    detail=(
+                        f"Model requires ~{model_size_mb} MB but the GPU pool only has "
+                        f"{combined_available} MB combined available"
+                    ),
+                )
+        return target
 
     if model.assignment_mode == "pinned" and model.pinned_device_id:
         device = (
@@ -254,7 +300,23 @@ async def _resolve_device_for_model(db: Session, model: ModelConfig, inference: 
                 )
         return device
 
-    # AUTO mode — prefer GPUs, fall back to CPU
+    # AUTO mode — prefer GPU pool if available and fits, then single GPU, then CPU
+    pool = db.query(GpuPool).first()
+    if pool and inference.has_runtime_for_vendor("nvidia_pool"):
+        pool_device_rows = db.query(GpuPoolDevice).filter(GpuPoolDevice.pool_id == pool.id).all()
+        device_ids = [row.device_id for row in pool_device_rows]
+        pool_devices = db.query(Device).filter(Device.id.in_(device_ids), Device.enabled.is_(True)).all()
+
+        if len(pool_devices) >= 2:
+            target = PoolActivationTarget(pool_id=pool.id, pool_name=pool.name, devices=pool_devices)
+            combined_available = _pool_combined_available_mb(target, memory_metrics)
+            combined_total = sum(
+                memory_metrics.get(d.hardware_id, {}).get("total_mb", 0) for d in pool_devices
+            )
+            pool_fits = model_size_mb == 0 or combined_total == 0 or combined_available >= model_size_mb
+            if pool_fits:
+                return target
+
     candidates = (
         db.query(Device)
         .filter(Device.enabled.is_(True), Device.vendor.in_(supported_vendors))
@@ -342,6 +404,19 @@ async def _resolve_device_for_model(db: Session, model: ModelConfig, inference: 
     return None
 
 
+def _pool_combined_available_mb(target: PoolActivationTarget, memory_metrics: dict) -> int:
+    total = 0
+    for device in target.devices:
+        metrics = memory_metrics.get(device.hardware_id, {})
+        total_mb = metrics.get("total_mb", 0)
+        available_mb = metrics.get("available_mb", 0)
+        if total_mb > 0:
+            total += available_mb
+        else:
+            total += device.memory_mb
+    return total
+
+
 def _estimate_model_size_mb(file_path: str) -> int:
     try:
         return int(os.path.getsize(file_path) / (1024 * 1024))
@@ -373,6 +448,7 @@ def _serialize_model(model: ModelConfig) -> dict:
         "thinking_enabled": model.thinking_enabled,
         "assignment_mode": model.assignment_mode,
         "pinned_device_id": model.pinned_device_id,
+        "pinned_pool_id": model.pinned_pool_id,
         "activated": model.activated,
     }
 

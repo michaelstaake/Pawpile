@@ -32,6 +32,8 @@ class ActivateModelRequest(BaseModel):
     gpu_layers: int
     vendor: str
     hardware_id: str
+    hardware_ids: list[str] = []
+    vram_ratios: list[int] = []
 
 
 @dataclass
@@ -53,13 +55,14 @@ class InferenceRuntime:
         self._running: dict[int, RunningModel] = {}
 
     async def activate_model(self, payload: ActivateModelRequest) -> None:
-        if not is_supported_vendor(payload.vendor):
+        effective_vendor = "nvidia" if payload.vendor == "nvidia_pool" else payload.vendor
+        if not is_supported_vendor(effective_vendor):
             raise RuntimeError(f"Unsupported device vendor for this inference service: {payload.vendor}")
         if payload.model_id in self._running:
             return
 
         port = self.settings.llama_base_port + payload.model_id
-        env = self._build_env(payload.vendor, payload.hardware_id, payload.threads)
+        env = self._build_env(payload.vendor, payload.hardware_id, payload.threads, payload.hardware_ids)
         command = [
             self._resolve_llama_server_path(),
             "-m",
@@ -75,7 +78,7 @@ class InferenceRuntime:
             "--n-gpu-layers",
             str(payload.gpu_layers),
         ]
-        command.extend(self._build_vendor_args(payload.vendor))
+        command.extend(self._build_vendor_args(payload.vendor, payload.vram_ratios))
 
         logs_dir = Path(self.settings.logs_dir)
         logs_dir.mkdir(parents=True, exist_ok=True)
@@ -205,9 +208,13 @@ class InferenceRuntime:
 
         return str(configured_path)
 
-    def _build_env(self, vendor: str, hardware_id: str, threads: int) -> dict[str, str]:
+    def _build_env(self, vendor: str, hardware_id: str, threads: int, hardware_ids: list[str] | None = None) -> dict[str, str]:
         env = os.environ.copy()
-        if vendor == "nvidia":
+        if vendor == "nvidia_pool":
+            ids = hardware_ids if hardware_ids else [hardware_id]
+            indices = [hid.split(":")[-1] for hid in ids]
+            env["CUDA_VISIBLE_DEVICES"] = ",".join(indices)
+        elif vendor == "nvidia":
             env["CUDA_VISIBLE_DEVICES"] = hardware_id.split(":")[-1]
         elif vendor == "amd":
             env["HIP_VISIBLE_DEVICES"] = hardware_id.split(":")[-1]
@@ -219,11 +226,17 @@ class InferenceRuntime:
             raise RuntimeError(f"Unknown device vendor: {vendor}")
         return env
 
-    def _build_vendor_args(self, vendor: str) -> list[str]:
+    def _build_vendor_args(self, vendor: str, vram_ratios: list[int] | None = None) -> list[str]:
+        if vendor == "nvidia_pool":
+            args: list[str] = []
+            if vram_ratios and len(vram_ratios) >= 2:
+                args.extend(["--tensor-split", ",".join(str(r) for r in vram_ratios)])
+            return args
+
         if vendor != "amd":
             return []
 
-        args: list[str] = []
+        args = []
         if self.settings.amd_llama_disable_warmup:
             args.append("--no-warmup")
 
