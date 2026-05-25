@@ -30,32 +30,6 @@ def list_devices(_: User = Depends(get_admin_user), db: Session = Depends(get_db
     return [_serialize_device(d) for d in rows]
 
 
-@router.patch("/{device_id}")
-def update_device(device_id: int, payload: DeviceUpdateRequest, _: User = Depends(get_admin_user), db: Session = Depends(get_db)) -> dict:
-    device = db.query(Device).filter(Device.id == device_id).first()
-    if not device:
-        raise HTTPException(status_code=404, detail="Device not found")
-
-    enabled_before = device.enabled
-
-    for field in ["name", "enabled", "priority", "max_threads", "max_slots"]:
-        value = getattr(payload, field)
-        if value is not None:
-            setattr(device, field, value)
-
-    db.add(device)
-    db.commit()
-    db.refresh(device)
-
-    if payload.enabled is not None and payload.enabled != enabled_before:
-        event_type = "device.enabled" if device.enabled else "device.disabled"
-        log_event(db, event_type, details={"device_name": device.name, "hardware_id": device.hardware_id})
-    elif payload.enabled is None:
-        log_event(db, "device.updated", details={"device_name": device.name, "hardware_id": device.hardware_id})
-
-    return {"status": "ok", "device": _serialize_device(device)}
-
-
 @router.post("/reorder")
 def reorder_devices(payload: DeviceReorderRequest, _: User = Depends(get_admin_user), db: Session = Depends(get_db)) -> dict:
     for item in payload.devices:
@@ -151,6 +125,32 @@ def delete_pool(_: User = Depends(get_admin_user), db: Session = Depends(get_db)
 
     log_event(db, "pool.deleted", details={})
     return {"status": "ok"}
+
+
+@router.patch("/{device_id}")
+def update_device(device_id: int, payload: DeviceUpdateRequest, _: User = Depends(get_admin_user), db: Session = Depends(get_db)) -> dict:
+    device = db.query(Device).filter(Device.id == device_id).first()
+    if not device:
+        raise HTTPException(status_code=404, detail="Device not found")
+
+    enabled_before = device.enabled
+
+    for field in ["name", "enabled", "priority", "max_threads", "max_slots"]:
+        value = getattr(payload, field)
+        if value is not None:
+            setattr(device, field, value)
+
+    db.add(device)
+    db.commit()
+    db.refresh(device)
+
+    if payload.enabled is not None and payload.enabled != enabled_before:
+        event_type = "device.enabled" if device.enabled else "device.disabled"
+        log_event(db, event_type, details={"device_name": device.name, "hardware_id": device.hardware_id})
+    elif payload.enabled is None:
+        log_event(db, "device.updated", details={"device_name": device.name, "hardware_id": device.hardware_id})
+
+    return {"status": "ok", "device": _serialize_device(device)}
 
 
 def _validate_pool_devices(device_ids: list[int], db: Session) -> list[Device]:
