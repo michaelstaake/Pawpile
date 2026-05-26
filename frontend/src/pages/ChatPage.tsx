@@ -10,11 +10,13 @@ type ChatMessage = {
   content: string;
   thinking?: string;
   phase?: "thinking" | "streaming" | "complete";
+  modelName?: string;
   stats?: ChatCompletionStats | null;
 };
 
 type ChatCompletionStats = {
   model: string;
+  elapsedSeconds: number;
   promptTokens: number | null;
   completionTokens: number | null;
   totalTokens: number | null;
@@ -311,7 +313,7 @@ export default function ChatPage() {
     ];
     setMessages([
       ...nextMessages,
-      { role: "assistant", content: "", phase: "thinking", stats: null },
+      { role: "assistant", content: "", phase: "thinking", modelName: selectedModel, stats: null },
     ]);
     setInput("");
     setAttachments([]);
@@ -373,6 +375,7 @@ export default function ChatPage() {
           ...last,
           thinking: thinkingBuffer || last.thinking,
           content: assistantBuffer,
+          modelName: last.modelName || stats.model,
           phase: "complete",
           stats,
         };
@@ -566,7 +569,7 @@ export default function ChatPage() {
                     }
                   >
                     <div className="mb-2 text-xs font-semibold uppercase tracking-[0.2em] text-black/45">
-                      {message.role}
+                      {formatSpeakerLabel(message, user?.username ?? null)}
                     </div>
                     {message.role === "assistant" && message.thinking ? (
                       <div className="mb-3">
@@ -614,11 +617,19 @@ export default function ChatPage() {
                     </div>
                     {message.role === "assistant" && message.phase === "complete" && message.stats ? (
                       <div className="mt-3 border-t border-black/8 pt-2 text-[11px] text-black/45">
-                        <span className="font-medium text-black/55">{message.stats.model}</span>
+                        <span
+                          title={
+                            message.stats.completionTokens !== null && message.stats.totalTokens !== null
+                              ? `${formatInteger(message.stats.totalTokens)} total tokens`
+                              : undefined
+                          }
+                        >
+                          {formatInteger(message.stats.completionTokens ?? message.stats.totalTokens)}t
+                        </span>
                         <span className="mx-2 text-black/20">/</span>
-                        <span>{formatInteger(message.stats.totalTokens)} tokens</span>
+                        <span>{formatDuration(message.stats.elapsedSeconds)}</span>
                         <span className="mx-2 text-black/20">/</span>
-                        <span>{formatRate(message.stats.tokensPerSecond)} tok/s</span>
+                        <span className="font-medium text-black/55">{formatRate(message.stats.tokensPerSecond)}t/s</span>
                       </div>
                     ) : null}
                   </div>
@@ -774,8 +785,6 @@ async function streamCompletion(
     completion_tokens?: number;
     total_tokens?: number;
   } | null = null;
-  let resolvedModel = model;
-
   while (true) {
     if (signal.aborted) {
       await reader.cancel();
@@ -812,9 +821,6 @@ async function streamCompletion(
           };
           if (parsed.error?.message) {
             throw new Error(parsed.error.message);
-          }
-          if (parsed.model) {
-            resolvedModel = parsed.model;
           }
           if (parsed.usage) {
             usage = parsed.usage;
@@ -868,9 +874,6 @@ async function streamCompletion(
         if (parsed.error?.message) {
           throw new Error(parsed.error.message);
         }
-        if (parsed.model) {
-          resolvedModel = parsed.model;
-        }
         if (parsed.usage) {
           usage = parsed.usage;
         }
@@ -897,12 +900,25 @@ async function streamCompletion(
   const completionTokens = usage?.completion_tokens ?? null;
 
   return {
-    model: resolvedModel,
+    model,
+    elapsedSeconds,
     promptTokens: usage?.prompt_tokens ?? null,
     completionTokens,
     totalTokens: usage?.total_tokens ?? null,
     tokensPerSecond: completionTokens !== null ? completionTokens / elapsedSeconds : null,
   };
+}
+
+function formatSpeakerLabel(message: ChatMessage, username: string | null): string {
+  if (message.role === "user") {
+    return username || "User";
+  }
+
+  if (message.role === "assistant") {
+    return message.modelName || message.stats?.model || "Assistant";
+  }
+
+  return message.role;
 }
 
 function formatInteger(value: number | null): string {
@@ -919,4 +935,12 @@ function formatRate(value: number | null): string {
   }
 
   return value >= 100 ? value.toFixed(0) : value.toFixed(1);
+}
+
+function formatDuration(value: number): string {
+  if (Number.isNaN(value) || value < 0) {
+    return "n/a";
+  }
+
+  return `${value >= 10 ? value.toFixed(1) : value.toFixed(2)}s`;
 }
