@@ -1,5 +1,5 @@
 import { FormEvent, useEffect, useRef, useState } from "react";
-import { apiDelete, apiGet, apiPost } from "../lib/api";
+import { apiDelete, apiGet, apiPost, handleBackendUnavailableError, isBackendUnavailableResponse } from "../lib/api";
 import { useAuth } from "../context/AuthContext";
 import { getStoredToken } from "../lib/session";
 
@@ -732,12 +732,22 @@ async function streamCompletion(
 
   const startedAt = performance.now();
 
-  const response = await fetch(`${BASE_URL}/v1/chat/completions`, {
-    method: "POST",
-    headers,
-    signal,
-    body: JSON.stringify({ model, messages, stream: true, enable_thinking: enableThinking })
-  });
+  let response: Response;
+
+  try {
+    response = await fetch(`${BASE_URL}/v1/chat/completions`, {
+      method: "POST",
+      headers,
+      signal,
+      body: JSON.stringify({ model, messages, stream: true, enable_thinking: enableThinking })
+    });
+  } catch (error) {
+    handleBackendUnavailableError(error);
+  }
+
+  if (isBackendUnavailableResponse(response.status)) {
+    handleBackendUnavailableError(new TypeError("Backend unavailable"));
+  }
 
   if (!response.ok) {
     let detail = `Request failed: ${response.status}`;

@@ -1,5 +1,7 @@
 const BASE_URL = import.meta.env.VITE_API_BASE_URL ?? "";
 
+export const BACKEND_UNAVAILABLE_EVENT = "pawpile:backend-unavailable";
+
 type ApiErrorPayload = {
   detail?: string | { msg?: string } | Array<{ msg?: string }>;
 };
@@ -8,6 +10,26 @@ type UploadProgress = {
   loaded: number;
   total: number;
 };
+
+function notifyBackendUnavailable() {
+  window.dispatchEvent(new Event(BACKEND_UNAVAILABLE_EVENT));
+}
+
+export function isBackendUnavailableResponse(status: number): boolean {
+  return status === 0 || status === 502 || status === 503 || status === 504;
+}
+
+export function handleBackendUnavailableError(error: unknown): never {
+  if (error instanceof DOMException && error.name === "AbortError") {
+    throw error;
+  }
+
+  if (error instanceof TypeError) {
+    notifyBackendUnavailable();
+  }
+
+  throw error;
+}
 
 function buildApiError(status: number, statusText: string, bodyText: string): Error {
   try {
@@ -40,9 +62,20 @@ async function parseError(response: Response): Promise<Error> {
 }
 
 export async function apiGet<T>(path: string, token?: string): Promise<T> {
-  const response = await fetch(`${BASE_URL}${path}`, {
-    headers: token ? { Authorization: `Bearer ${token}` } : undefined
-  });
+  let response: Response;
+
+  try {
+    response = await fetch(`${BASE_URL}${path}`, {
+      headers: token ? { Authorization: `Bearer ${token}` } : undefined
+    });
+  } catch (error) {
+    handleBackendUnavailableError(error);
+  }
+
+  if (isBackendUnavailableResponse(response.status)) {
+    notifyBackendUnavailable();
+  }
+
   if (!response.ok) {
     throw await parseError(response);
   }
@@ -58,11 +91,21 @@ export async function apiPost<TRequest, TResponse>(path: string, payload: TReque
     headers.Authorization = `Bearer ${token}`;
   }
 
-  const response = await fetch(`${BASE_URL}${path}`, {
-    method: "POST",
-    headers,
-    body: JSON.stringify(payload)
-  });
+  let response: Response;
+
+  try {
+    response = await fetch(`${BASE_URL}${path}`, {
+      method: "POST",
+      headers,
+      body: JSON.stringify(payload)
+    });
+  } catch (error) {
+    handleBackendUnavailableError(error);
+  }
+
+  if (isBackendUnavailableResponse(response.status)) {
+    notifyBackendUnavailable();
+  }
 
   if (!response.ok) {
     throw await parseError(response);
@@ -80,11 +123,21 @@ export async function apiPatch<TRequest, TResponse>(path: string, payload: TRequ
     headers.Authorization = `Bearer ${token}`;
   }
 
-  const response = await fetch(`${BASE_URL}${path}`, {
-    method: "PATCH",
-    headers,
-    body: JSON.stringify(payload)
-  });
+  let response: Response;
+
+  try {
+    response = await fetch(`${BASE_URL}${path}`, {
+      method: "PATCH",
+      headers,
+      body: JSON.stringify(payload)
+    });
+  } catch (error) {
+    handleBackendUnavailableError(error);
+  }
+
+  if (isBackendUnavailableResponse(response.status)) {
+    notifyBackendUnavailable();
+  }
 
   if (!response.ok) {
     throw await parseError(response);
@@ -94,10 +147,20 @@ export async function apiPatch<TRequest, TResponse>(path: string, payload: TRequ
 }
 
 export async function apiDelete<TResponse>(path: string, token?: string): Promise<TResponse> {
-  const response = await fetch(`${BASE_URL}${path}`, {
-    method: "DELETE",
-    headers: token ? { Authorization: `Bearer ${token}` } : undefined
-  });
+  let response: Response;
+
+  try {
+    response = await fetch(`${BASE_URL}${path}`, {
+      method: "DELETE",
+      headers: token ? { Authorization: `Bearer ${token}` } : undefined
+    });
+  } catch (error) {
+    handleBackendUnavailableError(error);
+  }
+
+  if (isBackendUnavailableResponse(response.status)) {
+    notifyBackendUnavailable();
+  }
 
   if (!response.ok) {
     throw await parseError(response);
@@ -107,11 +170,21 @@ export async function apiDelete<TResponse>(path: string, token?: string): Promis
 }
 
 export async function apiPostForm<TResponse>(path: string, formData: FormData, token?: string): Promise<TResponse> {
-  const response = await fetch(`${BASE_URL}${path}`, {
-    method: "POST",
-    headers: token ? { Authorization: `Bearer ${token}` } : undefined,
-    body: formData
-  });
+  let response: Response;
+
+  try {
+    response = await fetch(`${BASE_URL}${path}`, {
+      method: "POST",
+      headers: token ? { Authorization: `Bearer ${token}` } : undefined,
+      body: formData
+    });
+  } catch (error) {
+    handleBackendUnavailableError(error);
+  }
+
+  if (isBackendUnavailableResponse(response.status)) {
+    notifyBackendUnavailable();
+  }
 
   if (!response.ok) {
     throw await parseError(response);
@@ -149,6 +222,10 @@ export async function apiPostFormWithProgress<TResponse>(
     request.addEventListener("load", () => {
       const responseText = request.responseText ?? "";
 
+      if (isBackendUnavailableResponse(request.status)) {
+        notifyBackendUnavailable();
+      }
+
       if (request.status < 200 || request.status >= 300) {
         reject(buildApiError(request.status, request.statusText, responseText));
         return;
@@ -162,6 +239,7 @@ export async function apiPostFormWithProgress<TResponse>(
     });
 
     request.addEventListener("error", () => {
+      notifyBackendUnavailable();
       reject(new Error("Network error during upload"));
     });
 
