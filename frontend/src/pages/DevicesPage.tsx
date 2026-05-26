@@ -526,7 +526,7 @@ export default function DevicesPage({ setupMode = false, onContinue }: DevicesPa
             </article>
           ) : null}
 
-          {isLoading && devices.length === 0 ? <p className="rounded-2xl border border-dashed border-black/15 bg-sand/60 px-4 py-6 text-sm text-black/60">Loading devices...</p> : null}
+          {isLoading && devices.length === 0 ? <p className="rounded-2xl border border-dashed border-black/15 bg-sand/60 px-4 py-6 text-sm text-black/60">Loading...</p> : null}
           {devices.map((device) => {
             const owningPool = poolDeviceToPool.get(device.id);
             const inPool = owningPool !== undefined;
