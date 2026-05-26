@@ -105,7 +105,7 @@ export default function Modal({ open, onClose, labelledBy, describedBy, panelCla
           aria-labelledby={labelledBy}
           aria-describedby={describedBy}
           tabIndex={-1}
-          className={`relative z-[101] w-full overflow-hidden rounded-[28px] border border-black/10 bg-[#fffdf7] shadow-2xl outline-none ${panelClassName}`}
+          className={`relative z-[101] w-full max-h-[calc(100dvh-4rem)] overflow-y-auto rounded-[28px] border border-black/10 bg-[#fffdf7] shadow-2xl outline-none overscroll-contain sm:max-h-[min(calc(100dvh-7rem),860px)] ${panelClassName}`}
         >
           {children}
         </div>

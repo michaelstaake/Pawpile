@@ -179,8 +179,8 @@ export default function UsersPage() {
         </div>
       </article>
 
-      <Modal open={isCreateModalOpen} onClose={() => setIsCreateModalOpen(false)} labelledBy="user-create-title" panelClassName="max-h-[min(92vh,860px)] max-w-3xl">
-        <article className="max-h-[min(92vh,860px)] overflow-y-auto p-5 sm:p-6">
+      <Modal open={isCreateModalOpen} onClose={() => setIsCreateModalOpen(false)} labelledBy="user-create-title" panelClassName="max-w-3xl">
+        <article className="p-5 sm:p-6">
           <div className="flex flex-wrap items-start justify-between gap-3">
             <div>
               <h2 id="user-create-title" className="font-display text-2xl">Add user</h2>
