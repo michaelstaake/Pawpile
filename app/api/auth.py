@@ -6,6 +6,7 @@ from sqlalchemy.exc import IntegrityError, OperationalError, SQLAlchemyError
 from sqlalchemy.orm import Session
 
 from app.api.deps import get_current_user
+from app.api.models import scan_models_dir
 from app.core.activity_logger import log_event
 from app.core.app_settings import get_or_create_app_settings
 from app.core.config import get_settings
@@ -59,6 +60,7 @@ def bootstrap_admin(payload: BootstrapAdminRequest, request: Request, db: Sessio
         db.add(admin_user)
         db.commit()
         db.refresh(admin_user)
+        scan_models_dir(db)
         log_event(db, "auth.bootstrap_admin", user_id=admin_user.id, username=admin_user.username, ip_address=request.client.host if request.client else None)
         token = create_access_token(admin_user.username)
         return LoginResponse(access_token=token)

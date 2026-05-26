@@ -34,6 +34,7 @@ async def lifespan(_: FastAPI):
         prune_old_logs(db)
         device_manager.sync_detected_devices(db, auto_enable_defaults=True)
         get_or_create_app_settings(db)
+        models.scan_models_dir(db)
         activated_models = (
             db.query(ModelConfig)
             .filter(ModelConfig.activated.is_(True))

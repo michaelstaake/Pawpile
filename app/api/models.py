@@ -23,6 +23,34 @@ ALLOWED_ASSIGNMENT_MODES = {"auto", "pinned", "pool"}
 UPLOAD_CHUNK_BYTES = 1024 * 1024
 
 
+def scan_models_dir(db: Session) -> tuple[int, int]:
+    settings = get_settings()
+    os.makedirs(settings.models_dir, exist_ok=True)
+    files = sorted(f for f in os.listdir(settings.models_dir) if f.lower().endswith(".gguf"))
+
+    existing_by_file = {m.file_name: m for m in db.query(ModelConfig).all()}
+    added = 0
+    for file_name in files:
+        if file_name in existing_by_file:
+            continue
+        model = ModelConfig(
+            priority=_next_model_priority(db),
+            file_name=file_name,
+            file_path=os.path.abspath(os.path.join(settings.models_dir, file_name)),
+            alias=_build_unique_alias(db, os.path.splitext(file_name)[0]),
+            context_length=settings.default_context_length,
+            gpu_layers=settings.default_gpu_layers,
+            threads=settings.default_threads,
+            temperature=settings.default_temperature,
+            top_p=settings.default_top_p,
+        )
+        db.add(model)
+        added += 1
+
+    db.commit()
+    return len(files), added
+
+
 @router.get("")
 def list_models(_: User = Depends(get_admin_user), db: Session = Depends(get_db)) -> list[dict]:
     rows = db.query(ModelConfig).order_by(ModelConfig.priority.asc(), ModelConfig.id.asc()).all()
@@ -110,32 +138,9 @@ def upload_model(
 
 @router.post("/scan")
 def scan_models(_: User = Depends(get_admin_user), db: Session = Depends(get_db)) -> dict:
-    settings = get_settings()
-    os.makedirs(settings.models_dir, exist_ok=True)
-    files = [f for f in os.listdir(settings.models_dir) if f.lower().endswith(".gguf")]
-
-    existing_by_file = {m.file_name: m for m in db.query(ModelConfig).all()}
-    added = 0
-    for file_name in files:
-        if file_name in existing_by_file:
-            continue
-        model = ModelConfig(
-            priority=_next_model_priority(db),
-            file_name=file_name,
-            file_path=os.path.abspath(os.path.join(settings.models_dir, file_name)),
-            alias=_build_unique_alias(db, os.path.splitext(file_name)[0]),
-            context_length=settings.default_context_length,
-            gpu_layers=settings.default_gpu_layers,
-            threads=settings.default_threads,
-            temperature=settings.default_temperature,
-            top_p=settings.default_top_p,
-        )
-        db.add(model)
-        added += 1
-
-    db.commit()
-    log_event(db, "model.scanned", details={"discovered": len(files), "added": added})
-    return {"status": "ok", "discovered": len(files), "added": added}
+    discovered, added = scan_models_dir(db)
+    log_event(db, "model.scanned", details={"discovered": discovered, "added": added})
+    return {"status": "ok", "discovered": discovered, "added": added}
 
 
 @router.patch("/{model_id}")

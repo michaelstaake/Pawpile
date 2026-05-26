@@ -66,7 +66,7 @@ docker compose --profile nvidia --profile vulkan up -d --build
 
 The backend stores its SQLite database in a Docker-managed volume. Model files stay in `models/` and runtime logs stay in `logs/` on the host.
 
-4. Add your AI models GGUF files under the `models/` directory or do this later using the Web UI.
+4. Add your AI models GGUF files under the `models/` directory or do this later using the Web UI. Pawpile automatically scans this folder during initial setup and on each startup, so any `.gguf` files already present will be registered without a manual scan.
 
 5. Initial setup will take a while as we are building llama-cpp based on your selected devices.
 
