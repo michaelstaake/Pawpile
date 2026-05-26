@@ -198,6 +198,7 @@ class DeviceManager:
         # blocks layout: [preamble, idx0, block0, idx1, block1, ...]
         i = 1
         while i + 1 < len(blocks):
+
             idx = int(blocks[i])
             block = blocks[i + 1]
             i += 2
@@ -222,7 +223,30 @@ class DeviceManager:
                     memory_mb=0,
                 )
             )
+
+        if devices:
+            memory_by_idx = self._parse_vulkan_device_memory()
+            for device in devices:
+                idx = int(device.hardware_id.split(":")[1])
+                device.memory_mb = memory_by_idx.get(idx, 0)
+
         return devices
+
+    def _parse_vulkan_device_memory(self) -> dict[int, int]:
+        """Return vulkan device index -> device-local memory total (MiB) from full vulkaninfo output."""
+        try:
+            result = subprocess.run(
+                ["vulkaninfo"],
+                stdout=subprocess.PIPE,
+                stderr=subprocess.DEVNULL,
+                text=True,
+                timeout=15,
+            )
+            output = result.stdout
+        except Exception as exc:
+            logger.debug("vulkaninfo full output failed: %s", exc)
+            return {}
+        return _parse_vulkaninfo_device_local_heap_mb(output)
 
     def _detect_cpu(self) -> list[DetectedDevice]:
         cores = psutil.cpu_count(logical=False) or 1
@@ -271,3 +295,56 @@ class DeviceManager:
                 )
             )
         return devices
+
+
+def _parse_vulkaninfo_device_local_heap_mb(output: str) -> dict[int, int]:
+    """Parse device-local heap total size (MiB) per GPU index from full vulkaninfo text output.
+
+    Returns a dict mapping Vulkan device index to total device-local memory in MiB.
+    Parses the ``memoryHeaps[N]:`` blocks for ``VK_MEMORY_HEAP_DEVICE_LOCAL_BIT`` and
+    extracts the ``size`` field.  Units handled: ``MiB``, ``GiB``, plain bytes.
+    """
+    memory_by_idx: dict[int, int] = {}
+    # Split by "GPU<N>:" headers (same pattern used in --summary parsing)
+    blocks = re.split(r"GPU(\d+):", output)
+    # blocks layout: [preamble, idx0, block0, idx1, block1, ...]
+    i = 1
+    while i + 1 < len(blocks):
+        try:
+            idx = int(blocks[i])
+        except ValueError:
+            i += 2
+            continue
+        block = blocks[i + 1]
+        i += 2
+
+        heap_blocks = re.split(r"memoryHeaps\[\d+\]:", block)
+        device_local_mb = 0
+        for heap_block in heap_blocks[1:]:
+            if "VK_MEMORY_HEAP_DEVICE_LOCAL_BIT" not in heap_block:
+                continue
+            size_match = re.search(r"\bsize\s*=\s*([\d.]+)\s*(MiB|GiB|bytes|B)?", heap_block, re.IGNORECASE)
+            if not size_match:
+                continue
+            size_mb = _vulkan_size_to_mb(float(size_match.group(1)), size_match.group(2))
+            device_local_mb = max(device_local_mb, size_mb)
+
+        if device_local_mb > 0:
+            memory_by_idx[idx] = device_local_mb
+
+    return memory_by_idx
+
+
+def _vulkan_size_to_mb(value: float, unit: str | None) -> int:
+    unit = (unit or "bytes").lower()
+    if unit == "mib":
+        return int(value)
+    if unit == "gib":
+        return int(value * 1024)
+    if unit in ("bytes", "b"):
+        return int(value / (1024 * 1024))
+    # Unknown unit — if the value looks like it's already in MiB (< 1 million) keep it,
+    # otherwise assume bytes.
+    if value < 1_000_000:
+        return int(value)
+    return int(value / (1024 * 1024))
