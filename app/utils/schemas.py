@@ -218,8 +218,12 @@ class ChatRenameRequest(BaseModel):
 
 
 class ChatMessageAppendRequest(BaseModel):
+    model_config = ConfigDict(populate_by_name=True)
+
     role: str = Field(min_length=1, max_length=32)
     content: str | list[dict[str, Any]]
+    model_name: str | None = Field(default=None, alias="modelName", min_length=1, max_length=120)
+    stats: "ChatMessageStatsRequest | None" = None
 
     @field_validator("content", mode="before")
     @classmethod
@@ -232,6 +236,17 @@ class ChatMessageAppendRequest(BaseModel):
         if len(value) < 1:
             raise ValueError("content must not be empty")
         return value
+
+
+class ChatMessageStatsRequest(BaseModel):
+    model_config = ConfigDict(populate_by_name=True)
+
+    model: str = Field(min_length=1, max_length=120)
+    elapsed_seconds: float = Field(alias="elapsedSeconds", ge=0)
+    prompt_tokens: int | None = Field(default=None, alias="promptTokens", ge=0)
+    completion_tokens: int | None = Field(default=None, alias="completionTokens", ge=0)
+    total_tokens: int | None = Field(default=None, alias="totalTokens", ge=0)
+    tokens_per_second: float | None = Field(default=None, alias="tokensPerSecond", ge=0)
 
 
 class OpenAIChatRequest(BaseModel):

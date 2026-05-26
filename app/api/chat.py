@@ -65,6 +65,12 @@ def append_message(
         chat_id=chat.id,
         role=payload.role,
         content=normalize_message_content(payload.content),
+        model_name=payload.model_name or (payload.stats.model if payload.stats else None),
+        prompt_tokens=payload.stats.prompt_tokens if payload.stats else None,
+        completion_tokens=payload.stats.completion_tokens if payload.stats else None,
+        total_tokens=payload.stats.total_tokens if payload.stats else None,
+        elapsed_seconds=payload.stats.elapsed_seconds if payload.stats else None,
+        tokens_per_second=payload.stats.tokens_per_second if payload.stats else None,
     )
     db.add(message)
     db.commit()
@@ -123,5 +129,16 @@ def _serialize_message(message: ChatMessage) -> dict:
         "chat_id": message.chat_id,
         "role": message.role,
         "content": message.content,
+        "modelName": message.model_name,
+        "stats": {
+            "model": message.model_name,
+            "elapsedSeconds": message.elapsed_seconds,
+            "promptTokens": message.prompt_tokens,
+            "completionTokens": message.completion_tokens,
+            "totalTokens": message.total_tokens,
+            "tokensPerSecond": message.tokens_per_second,
+        }
+        if message.model_name is not None or message.elapsed_seconds is not None or message.prompt_tokens is not None or message.completion_tokens is not None or message.total_tokens is not None or message.tokens_per_second is not None
+        else None,
         "created_at": message.created_at.isoformat() if message.created_at else None,
     }

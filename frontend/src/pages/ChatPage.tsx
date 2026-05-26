@@ -42,6 +42,8 @@ type ChatDetailResponse = {
     chat_id: number;
     role: ChatRole;
     content: string;
+    modelName?: string | null;
+    stats?: ChatCompletionStats | null;
     created_at: string | null;
   }[];
 };
@@ -157,7 +159,15 @@ export default function ChatPage() {
     try {
       const detail = await apiGet<ChatDetailResponse>(`/api/chat/${chatId}`, token);
       setActiveChatId(detail.chat.id);
-      setMessages(detail.messages.map((m) => ({ role: m.role, content: m.content, phase: "complete" })));
+      setMessages(
+        detail.messages.map((message) => ({
+          role: message.role,
+          content: message.content,
+          modelName: message.modelName ?? undefined,
+          stats: message.stats ?? null,
+          phase: "complete",
+        }))
+      );
       setInput("");
       setAttachments([]);
     } catch (error) {
@@ -180,12 +190,26 @@ export default function ChatPage() {
     }
   }
 
-  async function persistMessage(chatId: number, role: ChatRole, content: string): Promise<void> {
+  async function persistMessage(
+    chatId: number,
+    role: ChatRole,
+    content: string,
+    options?: { modelName?: string; stats?: ChatCompletionStats | null }
+  ): Promise<void> {
     if (!token || !content) {
       return;
     }
     try {
-      await apiPost(`/api/chat/${chatId}/messages`, { role, content }, token);
+      await apiPost(
+        `/api/chat/${chatId}/messages`,
+        {
+          role,
+          content,
+          ...(options?.modelName ? { modelName: options.modelName } : {}),
+          ...(options?.stats ? { stats: options.stats } : {}),
+        },
+        token
+      );
     } catch {
       // Best-effort persistence.
     }
@@ -383,7 +407,10 @@ export default function ChatPage() {
       });
       setThinkingExpandedByIndex((current) => ({ ...current, [nextMessages.length]: false }));
       if (chatId !== null && assistantBuffer) {
-        void persistMessage(chatId, "assistant", assistantBuffer);
+        void persistMessage(chatId, "assistant", assistantBuffer, {
+          modelName: stats.model,
+          stats,
+        });
       }
     } catch (error) {
       if (error instanceof Error && error.name === "AbortError") {
@@ -399,7 +426,9 @@ export default function ChatPage() {
           return current;
         });
         if (chatId !== null && assistantBuffer) {
-          void persistMessage(chatId, "assistant", assistantBuffer);
+          void persistMessage(chatId, "assistant", assistantBuffer, {
+            modelName: selectedModel,
+          });
         }
       } else {
         const detail = error instanceof Error ? error.message : "Chat request failed";
