@@ -6,7 +6,7 @@ services:
     container_name: pawpile-backend
     environment:
       INFERENCE_SERVICE_URL: http://inference-cpu:8100
-      INFERENCE_RUNTIME_URLS: cpu=http://inference-cpu:8100,nvidia=http://inference-nvidia:8100,amd=http://inference-amd:8100,intel=http://inference-intel:8100
+      INFERENCE_RUNTIME_URLS: cpu=http://inference-cpu:8100,nvidia=http://inference-nvidia:8100,amd=http://inference-amd:8100,intel=http://inference-intel:8100,vulkan=http://inference-vulkan:8100
       SUPPORTED_DEVICES: ""
       LLAMA_STARTUP_TIMEOUT_SECONDS: ${LLAMA_STARTUP_TIMEOUT_SECONDS:-120}
       OPENAI_API_AUTH_REQUIRED: ${OPENAI_API_AUTH_REQUIRED:-true}
@@ -33,6 +33,9 @@ services:
         condition: service_healthy
         required: false
       inference-intel:
+        condition: service_healthy
+        required: false
+      inference-vulkan:
         condition: service_healthy
         required: false
     restart: unless-stopped
@@ -151,6 +154,34 @@ services:
       SUPPORTED_DEVICES: intel
       LLAMA_SERVER_PATH: /opt/llama.cpp/build/bin/llama-server
       GGML_SYCL_DEVICE: ${INTEL_DEVICE:-0}
+    volumes:
+      - ./models:/app/models
+      - ./logs:/app/logs
+      - /dev/dri:/dev/dri
+    device_cgroup_rules:
+      - 'c 226:* rwm'
+    expose:
+      - "8100"
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8100/health"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 20s
+    restart: unless-stopped
+
+  inference-vulkan:
+    profiles: [vulkan]
+    build:
+      context: .
+      dockerfile: Dockerfile.inference.vulkan
+      args:
+        LLAMA_CPP_TAG: ${LLAMA_CPP_TAG:-b9297}
+    container_name: pawpile-inference-vulkan
+    environment:
+      SUPPORTED_DEVICES: vulkan
+      LLAMA_SERVER_PATH: /opt/llama.cpp/build/bin/llama-server
+      LLAMA_STARTUP_TIMEOUT_SECONDS: ${LLAMA_STARTUP_TIMEOUT_SECONDS:-120}
     volumes:
       - ./models:/app/models
       - ./logs:/app/logs

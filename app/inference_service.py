@@ -220,6 +220,8 @@ class InferenceRuntime:
             env["HIP_VISIBLE_DEVICES"] = hardware_id.split(":")[-1]
         elif vendor == "intel":
             env["ONEAPI_DEVICE_SELECTOR"] = "level_zero:gpu"
+        elif vendor == "vulkan":
+            env["GGML_VK_VISIBLE_DEVICES"] = hardware_id.split(":")[-1]
         elif vendor == "cpu":
             env["OMP_NUM_THREADS"] = str(max(1, threads))
         else:

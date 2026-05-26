@@ -21,7 +21,7 @@ def get_supported_vendors() -> set[str]:
     if configured:
         return set(configured)
 
-    return {"cpu", "nvidia", "amd", "intel"}
+    return {"cpu", "nvidia", "amd", "intel", "vulkan"}
 
 
 def is_supported_vendor(vendor: str) -> bool:
@@ -53,10 +53,11 @@ class DeviceManager:
 
     def detect_local(self) -> list[DetectedDevice]:
         devices: list[DetectedDevice] = []
-        # On Ubuntu, support NVIDIA, AMD, Intel, and CPU
+        # On Ubuntu, support NVIDIA, AMD, Intel, Vulkan, and CPU
         devices.extend(self._detect_nvidia())
         devices.extend(self._detect_amd())
         devices.extend(self._detect_intel())
+        devices.extend(self._detect_vulkan())
         devices.extend(self._detect_cpu())
         return devices
 
@@ -447,6 +448,44 @@ class DeviceManager:
             )
         return devices
 
+    def _detect_vulkan(self) -> list[DetectedDevice]:
+        if not is_supported_vendor("vulkan"):
+            return []
+        output = self._run("vulkaninfo --summary")
+        if not output:
+            return []
+        devices: list[DetectedDevice] = []
+        # vulkaninfo --summary groups each physical device under a "GPU<N>:" header
+        blocks = re.split(r"GPU(\d+):", output)
+        # blocks layout: [preamble, idx0, block0, idx1, block1, ...]
+        i = 1
+        while i + 1 < len(blocks):
+            idx = int(blocks[i])
+            block = blocks[i + 1]
+            i += 2
+
+            name_match = re.search(r"deviceName\s*=\s*(.+)", block)
+            type_match = re.search(r"deviceType\s*=\s*(.+)", block)
+            if not name_match:
+                continue
+
+            name = name_match.group(1).strip()
+            device_type_str = type_match.group(1).strip().lower() if type_match else ""
+            # Skip software/CPU renderers (e.g. lavapipe, llvmpipe)
+            if "cpu" in device_type_str or "virtual_gpu" in device_type_str:
+                continue
+
+            devices.append(
+                DetectedDevice(
+                    hardware_id=f"vulkan:{idx}",
+                    name=name,
+                    vendor="vulkan",
+                    device_type="gpu",
+                    memory_mb=0,
+                )
+            )
+        return devices
+
     def _detect_cpu(self) -> list[DetectedDevice]:
         cores = psutil.cpu_count(logical=False) or 1
         threads = psutil.cpu_count(logical=True) or cores
@@ -499,6 +538,16 @@ class DeviceManager:
                     hardware_id="intel:0",
                     name="Intel GPU",
                     vendor="intel",
+                    device_type="gpu",
+                    memory_mb=0,
+                )
+            )
+        if "vulkan" in vendors:
+            devices.append(
+                DetectedDevice(
+                    hardware_id="vulkan:0",
+                    name="Vulkan GPU",
+                    vendor="vulkan",
                     device_type="gpu",
                     memory_mb=0,
                 )
