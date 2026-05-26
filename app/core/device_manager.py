@@ -35,7 +35,7 @@ class DetectedDevice:
     device_type: str
     memory_mb: int
     max_threads: int = 0
-    max_slots: int = 1
+    max_slots: int = 0
 
 
 class DeviceManager:
@@ -90,7 +90,7 @@ class DeviceManager:
                 row.memory_mb = d.memory_mb
                 if row.device_type == "cpu":
                     row.max_threads = d.max_threads or row.max_threads
-                    row.max_slots = max(1, d.max_slots)
+                    row.max_slots = max(0, d.max_slots)
                 if auto_enable_defaults:
                     row.enabled = enabled
 
@@ -146,7 +146,7 @@ class DeviceManager:
             device_type = str(row.get("device_type", "gpu"))
             memory_mb = int(row.get("memory_mb", 0) or 0)
             max_threads = int(row.get("max_threads", 0) or 0)
-            max_slots = int(row.get("max_slots", 1) or 1)
+            max_slots = int(row.get("max_slots", 0) or 0)
         except (KeyError, TypeError, ValueError):
             return None
 
@@ -157,7 +157,7 @@ class DeviceManager:
             device_type=device_type,
             memory_mb=memory_mb,
             max_threads=max_threads,
-            max_slots=max(1, max_slots),
+            max_slots=max(0, max_slots),
         )
 
     def _run(self, command: str) -> str:
@@ -182,7 +182,7 @@ class DeviceManager:
                     vendor="nvidia",
                     device_type="gpu",
                     memory_mb=int(parts[2] or "0"),
-                    max_slots=1,
+                    max_slots=0,
                 )
             )
         return devices
@@ -271,7 +271,7 @@ class DeviceManager:
                 device_type="cpu",
                 memory_mb=memory_mb,
                 max_threads=threads,
-                max_slots=1,
+                max_slots=0,
             )
         ]
 
@@ -293,6 +293,7 @@ class DeviceManager:
                     vendor="nvidia",
                     device_type="gpu",
                     memory_mb=0,
+                    max_slots=0,
                 )
             )
         if "vulkan" in vendors:
@@ -303,6 +304,7 @@ class DeviceManager:
                     vendor="vulkan",
                     device_type="gpu",
                     memory_mb=0,
+                    max_slots=0,
                 )
             )
         return devices

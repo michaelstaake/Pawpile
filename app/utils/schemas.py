@@ -137,7 +137,7 @@ class DeviceUpdateRequest(BaseModel):
     enabled: bool | None = None
     priority: int | None = None
     max_threads: int | None = None
-    max_slots: int | None = None
+    max_slots: int | None = Field(default=None, ge=0)
 
 
 class GpuPoolCreateRequest(BaseModel):

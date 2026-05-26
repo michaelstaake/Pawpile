@@ -28,6 +28,19 @@ function vendorLabel(vendor: string) {
   return vendor === "nvidia" ? "NVIDIA" : vendor === "vulkan" ? "Vulkan" : vendor;
 }
 
+function parseNonNegativeInput(value: string) {
+  const parsed = Number(value);
+  if (Number.isNaN(parsed)) {
+    return 0;
+  }
+
+  return Math.max(0, parsed);
+}
+
+function formatSlotCapacity(slots: number) {
+  return slots === 0 ? "Unlimited" : `${slots} slot${slots === 1 ? "" : "s"}`;
+}
+
 type DevicesPageProps = {
   setupMode?: boolean;
   onContinue?: () => void;
@@ -559,7 +572,8 @@ export default function DevicesPage({ setupMode = false, onContinue }: DevicesPa
                   </label>
                   <label className="grid gap-1 text-sm text-black/70">
                     Max Slots
-                    <input className="rounded-xl border border-black/15 bg-white px-3 py-2 text-sm" type="number" min={1} value={device.max_slots} onChange={(event) => updateDeviceDraft(device.id, { max_slots: Number(event.target.value) || 1 })} />
+                    <input className="rounded-xl border border-black/15 bg-white px-3 py-2 text-sm" type="number" min={0} value={device.max_slots} onChange={(event) => updateDeviceDraft(device.id, { max_slots: parseNonNegativeInput(event.target.value) })} />
+                    <span className="text-xs text-black/45">{formatSlotCapacity(device.max_slots)}</span>
                   </label>
                 </div>
 

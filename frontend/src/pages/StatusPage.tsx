@@ -47,6 +47,10 @@ function colorForModel(index: number) {
   return FALLBACK_MODEL_COLORS[(index - PRIMARY_MODEL_COLORS.length) % FALLBACK_MODEL_COLORS.length];
 }
 
+function formatSlotCapacity(slots: number) {
+  return slots === 0 ? "unlimited" : numberFormatter.format(slots);
+}
+
 function DeviceCard({ device, isPooled }: { device: DeviceStatusRecord; isPooled: boolean }) {
   const usagePercent = clampPercent(device.usage_percent);
   const hasUsage = device.usage_percent !== null;
@@ -65,7 +69,7 @@ function DeviceCard({ device, isPooled }: { device: DeviceStatusRecord; isPooled
             )}
           </div>
           <p className="mt-2 text-sm text-black/65">
-            {device.vendor} {device.device_type} · {device.hardware_id} · {device.models.length}/{device.max_slots} slots active
+            {device.vendor} {device.device_type} · {device.hardware_id} · {device.models.length}/{formatSlotCapacity(device.max_slots)} slots active
           </p>
         </div>
       </div>
