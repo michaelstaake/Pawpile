@@ -12,6 +12,13 @@ const ASSIGNMENT_MODE_OPTIONS = [
   { label: "Pool", value: "pool" },
 ] as const;
 
+const CONTEXT_LENGTH_MODE_OPTIONS = [
+  { label: "Auto", value: "auto" },
+  { label: "Custom", value: "custom" },
+] as const;
+
+type ContextLengthMode = (typeof CONTEXT_LENGTH_MODE_OPTIONS)[number]["value"];
+
 type ModelsPageProps = {
   setupMode?: boolean;
   onComplete?: () => void;
@@ -94,6 +101,7 @@ export default function ModelsPage({ setupMode = false, onComplete }: ModelsPage
   const [pools, setPools] = useState<GpuPoolRecord[]>([]);
   const [settingsModelId, setSettingsModelId] = useState<number | null>(null);
   const [modalDraft, setModalDraft] = useState<ModelRecord | null>(null);
+  const [modalContextLengthMode, setModalContextLengthMode] = useState<ContextLengthMode>("custom");
   const [modalNumericDrafts, setModalNumericDraftsState] = useState<Record<string, string>>({});
   const [isSavingModal, setIsSavingModal] = useState(false);
   const [modalError, setModalError] = useState("");
@@ -365,6 +373,7 @@ export default function ModelsPage({ setupMode = false, onComplete }: ModelsPage
   function openSettingsModal(model: ModelRecord) {
     setSettingsModelId(model.id);
     setModalDraft({ ...model });
+    setModalContextLengthMode(model.max_context_length != null && model.context_length === model.max_context_length ? "auto" : "custom");
     setModalNumericDraftsState({});
     setModalError("");
   }
@@ -372,6 +381,7 @@ export default function ModelsPage({ setupMode = false, onComplete }: ModelsPage
   function closeSettingsModal() {
     setSettingsModelId(null);
     setModalDraft(null);
+    setModalContextLengthMode("custom");
     setModalNumericDraftsState({});
     setModalError("");
   }
@@ -393,6 +403,22 @@ export default function ModelsPage({ setupMode = false, onComplete }: ModelsPage
     const parsed = parseFloat(value);
     if (!isNaN(parsed) && value.trim() !== "") {
       updateModalDraft({ [field]: clamp(parsed) } as Partial<ModelRecord>);
+    }
+  }
+
+  function updateModalContextLengthMode(mode: ContextLengthMode) {
+    setModalContextLengthMode(mode);
+    setModalNumericDraftsState((current) => {
+      if (!("context_length" in current)) {
+        return current;
+      }
+      const next = { ...current };
+      delete next.context_length;
+      return next;
+    });
+
+    if (mode === "auto" && modalDraft?.max_context_length != null) {
+      updateModalDraft({ context_length: modalDraft.max_context_length });
     }
   }
 
@@ -596,15 +622,49 @@ export default function ModelsPage({ setupMode = false, onComplete }: ModelsPage
                     Description
                     <input className="rounded-xl border border-black/15 bg-white px-3 py-2 text-sm" value={modalDraft.description} onChange={(event) => updateModalDraft({ description: event.target.value })} />
                   </label>
+                </div>
+              </section>
+
+              <section>
+                <p className="mb-3 text-xs font-semibold uppercase tracking-[0.2em] text-black/45">Context Length</p>
+                <div className="grid gap-3 md:grid-cols-2">
+                  <label className="grid gap-1 text-sm text-black/70">
+                    Mode
+                    <select
+                      className="rounded-xl border border-black/15 bg-white px-3 py-2 text-sm"
+                      value={modalContextLengthMode}
+                      onChange={(event) => updateModalContextLengthMode(event.target.value as ContextLengthMode)}
+                    >
+                      {CONTEXT_LENGTH_MODE_OPTIONS.map((option) => (
+                        <option key={option.value} value={option.value} disabled={option.value === "auto" && modalDraft.max_context_length == null}>
+                          {option.label}
+                        </option>
+                      ))}
+                    </select>
+                  </label>
                   <label className="grid gap-1 text-sm text-black/70">
                     Context Length
-                    <input className="rounded-xl border border-black/15 bg-white px-3 py-2 text-sm" type="number" min={256} value={modalNumericDrafts.context_length ?? String(modalDraft.context_length)} onChange={(event) => setModalNumericDraft("context_length", event.target.value)} onBlur={(event) => commitModalNumericDraft("context_length", event.target.value, (n) => Math.max(256, Math.round(n)))} />
+                    <input
+                      className="rounded-xl border border-black/15 bg-white px-3 py-2 text-sm disabled:bg-black/5 disabled:text-black/45"
+                      type="number"
+                      min={256}
+                      value={modalNumericDrafts.context_length ?? String(modalDraft.context_length)}
+                      onChange={(event) => setModalNumericDraft("context_length", event.target.value)}
+                      onBlur={(event) => commitModalNumericDraft("context_length", event.target.value, (n) => Math.max(256, Math.round(n)))}
+                      disabled={modalContextLengthMode === "auto"}
+                    />
                   </label>
-                  <label className="flex items-center gap-2 rounded-xl border border-black/10 bg-white px-3 py-2 text-sm text-black/70 md:self-end">
+                </div>
+              </section>
+
+              <section>
+                <p className="mb-3 text-xs font-semibold uppercase tracking-[0.2em] text-black/45">Features</p>
+                <div className="grid gap-3 md:grid-cols-2">
+                  <label className="flex items-center gap-2 rounded-xl border border-black/10 bg-white px-3 py-2 text-sm text-black/70">
                     <input type="checkbox" checked={modalDraft.tool_calling_enabled} onChange={(event) => updateModalDraft({ tool_calling_enabled: event.target.checked })} />
                     Tool Calling Enabled
                   </label>
-                  <label className="flex items-center gap-2 rounded-xl border border-black/10 bg-white px-3 py-2 text-sm text-black/70 md:self-end">
+                  <label className="flex items-center gap-2 rounded-xl border border-black/10 bg-white px-3 py-2 text-sm text-black/70">
                     <input type="checkbox" checked={modalDraft.thinking_enabled} onChange={(event) => updateModalDraft({ thinking_enabled: event.target.checked })} />
                     Thinking Enabled
                   </label>

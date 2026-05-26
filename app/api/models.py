@@ -10,6 +10,7 @@ from app.core.activity_logger import log_event
 from app.core.config import get_settings
 from app.core.db import get_db
 from app.core.device_manager import is_supported_vendor
+from app.core.gguf import read_gguf_max_context_length
 from app.core.inference_manager import InferenceManager, PoolActivationTarget
 from app.models.device import Device
 from app.models.gpu_pool import GpuPool, GpuPoolDevice
@@ -475,6 +476,7 @@ def _serialize_model(model: ModelConfig) -> dict:
         file_size = os.path.getsize(model.file_path)
     except OSError:
         file_size = None
+    max_context_length = read_gguf_max_context_length(model.file_path)
     return {
         "id": model.id,
         "priority": model.priority,
@@ -485,6 +487,7 @@ def _serialize_model(model: ModelConfig) -> dict:
         "description": model.description,
         "system_prompt": model.system_prompt,
         "chat_template": model.chat_template,
+        "max_context_length": max_context_length,
         "context_length": model.context_length,
         "gpu_layers": model.gpu_layers,
         "threads": model.threads,

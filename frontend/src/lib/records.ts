@@ -25,6 +25,7 @@ export type ModelRecord = {
   description: string;
   system_prompt: string;
   chat_template: string;
+  max_context_length: number | null;
   context_length: number;
   gpu_layers: number;
   threads: number;
