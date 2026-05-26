@@ -76,13 +76,21 @@ The backend stores its SQLite database in a Docker-managed volume. Model files s
 
 8. ENJOY! Next time you run Pawpile, run it without `--build` to speed up initialization.
 
-9. To stop Pawpile, run:
+9. To stop Pawpile, use the command that matches the profiles you started with:
 
 ```bash
 docker compose down
 ```
 
-This stops all containers regardless of which GPU profiles were active when you started.
+For GPU-enabled stacks, use one of these instead:
+
+```bash
+docker compose --profile nvidia down
+docker compose --profile vulkan down
+docker compose --profile nvidia --profile vulkan down
+```
+
+Docker Compose only stops services in the currently supplied profile set, so the `down` command must use the same profiles as `up`.
 
 ## Interacting with the AI Models
 
