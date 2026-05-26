@@ -577,7 +577,7 @@ export default function ModelsPage({ setupMode = false, onComplete }: ModelsPage
           </div>
           <div className="flex flex-wrap items-center gap-2">
             <button
-              className="rounded-xl bg-amber px-4 py-2 text-sm font-semibold text-black transition hover:bg-[#d9a944] disabled:cursor-not-allowed disabled:opacity-60"
+              className="rounded-xl border border-black/15 px-4 py-2 text-sm font-semibold text-black transition hover:bg-black/5 disabled:cursor-not-allowed disabled:opacity-60"
               type="button"
               onClick={() => setIsUploadModalOpen(true)}
               disabled={isUploading}
