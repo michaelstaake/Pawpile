@@ -477,7 +477,7 @@ export default function ModelsPage({ setupMode = false, onComplete }: ModelsPage
 
         <form className="mt-3 grid gap-3 rounded-2xl border border-dashed border-black/15 bg-sand/70 p-4" onSubmit={handleUpload}>
           <h3 className="font-display text-base">Upload GGUF Model</h3>
-          <input id="model-upload-input" className="block w-full rounded-xl border border-black/15 bg-white px-3 py-2 text-sm file:mr-3 file:rounded-lg file:border-0 file:bg-amber file:px-3 file:py-2 file:font-semibold" type="file" accept=".gguf" onChange={(event) => setSelectedFile(event.target.files?.[0] ?? null)} />
+            <input id="model-upload-input" className="block w-full rounded-xl border border-black/15 bg-white px-3 py-2 text-sm file:mr-3 file:rounded-lg file:border-0 file:bg-amber file:px-3 file:py-2 file:font-semibold disabled:cursor-not-allowed disabled:opacity-60" type="file" accept=".gguf" onChange={(event) => setSelectedFile(event.target.files?.[0] ?? null)} disabled={isUploading} />
           {isUploading && uploadTotal > 0 ? (
             <div className="grid gap-2 rounded-xl border border-black/10 bg-white/70 px-3 py-3">
               <div className="flex items-center justify-between gap-3 text-sm text-black/70">
