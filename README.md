@@ -10,8 +10,8 @@ It supports x86_64 CPUs, NVIDIA GPUs, AMD GPUs, and Intel Arc GPUs. You can have
 
 - **CPU**: x86_64
 - **NVIDIA**: CUDA
-- **AMD**: ROCm
-- **Intel Arc**: Note: `xe` is the correct driver for supported Arc GPUs - `i915` is not supported.
+- **AMD**: ROCm or Vulkan
+- **Intel Arc**: Sycl or Vulkan. Note: `xe` is the correct driver for supported Arc GPUs - `i915` is not supported.
 
 ### Ubuntu 26.04
 
@@ -54,11 +54,27 @@ docker compose --profile nvidia up -d --build
 
 #### CPU + AMD:
 
+To use Vulkan (recommended), use the vulkan profile:
+
+```bash
+docker compose --profile vulkan up -d --build
+```
+
+To use ROCm, use the amd profile:
+
 ```bash
 docker compose --profile amd up -d --build
 ```
 
 #### CPU + Intel:
+
+To use Vulkan (recommended), use the vulkan profile:
+
+```bash
+docker compose --profile vulkan up -d --build
+```
+
+To use Sycl, use the intel profile:
 
 ```bash
 docker compose --profile intel up -d --build
