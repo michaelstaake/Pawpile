@@ -39,6 +39,26 @@ function formatMemory(memoryMb: number) {
   return `${numberFormatter.format(memoryMb)} MB`;
 }
 
+function hasKnownMemoryCapacity(memoryTotalMb: number) {
+  return memoryTotalMb > 0;
+}
+
+function getMemoryPercent(memoryUsedMb: number, memoryTotalMb: number) {
+  if (!hasKnownMemoryCapacity(memoryTotalMb)) {
+    return null;
+  }
+
+  return clampPercent((memoryUsedMb / memoryTotalMb) * 100);
+}
+
+function formatMemorySummary(memoryUsedMb: number, memoryTotalMb: number) {
+  if (!hasKnownMemoryCapacity(memoryTotalMb)) {
+    return formatMemory(memoryUsedMb);
+  }
+
+  return `${formatMemory(memoryUsedMb)} of ${formatMemory(memoryTotalMb)}`;
+}
+
 function colorForModel(index: number) {
   if (index < PRIMARY_MODEL_COLORS.length) {
     return PRIMARY_MODEL_COLORS[index];
@@ -54,9 +74,12 @@ function formatSlotCapacity(slots: number) {
 function DeviceCard({ device, isPooled }: { device: DeviceStatusRecord; isPooled: boolean }) {
   const usagePercent = clampPercent(device.usage_percent);
   const hasUsage = device.usage_percent !== null;
-  const memoryPercent = clampPercent((device.memory_used_mb / Math.max(1, device.memory_total_mb)) * 100);
+  const memoryPercent = getMemoryPercent(device.memory_used_mb, device.memory_total_mb);
   const modelMemoryTotal = device.models.reduce((sum, model) => sum + model.memory_used_mb, 0);
-  const unassignedMemoryPercent = clampPercent(memoryPercent - clampPercent((modelMemoryTotal / Math.max(1, device.memory_total_mb)) * 100));
+  const assignedMemoryPercent = getMemoryPercent(modelMemoryTotal, device.memory_total_mb);
+  const unassignedMemoryPercent = memoryPercent !== null && assignedMemoryPercent !== null
+    ? clampPercent(memoryPercent - assignedMemoryPercent)
+    : 0;
 
   return (
     <article className="overflow-hidden rounded-[28px] border border-black/10 bg-white/80 p-5 shadow-sm backdrop-blur">
@@ -96,22 +119,22 @@ function DeviceCard({ device, isPooled }: { device: DeviceStatusRecord; isPooled
             <div className="flex items-center justify-between gap-3">
               <div>
                 <p className="text-xs font-semibold uppercase tracking-[0.24em] text-black/45">Memory</p>
-                <p className="mt-1 text-sm text-black/65">{formatMemory(device.memory_used_mb)} of {formatMemory(device.memory_total_mb)}</p>
+                <p className="mt-1 text-sm text-black/65">{formatMemorySummary(device.memory_used_mb, device.memory_total_mb)}</p>
               </div>
-              <p className="font-display text-2xl text-ink">{memoryPercent.toFixed(1)}%</p>
+              <p className="font-display text-2xl text-ink">{memoryPercent !== null ? `${memoryPercent.toFixed(1)}%` : "N/A"}</p>
             </div>
             <div className="mt-4 flex h-4 overflow-hidden rounded-full bg-black/10">
-              {device.models.map((model, index) => (
+              {memoryPercent !== null ? device.models.map((model, index) => (
                 <div
                   key={`${device.id}-memory-${model.model_id}`}
                   className="h-full first:rounded-l-full last:rounded-r-full"
                   style={{
-                    width: `${clampPercent((model.memory_used_mb / Math.max(1, device.memory_total_mb)) * 100)}%`,
+                    width: `${getMemoryPercent(model.memory_used_mb, device.memory_total_mb) ?? 0}%`,
                     backgroundColor: colorForModel(index),
                   }}
                   title={`${model.alias}: ${formatMemory(model.memory_used_mb)}`}
                 />
-              ))}
+              )) : <div className="h-full w-full bg-black/25" title="Memory capacity unavailable" />}
               {unassignedMemoryPercent > 0 ? <div className="h-full bg-black/20" style={{ width: `${unassignedMemoryPercent}%` }} title="Used by runtime or system overhead" /> : null}
             </div>
           </section>
@@ -203,16 +226,19 @@ export default function StatusPage() {
     const activeModels = visibleDevices.reduce((sum, device) => sum + device.models.length, 0);
     const totalMemory = visibleDevices.reduce((sum, device) => sum + device.memory_total_mb, 0);
     const usedMemory = visibleDevices.reduce((sum, device) => sum + device.memory_used_mb, 0);
+    const hasKnownTotalMemory = totalMemory > 0;
     const devicesWithUsage = visibleDevices.filter((device) => device.usage_percent !== null);
     const averageUsage = devicesWithUsage.length > 0
       ? devicesWithUsage.reduce((sum, device) => sum + clampPercent(device.usage_percent), 0) / devicesWithUsage.length
       : 0;
+    const memoryUsagePercent = hasKnownTotalMemory ? getMemoryPercent(usedMemory, totalMemory) : null;
 
     return {
       onlineDevices: visibleDevices.length,
       activeModels,
       totalMemory,
       usedMemory,
+      memoryUsagePercent,
       averageUsage,
       devicesWithUsageCount: devicesWithUsage.length,
     };
@@ -227,8 +253,8 @@ export default function StatusPage() {
           <div className="flex flex-col gap-3 sm:flex-row">
             <div className="rounded-2xl border border-black/10 bg-white/75 p-4">
               <p className="text-xs font-semibold uppercase tracking-[0.24em] text-black/45">Memory Usage</p>
-              <p className="mt-2 font-display text-3xl text-ink">{summary.totalMemory > 0 ? `${clampPercent((summary.usedMemory / summary.totalMemory) * 100).toFixed(1)}%` : "0.0%"}</p>
-              <p className="mt-1 text-sm text-black/55">{formatMemory(summary.usedMemory)} of {formatMemory(summary.totalMemory)}</p>
+              <p className="mt-2 font-display text-3xl text-ink">{summary.memoryUsagePercent !== null ? `${summary.memoryUsagePercent.toFixed(1)}%` : "N/A"}</p>
+              <p className="mt-1 text-sm text-black/55">{formatMemorySummary(summary.usedMemory, summary.totalMemory)}</p>
             </div>
             <div className="rounded-2xl border border-black/10 bg-white/75 p-4">
               <p className="text-xs font-semibold uppercase tracking-[0.24em] text-black/45">Average Usage</p>
