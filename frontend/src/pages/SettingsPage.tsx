@@ -6,7 +6,7 @@ import UsersPage from "./UsersPage";
 type SettingsTab = "general" | "users" | "logs";
 
 const tabs: { id: SettingsTab; label: string }[] = [
-  { id: "general", label: "General" },
+  { id: "general", label: "Configuration" },
   { id: "users", label: "Users" },
   { id: "logs", label: "Logs" },
 ];

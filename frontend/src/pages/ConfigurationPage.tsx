@@ -80,7 +80,7 @@ export default function ConfigurationPage() {
       ) : null}
 
       <article className="rounded-2xl border border-black/10 bg-white/80 p-5 shadow-sm backdrop-blur">
-        <h2 className="font-display text-xl">General</h2>
+        <h2 className="font-display text-xl">Configuration</h2>
 
         <div className="mt-5 grid gap-3">
           <div className="flex flex-col gap-2 rounded-2xl border border-black/10 bg-[#fffdf7] px-4 py-4">
@@ -113,13 +113,6 @@ export default function ConfigurationPage() {
               />
             </div>
           </div>
-        </div>
-      </article>
-
-      <article className="rounded-2xl border border-black/10 bg-white/80 p-5 shadow-sm backdrop-blur">
-        <h2 className="font-display text-xl">Access control</h2>
-
-        <div className="mt-5 grid gap-3">
           <label className="flex items-start justify-between gap-4 rounded-2xl border border-black/10 bg-[#fffdf7] px-4 py-4">
             <div>
               <div className="text-sm font-semibold text-black">Users can register</div>
