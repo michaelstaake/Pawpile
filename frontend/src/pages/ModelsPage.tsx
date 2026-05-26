@@ -753,11 +753,13 @@ export default function ModelsPage({ setupMode = false, onComplete }: ModelsPage
                 <p className="mb-3 text-xs font-semibold uppercase tracking-[0.2em] text-black/45">General</p>
                 <div className="grid gap-3 md:grid-cols-2">
                   <label className="grid gap-1 text-sm text-black/70 md:col-span-2">
-                    Name
+                    <span>Name</span>
+                    <span className="text-xs text-black/45">Shown in model lists and chat.</span>
                     <input className="rounded-xl border border-black/15 bg-white px-3 py-2 text-sm" value={modalDraft.alias} onChange={(event) => updateModalDraft({ alias: event.target.value })} />
                   </label>
                   <label className="grid gap-1 text-sm text-black/70 md:col-span-2">
-                    Description
+                    <span>Description</span>
+                    <span className="text-xs text-black/45">Short note for admins and users.</span>
                     <input className="rounded-xl border border-black/15 bg-white px-3 py-2 text-sm" value={modalDraft.description} onChange={(event) => updateModalDraft({ description: event.target.value })} />
                   </label>
                 </div>
@@ -767,7 +769,8 @@ export default function ModelsPage({ setupMode = false, onComplete }: ModelsPage
                 <p className="mb-3 text-xs font-semibold uppercase tracking-[0.2em] text-black/45">Context Length</p>
                 <div className="grid gap-3 md:grid-cols-2">
                   <label className="grid gap-1 text-sm text-black/70">
-                    Mode
+                    <span>Mode</span>
+                    <span className="text-xs text-black/45">Auto uses the model default limit.</span>
                     <select
                       className="rounded-xl border border-black/15 bg-white px-3 py-2 text-sm"
                       value={modalContextLengthMode}
@@ -781,7 +784,8 @@ export default function ModelsPage({ setupMode = false, onComplete }: ModelsPage
                     </select>
                   </label>
                   <label className="grid gap-1 text-sm text-black/70">
-                    Context Length
+                    <span>Context Length</span>
+                    <span className="text-xs text-black/45">Maximum tokens kept in context.</span>
                     <input
                       className="rounded-xl border border-black/15 bg-white px-3 py-2 text-sm disabled:bg-black/5 disabled:text-black/45"
                       type="number"
@@ -798,13 +802,19 @@ export default function ModelsPage({ setupMode = false, onComplete }: ModelsPage
               <section>
                 <p className="mb-3 text-xs font-semibold uppercase tracking-[0.2em] text-black/45">Features</p>
                 <div className="grid gap-3 md:grid-cols-2">
-                  <label className="flex items-center gap-2 rounded-xl border border-black/10 bg-white px-3 py-2 text-sm text-black/70">
-                    <input type="checkbox" checked={modalDraft.tool_calling_enabled} onChange={(event) => updateModalDraft({ tool_calling_enabled: event.target.checked })} />
-                    Tool Calling Enabled
+                  <label className="flex gap-3 rounded-xl border border-black/10 bg-white px-3 py-2 text-sm text-black/70">
+                    <input className="mt-1" type="checkbox" checked={modalDraft.tool_calling_enabled} onChange={(event) => updateModalDraft({ tool_calling_enabled: event.target.checked })} />
+                    <span className="grid gap-0.5">
+                      <span className="text-sm text-black/70">Tool Calling Enabled</span>
+                      <span className="text-xs text-black/45">Lets this model call tools.</span>
+                    </span>
                   </label>
-                  <label className="flex items-center gap-2 rounded-xl border border-black/10 bg-white px-3 py-2 text-sm text-black/70">
-                    <input type="checkbox" checked={modalDraft.thinking_enabled} onChange={(event) => updateModalDraft({ thinking_enabled: event.target.checked })} />
-                    Thinking Enabled
+                  <label className="flex gap-3 rounded-xl border border-black/10 bg-white px-3 py-2 text-sm text-black/70">
+                    <input className="mt-1" type="checkbox" checked={modalDraft.thinking_enabled} onChange={(event) => updateModalDraft({ thinking_enabled: event.target.checked })} />
+                    <span className="grid gap-0.5">
+                      <span className="text-sm text-black/70">Thinking Enabled</span>
+                      <span className="text-xs text-black/45">Allows extended reasoning features.</span>
+                    </span>
                   </label>
                 </div>
               </section>
@@ -813,7 +823,8 @@ export default function ModelsPage({ setupMode = false, onComplete }: ModelsPage
                 <p className="mb-3 text-xs font-semibold uppercase tracking-[0.2em] text-black/45">Devices</p>
                 <div className="grid gap-3 md:grid-cols-2">
                   <label className="grid gap-1 text-sm text-black/70">
-                    Assignment Mode
+                    <span>Assignment Mode</span>
+                    <span className="text-xs text-black/45">Auto lets Pawpile choose the hardware.</span>
                     <select className="rounded-xl border border-black/15 bg-white px-3 py-2 text-sm" value={getAssignmentUiMode(modalDraft)} onChange={(event) => {
                       const mode = event.target.value as AssignmentUiMode;
                       if (mode === "auto") {
@@ -835,7 +846,8 @@ export default function ModelsPage({ setupMode = false, onComplete }: ModelsPage
                     </select>
                   </label>
                   <label className="grid gap-1 text-sm text-black/70">
-                    Assignment Target
+                    <span>Assignment Target</span>
+                    <span className="text-xs text-black/45">Pick the device or GPU pool to use.</span>
                     <select
                       className="rounded-xl border border-black/15 bg-white px-3 py-2 text-sm disabled:bg-black/5"
                       value={getAssignmentTargetValue(modalDraft)}
@@ -851,11 +863,13 @@ export default function ModelsPage({ setupMode = false, onComplete }: ModelsPage
                     </select>
                   </label>
                   <label className="grid gap-1 text-sm text-black/70">
-                    GPU Layers
+                    <span>GPU Layers</span>
+                    <span className="text-xs text-black/45">How many layers to offload to the GPU.</span>
                     <input className="rounded-xl border border-black/15 bg-white px-3 py-2 text-sm" type="number" value={modalNumericDrafts.gpu_layers ?? String(modalDraft.gpu_layers)} onChange={(event) => setModalNumericDraft("gpu_layers", event.target.value)} onBlur={(event) => commitModalNumericDraft("gpu_layers", event.target.value, (n) => Math.max(0, Math.round(n)))} />
                   </label>
                   <label className="grid gap-1 text-sm text-black/70">
-                    Threads
+                    <span>Threads</span>
+                    <span className="text-xs text-black/45">CPU worker threads for this model.</span>
                     <input className="rounded-xl border border-black/15 bg-white px-3 py-2 text-sm" type="number" min={1} value={modalNumericDrafts.threads ?? String(modalDraft.threads)} onChange={(event) => setModalNumericDraft("threads", event.target.value)} onBlur={(event) => commitModalNumericDraft("threads", event.target.value, (n) => Math.max(1, Math.round(n)))} />
                   </label>
                 </div>
@@ -865,19 +879,23 @@ export default function ModelsPage({ setupMode = false, onComplete }: ModelsPage
                 <p className="mb-3 text-xs font-semibold uppercase tracking-[0.2em] text-black/45">Behavior</p>
                 <div className="grid gap-3 md:grid-cols-2">
                   <label className="grid gap-1 text-sm text-black/70">
-                    Temperature
+                    <span>Temperature</span>
+                    <span className="text-xs text-black/45">Higher values make replies less deterministic.</span>
                     <input className="rounded-xl border border-black/15 bg-white px-3 py-2 text-sm" type="number" min={0} max={2} step={0.05} value={modalNumericDrafts.temperature ?? String(modalDraft.temperature)} onChange={(event) => setModalNumericDraft("temperature", event.target.value)} onBlur={(event) => commitModalNumericDraft("temperature", event.target.value, (n) => Math.min(2, Math.max(0, n)))} />
                   </label>
                   <label className="grid gap-1 text-sm text-black/70">
-                    Top P
+                    <span>Top P</span>
+                    <span className="text-xs text-black/45">Limits sampling to likely next tokens.</span>
                     <input className="rounded-xl border border-black/15 bg-white px-3 py-2 text-sm" type="number" min={0} max={1} step={0.05} value={modalNumericDrafts.top_p ?? String(modalDraft.top_p)} onChange={(event) => setModalNumericDraft("top_p", event.target.value)} onBlur={(event) => commitModalNumericDraft("top_p", event.target.value, (n) => Math.min(1, Math.max(0, n)))} />
                   </label>
                   <label className="grid gap-1 text-sm text-black/70 md:col-span-2">
-                    System Prompt
+                    <span>System Prompt</span>
+                    <span className="text-xs text-black/45">Default instructions sent with each chat.</span>
                     <textarea className="min-h-24 rounded-xl border border-black/15 bg-white px-3 py-2 text-sm" value={modalDraft.system_prompt} onChange={(event) => updateModalDraft({ system_prompt: event.target.value })} />
                   </label>
                   <label className="grid gap-1 text-sm text-black/70 md:col-span-2">
-                    Chat Template
+                    <span>Chat Template</span>
+                    <span className="text-xs text-black/45">Formats messages for this model.</span>
                     <textarea className="min-h-24 rounded-xl border border-black/15 bg-white px-3 py-2 text-sm" value={modalDraft.chat_template} onChange={(event) => updateModalDraft({ chat_template: event.target.value })} />
                   </label>
                 </div>

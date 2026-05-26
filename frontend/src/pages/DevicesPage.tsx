@@ -38,10 +38,6 @@ function parseNonNegativeInput(value: string) {
   return Math.max(0, parsed);
 }
 
-function formatSlotCapacity(slots: number) {
-  return slots === 0 ? "Unlimited" : `${slots} slot${slots === 1 ? "" : "s"}`;
-}
-
 type DevicesPageProps = {
   setupMode?: boolean;
   onContinue?: () => void;
@@ -470,11 +466,13 @@ export default function DevicesPage({ setupMode = false, onContinue }: DevicesPa
                   </p>
                   <div className="grid gap-3">
                     <label className="grid gap-1 text-sm text-black/70">
-                      Pool Name
+                      <span>Pool Name</span>
+                      <span className="text-xs text-black/45">Shown when assigning models.</span>
                       <input className="rounded-xl border border-black/15 bg-white px-3 py-2 text-sm" value={poolDraftName} onChange={(event) => setPoolDraftName(event.target.value)} />
                     </label>
                     <label className="grid gap-1 text-sm text-black/70">
-                      Pool Vendor
+                      <span>Pool Vendor</span>
+                      <span className="text-xs text-black/45">Keeps the pool on one GPU backend.</span>
                       <select className="rounded-xl border border-black/15 bg-white px-3 py-2 text-sm" value={poolDraftVendor} onChange={(event) => setPoolDraftVendor(event.target.value as (typeof POOL_VENDORS)[number])}>
                         {draftVendorOptions.map((vendor) => (
                           <option key={vendor} value={vendor}>{vendorLabel(vendor)}</option>
@@ -483,6 +481,7 @@ export default function DevicesPage({ setupMode = false, onContinue }: DevicesPa
                     </label>
                     <div>
                       <p className="mb-2 text-xs font-semibold uppercase tracking-[0.15em] text-violet-600">Pool Members</p>
+                      <p className="mb-2 text-xs text-black/45">Pick the GPUs this pool should use together.</p>
                       <div className="space-y-2">
                         {filteredDraftDevices.length > 0 ? filteredDraftDevices.map((device) => (
                           <label key={device.id} className="flex cursor-pointer items-center gap-3 rounded-xl border border-violet-200 bg-white px-3 py-2 text-sm text-black/80 hover:bg-violet-50">
@@ -560,26 +559,28 @@ export default function DevicesPage({ setupMode = false, onContinue }: DevicesPa
 
                 <div className="mt-4 grid gap-3 md:grid-cols-2">
                   <label className="grid gap-1 text-sm text-black/70">
-                    Name
+                    <span>Name</span>
+                    <span className="text-xs text-black/45">Shown throughout the app.</span>
                     <input className="rounded-xl border border-black/15 bg-white px-3 py-2 text-sm" value={device.name} onChange={(event) => updateDeviceDraft(device.id, { name: event.target.value })} />
                   </label>
                   <label className="grid gap-1 text-sm text-black/70">
-                    Priority
+                    <span>Priority</span>
+                    <span className="text-xs text-black/45">Higher values are chosen first.</span>
                     <input className="rounded-xl border border-black/15 bg-white px-3 py-2 text-sm" type="number" value={device.priority} onChange={(event) => updateDeviceDraft(device.id, { priority: Number(event.target.value) || 0 })} />
                   </label>
                   <label className="grid gap-1 text-sm text-black/70">
-                    Max Threads
+                    <span>Max Threads</span>
+                    <span className="text-xs text-black/45">Caps worker threads for this device.</span>
                     <input className="rounded-xl border border-black/15 bg-white px-3 py-2 text-sm" type="number" value={device.max_threads} onChange={(event) => updateDeviceDraft(device.id, { max_threads: Number(event.target.value) || 0 })} />
                   </label>
                   <label className="grid gap-1 text-sm text-black/70">
-                    Max Slots
+                    <span>Max Slots</span>
+                    <span className="text-xs text-black/45">Set 0 to allow unlimited jobs.</span>
                     <input className="rounded-xl border border-black/15 bg-white px-3 py-2 text-sm" type="number" min={0} value={device.max_slots} onChange={(event) => updateDeviceDraft(device.id, { max_slots: parseNonNegativeInput(event.target.value) })} />
-                    <span className="text-xs text-black/45">{formatSlotCapacity(device.max_slots)}</span>
                   </label>
                 </div>
 
                 <div className="mt-4 flex flex-wrap items-center justify-between gap-3">
-                  <p className="break-all text-xs text-black/45">{formatDeviceIdLabel(device)} · {device.hardware_id}</p>
                   {savingDeviceIds.includes(device.id) || pendingDeviceIds.includes(device.id) ? (
                     <p className="text-sm text-black/55">
                       {savingDeviceIds.includes(device.id) ? "Saving..." : "Saving changes..."}
