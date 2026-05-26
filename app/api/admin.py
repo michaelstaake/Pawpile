@@ -18,7 +18,6 @@ def get_settings(_: User = Depends(get_admin_user), db: Session = Depends(get_db
     settings = get_or_create_app_settings(db)
     return AppSettingsResponse(
         users_can_register=settings.users_can_register,
-        auto_load_enabled_models_on_startup=settings.auto_load_enabled_models_on_startup,
         sitename=settings.sitename,
     )
 
@@ -29,8 +28,6 @@ def update_settings(payload: AppSettingsUpdateRequest, admin_user: User = Depend
 
     if payload.users_can_register is not None:
         settings.users_can_register = payload.users_can_register
-    if payload.auto_load_enabled_models_on_startup is not None:
-        settings.auto_load_enabled_models_on_startup = payload.auto_load_enabled_models_on_startup
     if payload.sitename is not None:
         settings.sitename = payload.sitename
 
@@ -40,7 +37,6 @@ def update_settings(payload: AppSettingsUpdateRequest, admin_user: User = Depend
     log_event(db, "admin.settings_changed", user_id=admin_user.id, username=admin_user.username)
     return AppSettingsResponse(
         users_can_register=settings.users_can_register,
-        auto_load_enabled_models_on_startup=settings.auto_load_enabled_models_on_startup,
         sitename=settings.sitename,
     )
 

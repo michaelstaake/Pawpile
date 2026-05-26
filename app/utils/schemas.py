@@ -102,13 +102,11 @@ class UserRegistrationRequest(BaseModel):
 
 class AppSettingsResponse(BaseModel):
     users_can_register: bool = False
-    auto_load_enabled_models_on_startup: bool = False
     sitename: str = "Pawpile"
 
 
 class AppSettingsUpdateRequest(BaseModel):
     users_can_register: bool | None = None
-    auto_load_enabled_models_on_startup: bool | None = None
     sitename: str | None = None
 
 

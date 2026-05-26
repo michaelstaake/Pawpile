@@ -122,7 +122,6 @@ export type UserUpdateResponse = {
 
 export type AppSettingsRecord = {
   users_can_register: boolean;
-  auto_load_enabled_models_on_startup: boolean;
   sitename: string;
 };
 
