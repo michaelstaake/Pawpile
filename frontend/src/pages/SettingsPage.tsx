@@ -1,16 +1,12 @@
 import { useState } from "react";
 import ConfigurationPage from "./ConfigurationPage";
-import DevicesPage from "./DevicesPage";
 import LogsPage from "./LogsPage";
-import ModelsPage from "./ModelsPage";
 import UsersPage from "./UsersPage";
 
-type SettingsTab = "general" | "devices" | "models" | "users" | "logs";
+type SettingsTab = "general" | "users" | "logs";
 
 const tabs: { id: SettingsTab; label: string }[] = [
   { id: "general", label: "General" },
-  { id: "devices", label: "Devices" },
-  { id: "models", label: "Models" },
   { id: "users", label: "Users" },
   { id: "logs", label: "Logs" },
 ];
@@ -34,8 +30,6 @@ export default function SettingsPage() {
       </div>
 
       {activeTab === "general" && <ConfigurationPage />}
-      {activeTab === "devices" && <DevicesPage />}
-      {activeTab === "models" && <ModelsPage />}
       {activeTab === "users" && <UsersPage />}
       {activeTab === "logs" && <LogsPage />}
     </div>

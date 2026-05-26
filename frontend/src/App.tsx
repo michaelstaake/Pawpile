@@ -8,6 +8,8 @@ import ProfilePage from "./pages/ProfilePage";
 import SettingsPage from "./pages/SettingsPage";
 import SetupPage from "./pages/SetupPage";
 import StatusPage from "./pages/StatusPage";
+import DevicesPage from "./pages/DevicesPage";
+import ModelsPage from "./pages/ModelsPage";
 import NotFoundPage from "./pages/NotFoundPage";
 import ForbiddenPage from "./pages/ForbiddenPage";
 import { useAuth } from "./context/AuthContext";
@@ -101,6 +103,8 @@ export default function App() {
     if (path === "/status") return "Status";
     if (path === "/apikeys" || path === "/api") return "API";
     if (path === "/settings") return "Settings";
+    if (path === "/devices") return "Devices";
+    if (path === "/models") return "Models";
     if (path === "/profile") return "Profile";
     if (path === "/login" || path === "/auth") return "Login";
     if (path === "/register") return "Register";
@@ -151,6 +155,12 @@ export default function App() {
                 <NavLink to="/apikeys" className={({ isActive }) => `rounded-lg px-3 py-2 text-sm ${isActive ? "bg-ink text-white" : "bg-black/5"}`}>API</NavLink>
               ) : null}
               {user?.is_admin ? (
+                <NavLink to="/devices" className={({ isActive }) => `rounded-lg px-3 py-2 text-sm ${isActive ? "bg-ink text-white" : "bg-black/5"}`}>Devices</NavLink>
+              ) : null}
+              {user?.is_admin ? (
+                <NavLink to="/models" className={({ isActive }) => `rounded-lg px-3 py-2 text-sm ${isActive ? "bg-ink text-white" : "bg-black/5"}`}>Models</NavLink>
+              ) : null}
+              {user?.is_admin ? (
                 <NavLink to="/settings" className={({ isActive }) => `rounded-lg px-3 py-2 text-sm ${isActive ? "bg-ink text-white" : "bg-black/5"}`}>Settings</NavLink>
               ) : null}
               {user ? (
@@ -166,8 +176,8 @@ export default function App() {
           <Route path="/" element={<HomeRoute />} />
           <Route path="/settings" element={<RequireAdmin><SettingsPage /></RequireAdmin>} />
           <Route path="/configuration" element={<RequireAdmin><Navigate to="/settings" replace /></RequireAdmin>} />
-          <Route path="/devices" element={<RequireAdmin><Navigate to="/settings" replace /></RequireAdmin>} />
-          <Route path="/models" element={<RequireAdmin><Navigate to="/settings" replace /></RequireAdmin>} />
+          <Route path="/devices" element={<RequireAdmin><DevicesPage /></RequireAdmin>} />
+          <Route path="/models" element={<RequireAdmin><ModelsPage /></RequireAdmin>} />
           <Route path="/users" element={<RequireAdmin><Navigate to="/settings" replace /></RequireAdmin>} />
           <Route path="/login" element={<AuthPage />} />
           <Route path="/register" element={<RegisterPage />} />
