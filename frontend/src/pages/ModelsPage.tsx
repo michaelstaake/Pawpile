@@ -102,6 +102,7 @@ export default function ModelsPage({ setupMode = false, onComplete }: ModelsPage
   const [isReordering, setIsReordering] = useState(false);
   const [savingModelIds, setSavingModelIds] = useState<number[]>([]);
   const [pendingModelIds, setPendingModelIds] = useState<number[]>([]);
+  const [loadingActivationIds, setLoadingActivationIds] = useState<number[]>([]);
   const [errorMessage, setErrorMessage] = useState("");
   const [successMessage, setSuccessMessage] = useState("");
   const latestModelsRef = useRef<ModelRecord[]>([]);
@@ -137,6 +138,7 @@ export default function ModelsPage({ setupMode = false, onComplete }: ModelsPage
       setDevices(devicesResponse);
       setPools(poolResponse);
       setPendingModelIds([]);
+      setLoadingActivationIds([]);
     } catch (error) {
       setErrorMessage(error instanceof Error ? error.message : "Failed to load model data");
     } finally {
@@ -341,16 +343,18 @@ export default function ModelsPage({ setupMode = false, onComplete }: ModelsPage
       return;
     }
     const nextActivated = !model.activated;
-    setModels((current) => current.map((item) => (item.id === model.id ? { ...item, activated: nextActivated } : item)));
+    setLoadingActivationIds((current) => (current.includes(model.id) ? current : [...current, model.id]));
     setErrorMessage("");
     setSuccessMessage("");
     try {
       await apiPost<Record<string, never>, { status: string }>(`/api/models/${model.id}/${nextActivated ? "activate" : "deactivate"}`, {}, token);
+      setModels((current) => current.map((item) => (item.id === model.id ? { ...item, activated: nextActivated } : item)));
       savedActivationRef.current[model.id] = nextActivated;
       setSuccessMessage(`${model.alias} ${nextActivated ? "enabled" : "disabled"}.`);
     } catch (error) {
-      setModels((current) => current.map((item) => (item.id === model.id ? { ...item, activated: model.activated } : item)));
       setErrorMessage(error instanceof Error ? error.message : "Failed to update model activation");
+    } finally {
+      setLoadingActivationIds((current) => current.filter((itemId) => itemId !== model.id));
     }
   }
 
@@ -495,44 +499,55 @@ export default function ModelsPage({ setupMode = false, onComplete }: ModelsPage
         </form>
 
         <div className="mt-5 space-y-4">
-          {models.map((model) => (
-            <article
-              key={model.id}
-              className={`rounded-2xl border border-black/10 bg-[#fffdf7] p-4 transition-shadow ${draggedModelId === model.id ? "shadow-lg ring-2 ring-amber/60" : ""}`}
-              draggable={!isReordering}
-              onDragStart={(event) => handleDragStart(event, model.id)}
-              onDragOver={handleDragOver}
-              onDragEnd={handleDragEnd}
-              onDrop={() => handleModelDrop(model.id)}
-            >
-              <div className="flex flex-wrap items-start justify-between gap-3">
-                <div className="min-w-0 flex-1">
-                  <h3 className="font-display text-base">{model.alias}</h3>
-                  <p className="mt-0.5 text-sm text-black/55">{model.file_name}</p>
-                  {model.description ? <p className="mt-1 text-sm text-black/70">{model.description}</p> : null}
+          {models.map((model) => {
+            const isActivationLoading = loadingActivationIds.includes(model.id);
+            const activationButtonClassName = isActivationLoading
+              ? "border-sky-300 bg-sky-100 text-sky-800"
+              : model.activated
+                ? "border-emerald-300 bg-emerald-100 text-emerald-800 hover:bg-emerald-200"
+                : "border-black/15 bg-white text-black/55 hover:bg-black/5";
+            const activationButtonLabel = isActivationLoading ? "Loading..." : model.activated ? "Enabled" : "Disabled";
+
+            return (
+              <article
+                key={model.id}
+                className={`rounded-2xl border border-black/10 bg-[#fffdf7] p-4 transition-shadow ${draggedModelId === model.id ? "shadow-lg ring-2 ring-amber/60" : ""}`}
+                draggable={!isReordering}
+                onDragStart={(event) => handleDragStart(event, model.id)}
+                onDragOver={handleDragOver}
+                onDragEnd={handleDragEnd}
+                onDrop={() => handleModelDrop(model.id)}
+              >
+                <div className="flex flex-wrap items-start justify-between gap-3">
+                  <div className="min-w-0 flex-1">
+                    <h3 className="font-display text-base">{model.alias}</h3>
+                    <p className="mt-0.5 text-sm text-black/55">{model.file_name}</p>
+                    {model.description ? <p className="mt-1 text-sm text-black/70">{model.description}</p> : null}
+                  </div>
+                  <div className="flex flex-wrap items-center gap-2">
+                    {savingModelIds.includes(model.id) || pendingModelIds.includes(model.id) ? (
+                      <span className="text-xs text-black/45">{savingModelIds.includes(model.id) ? "Saving..." : "Pending..."}</span>
+                    ) : null}
+                    <button
+                      type="button"
+                      onClick={() => void toggleModelActivation(model)}
+                      className={`cursor-pointer rounded-lg border px-3 py-1.5 text-xs font-semibold shadow-sm transition-colors disabled:cursor-not-allowed ${activationButtonClassName}`}
+                      disabled={isActivationLoading}
+                    >
+                      {activationButtonLabel}
+                    </button>
+                    <button
+                      className="cursor-pointer rounded-lg border border-black/15 bg-white px-3 py-1.5 text-xs font-semibold shadow-sm transition-colors hover:bg-black/5"
+                      type="button"
+                      onClick={() => openSettingsModal(model)}
+                    >
+                      Settings
+                    </button>
+                  </div>
                 </div>
-                <div className="flex flex-wrap items-center gap-2">
-                  {savingModelIds.includes(model.id) || pendingModelIds.includes(model.id) ? (
-                    <span className="text-xs text-black/45">{savingModelIds.includes(model.id) ? "Saving..." : "Pending..."}</span>
-                  ) : null}
-                  <button
-                    type="button"
-                    onClick={() => void toggleModelActivation(model)}
-                    className={`cursor-pointer rounded-lg border px-3 py-1.5 text-xs font-semibold shadow-sm transition-colors ${model.activated ? "border-emerald-300 bg-emerald-100 text-emerald-800 hover:bg-emerald-200" : "border-black/15 bg-white text-black/55 hover:bg-black/5"}`}
-                  >
-                    {model.activated ? "Enabled" : "Disabled"}
-                  </button>
-                  <button
-                    className="cursor-pointer rounded-lg border border-black/15 bg-white px-3 py-1.5 text-xs font-semibold shadow-sm transition-colors hover:bg-black/5"
-                    type="button"
-                    onClick={() => openSettingsModal(model)}
-                  >
-                    Settings
-                  </button>
-                </div>
-              </div>
-            </article>
-          ))}
+              </article>
+            );
+          })}
           {models.length === 0 ? <p className="rounded-2xl border border-dashed border-black/15 bg-sand/60 px-4 py-6 text-sm text-black/60">No models registered yet.</p> : null}
         </div>
 
