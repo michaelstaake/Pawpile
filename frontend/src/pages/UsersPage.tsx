@@ -112,7 +112,7 @@ export default function UsersPage() {
           <div>
             <h2 className="font-display text-2xl">Users</h2>
           </div>
-          <button className="rounded-xl border border-black/15 bg-white px-4 py-3 text-sm font-semibold text-black" type="button" onClick={() => setIsCreateModalOpen(true)}>
+          <button className="rounded-xl border border-black/15 bg-white px-4 py-3 text-sm font-semibold text-black transition hover:bg-black/5" type="button" onClick={() => setIsCreateModalOpen(true)}>
             Add user
           </button>
         </div>

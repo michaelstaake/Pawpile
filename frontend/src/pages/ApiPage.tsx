@@ -138,7 +138,7 @@ export default function ApiPage() {
           <div className="max-w-2xl">
             <h2 className="font-display text-2xl">API keys</h2>
           </div>
-          <button className="rounded-xl border border-black/15 bg-white px-4 py-3 text-sm font-semibold text-black" type="button" onClick={() => setIsCreateModalOpen(true)}>
+          <button className="rounded-xl border border-black/15 bg-white px-4 py-3 text-sm font-semibold text-black transition hover:bg-black/5" type="button" onClick={() => setIsCreateModalOpen(true)}>
             Add API key
           </button>
         </div>

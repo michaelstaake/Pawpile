@@ -429,7 +429,7 @@ export default function ChatPage() {
         <button
           type="button"
           onClick={startNewChat}
-          className="w-full rounded-xl bg-ink px-4 py-2 text-left text-sm font-semibold text-white"
+          className="w-full rounded-xl bg-ink px-4 py-2 text-left text-sm font-semibold text-white transition hover:bg-black"
         >
           + New Chat
         </button>

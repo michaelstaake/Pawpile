@@ -120,7 +120,7 @@ export default function ProfilePage() {
             {emailError ? <p className="rounded-xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700">{emailError}</p> : null}
             {emailSuccess ? <p className="rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-700">{emailSuccess}</p> : null}
             <button
-              className="rounded-xl bg-ink px-4 py-3 font-semibold text-white disabled:cursor-not-allowed disabled:opacity-60"
+              className="rounded-xl bg-ink px-4 py-3 font-semibold text-white transition hover:bg-black disabled:cursor-not-allowed disabled:opacity-60"
               type="submit"
               disabled={isSavingEmail}
             >
@@ -158,7 +158,7 @@ export default function ProfilePage() {
             {passwordError ? <p className="rounded-xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700">{passwordError}</p> : null}
             {passwordSuccess ? <p className="rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-700">{passwordSuccess}</p> : null}
             <button
-              className="rounded-xl bg-ink px-4 py-3 font-semibold text-white disabled:cursor-not-allowed disabled:opacity-60"
+              className="rounded-xl bg-ink px-4 py-3 font-semibold text-white transition hover:bg-black disabled:cursor-not-allowed disabled:opacity-60"
               type="submit"
               disabled={isSavingPassword}
             >
