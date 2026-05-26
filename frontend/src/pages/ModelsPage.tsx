@@ -464,18 +464,16 @@ export default function ModelsPage({ setupMode = false, onComplete }: ModelsPage
         <div className="flex flex-wrap items-start justify-between gap-4">
           <div>
             <h2 className="mt-2 font-display text-xl">{setupMode ? "Step 3: Models" : "Models"}</h2>
-            {setupMode ? <p className="mt-2 max-w-3xl text-sm text-black/70">Register and activate at least one model to complete setup.</p> : null}
           </div>
-        </div>
-
-        {errorMessage ? <p className="mt-4 rounded-xl border border-rose-200 bg-rose-50 px-3 py-2 text-sm text-rose-700">{errorMessage}</p> : null}
-        {successMessage ? <p className="mt-4 rounded-xl border border-emerald-200 bg-emerald-50 px-3 py-2 text-sm text-emerald-700">{successMessage}</p> : null}
-
-        <div className="mt-5 flex justify-end">
           <button className="rounded-xl border border-black/15 px-4 py-2 text-sm font-semibold text-black disabled:cursor-not-allowed disabled:opacity-60" type="button" onClick={handleScan} disabled={isScanning}>
             {isScanning ? "Scanning..." : "Scan Models Folder"}
           </button>
         </div>
+
+        {setupMode ? <p className="mt-2 max-w-3xl text-sm text-black/70">Register and activate at least one model to complete setup.</p> : null}
+
+        {errorMessage ? <p className="mt-4 rounded-xl border border-rose-200 bg-rose-50 px-3 py-2 text-sm text-rose-700">{errorMessage}</p> : null}
+        {successMessage ? <p className="mt-4 rounded-xl border border-emerald-200 bg-emerald-50 px-3 py-2 text-sm text-emerald-700">{successMessage}</p> : null}
 
         <form className="mt-3 grid gap-3 rounded-2xl border border-dashed border-black/15 bg-sand/70 p-4" onSubmit={handleUpload}>
           <h3 className="font-display text-base">Upload GGUF Model</h3>
@@ -521,7 +519,10 @@ export default function ModelsPage({ setupMode = false, onComplete }: ModelsPage
                 <div className="flex flex-wrap items-start justify-between gap-3">
                   <div className="min-w-0 flex-1">
                     <h3 className="font-display text-base">{model.alias}</h3>
-                    <p className="mt-0.5 text-sm text-black/55">{model.file_name}</p>
+                    <p className="mt-0.5 text-sm text-black/55">
+                      {model.file_name}
+                      {model.file_size != null ? <span className="ml-2">({formatFileSize(model.file_size)})</span> : null}
+                    </p>
                     {model.description ? <p className="mt-1 text-sm text-black/70">{model.description}</p> : null}
                   </div>
                   <div className="flex flex-wrap items-center gap-2">

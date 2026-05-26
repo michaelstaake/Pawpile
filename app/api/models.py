@@ -139,10 +139,13 @@ def scan_models(_: User = Depends(get_admin_user), db: Session = Depends(get_db)
 
 
 @router.patch("/{model_id}")
-def update_model(model_id: int, payload: ModelUpdateRequest, _: User = Depends(get_admin_user), db: Session = Depends(get_db)) -> dict:
+async def update_model(model_id: int, payload: ModelUpdateRequest, _: User = Depends(get_admin_user), db: Session = Depends(get_db)) -> dict:
+    inference: InferenceManager = router.inference_manager  # type: ignore[attr-defined]
     model = db.query(ModelConfig).filter(ModelConfig.id == model_id).first()
     if not model:
         raise HTTPException(status_code=404, detail="Model not found")
+
+    was_activated = model.activated
 
     if payload.assignment_mode is not None and payload.assignment_mode not in ALLOWED_ASSIGNMENT_MODES:
         raise HTTPException(status_code=400, detail="Invalid assignment mode")
@@ -189,6 +192,31 @@ def update_model(model_id: int, payload: ModelUpdateRequest, _: User = Depends(g
     db.add(model)
     db.commit()
     db.refresh(model)
+
+    if was_activated:
+        inference.deactivate_model(model.id)
+        model.activated = False
+        db.add(model)
+        db.commit()
+
+        resolution = await _resolve_device_for_model(db, model, inference)
+        if resolution is None:
+            raise HTTPException(status_code=409, detail="No enabled device available for model")
+
+        try:
+            if isinstance(resolution, PoolActivationTarget):
+                await inference.activate_model_on_pool(model, resolution)
+            else:
+                await inference.activate_model(model, resolution)
+        except RuntimeError as exc:
+            log_event(db, "model.activation_failed", details={"alias": model.alias, "error": str(exc)})
+            raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+        model.activated = True
+        db.add(model)
+        db.commit()
+        db.refresh(model)
+
     log_event(db, "model.updated", details={"alias": model.alias, "model_id": model_id})
     return {"status": "ok", "model": _serialize_model(model)}
 
