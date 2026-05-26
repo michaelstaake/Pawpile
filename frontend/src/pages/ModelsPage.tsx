@@ -83,6 +83,10 @@ function formatFileSize(bytes: number): string {
   return `${value.toFixed(value >= 10 ? 0 : 1)} ${units[unitIndex]}`;
 }
 
+function formatUploadSizeInWholeMb(bytes: number): string {
+  return `${Math.round(bytes / (1024 * 1024)).toLocaleString()} MB`;
+}
+
 export default function ModelsPage({ setupMode = false, onComplete }: ModelsPageProps) {
   const { token } = useAuth();
   const [models, setModels] = useState<ModelRecord[]>([]);
@@ -482,7 +486,7 @@ export default function ModelsPage({ setupMode = false, onComplete }: ModelsPage
             <div className="grid gap-2 rounded-xl border border-black/10 bg-white/70 px-3 py-3">
               <div className="flex items-center justify-between gap-3 text-sm text-black/70">
                 <span>{uploadPercent}%</span>
-                <span>{formatFileSize(uploadProgress.loaded)} / {formatFileSize(uploadTotal)}</span>
+                <span>{formatUploadSizeInWholeMb(uploadProgress.loaded)} / {formatUploadSizeInWholeMb(uploadTotal)}</span>
               </div>
               <div className="h-2 overflow-hidden rounded-full bg-black/10">
                 <div className="h-full rounded-full bg-amber transition-[width] duration-150" style={{ width: `${uploadPercent}%` }} />
