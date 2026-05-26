@@ -141,11 +141,14 @@ class DeviceUpdateRequest(BaseModel):
 
 
 class GpuPoolCreateRequest(BaseModel):
-    name: str = "GPU Pool"
+    name: str = Field(default="GPU Pool", min_length=1, max_length=120)
+    vendor: str = Field(default="nvidia", min_length=1, max_length=32)
     device_ids: list[int] = Field(min_length=2)
 
 
 class GpuPoolUpdateRequest(BaseModel):
+    name: str | None = Field(default=None, min_length=1, max_length=120)
+    vendor: str | None = Field(default=None, min_length=1, max_length=32)
     device_ids: list[int] = Field(min_length=2)
 
 

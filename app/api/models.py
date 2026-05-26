@@ -248,21 +248,16 @@ async def _resolve_device_for_model(db: Session, model: ModelConfig, inference: 
         pool = db.query(GpuPool).filter(GpuPool.id == model.pinned_pool_id).first()
         if not pool:
             raise HTTPException(status_code=409, detail="Assigned GPU pool no longer exists")
-        if not inference.has_runtime_for_vendor("nvidia_pool"):
-            raise HTTPException(status_code=409, detail="No inference runtime configured for NVIDIA (required for GPU pool)")
-
-        pool_device_rows = db.query(GpuPoolDevice).filter(GpuPoolDevice.pool_id == pool.id).all()
-        device_ids = [row.device_id for row in pool_device_rows]
-        pool_devices = db.query(Device).filter(Device.id.in_(device_ids)).all()
-
-        if len(pool_devices) < 2:
+        target = _build_pool_target(db, pool, require_enabled=True)
+        if len(target.devices) < 2:
             raise HTTPException(status_code=409, detail="GPU pool has fewer than two devices")
+        if not inference.has_runtime_for_vendor(target.runtime_vendor):
+            raise HTTPException(status_code=409, detail=f"No inference runtime configured for {pool.vendor} (required for GPU pool)")
 
-        target = PoolActivationTarget(pool_id=pool.id, pool_name=pool.name, devices=pool_devices)
         if model_size_mb > 0:
             combined_available = _pool_combined_available_mb(target, memory_metrics)
             combined_total = sum(
-                memory_metrics.get(d.hardware_id, {}).get("total_mb", 0) for d in pool_devices
+                memory_metrics.get(d.hardware_id, {}).get("total_mb", 0) for d in target.devices
             )
             if combined_total > 0 and model_size_mb > combined_available:
                 raise HTTPException(
@@ -301,21 +296,29 @@ async def _resolve_device_for_model(db: Session, model: ModelConfig, inference: 
         return device
 
     # AUTO mode — prefer GPU pool if available and fits, then single GPU, then CPU
-    pool = db.query(GpuPool).first()
-    if pool and inference.has_runtime_for_vendor("nvidia_pool"):
-        pool_device_rows = db.query(GpuPoolDevice).filter(GpuPoolDevice.pool_id == pool.id).all()
-        device_ids = [row.device_id for row in pool_device_rows]
-        pool_devices = db.query(Device).filter(Device.id.in_(device_ids), Device.enabled.is_(True)).all()
+    pool_candidates: list[tuple[PoolActivationTarget, int]] = []
+    for pool in db.query(GpuPool).order_by(GpuPool.id.asc()).all():
+        target = _build_pool_target(db, pool, require_enabled=True)
+        if len(target.devices) < 2 or not inference.has_runtime_for_vendor(target.runtime_vendor):
+            continue
 
-        if len(pool_devices) >= 2:
-            target = PoolActivationTarget(pool_id=pool.id, pool_name=pool.name, devices=pool_devices)
-            combined_available = _pool_combined_available_mb(target, memory_metrics)
-            combined_total = sum(
-                memory_metrics.get(d.hardware_id, {}).get("total_mb", 0) for d in pool_devices
+        combined_available = _pool_combined_available_mb(target, memory_metrics)
+        combined_total = sum(
+            memory_metrics.get(d.hardware_id, {}).get("total_mb", 0) for d in target.devices
+        )
+        pool_fits = model_size_mb == 0 or combined_total == 0 or combined_available >= model_size_mb
+        if pool_fits:
+            pool_candidates.append((target, combined_available))
+
+    if pool_candidates:
+        pool_candidates.sort(
+            key=lambda item: (
+                min(device.priority for device in item[0].devices),
+                -item[1],
+                item[0].pool_id,
             )
-            pool_fits = model_size_mb == 0 or combined_total == 0 or combined_available >= model_size_mb
-            if pool_fits:
-                return target
+        )
+        return pool_candidates[0][0]
 
     candidates = (
         db.query(Device)
@@ -415,6 +418,16 @@ def _pool_combined_available_mb(target: PoolActivationTarget, memory_metrics: di
         else:
             total += device.memory_mb
     return total
+
+
+def _build_pool_target(db: Session, pool: GpuPool, require_enabled: bool) -> PoolActivationTarget:
+    pool_device_rows = db.query(GpuPoolDevice).filter(GpuPoolDevice.pool_id == pool.id).all()
+    device_ids = [row.device_id for row in pool_device_rows]
+    query = db.query(Device).filter(Device.id.in_(device_ids))
+    if require_enabled:
+        query = query.filter(Device.enabled.is_(True))
+    pool_devices = query.all()
+    return PoolActivationTarget(pool_id=pool.id, pool_name=pool.name, vendor=pool.vendor, devices=pool_devices)
 
 
 def _estimate_model_size_mb(file_path: str) -> int:

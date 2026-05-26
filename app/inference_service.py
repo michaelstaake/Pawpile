@@ -54,7 +54,7 @@ class InferenceRuntime:
         self._running: dict[int, RunningModel] = {}
 
     async def activate_model(self, payload: ActivateModelRequest) -> None:
-        effective_vendor = "nvidia" if payload.vendor == "nvidia_pool" else payload.vendor
+        effective_vendor = payload.vendor.removesuffix("_pool")
         if not is_supported_vendor(effective_vendor):
             raise RuntimeError(f"Unsupported device vendor for this inference service: {payload.vendor}")
         if payload.model_id in self._running:
@@ -213,6 +213,10 @@ class InferenceRuntime:
             ids = hardware_ids if hardware_ids else [hardware_id]
             indices = [hid.split(":")[-1] for hid in ids]
             env["CUDA_VISIBLE_DEVICES"] = ",".join(indices)
+        elif vendor == "vulkan_pool":
+            ids = hardware_ids if hardware_ids else [hardware_id]
+            indices = [hid.split(":")[-1] for hid in ids]
+            env["GGML_VK_VISIBLE_DEVICES"] = ",".join(indices)
         elif vendor == "nvidia":
             env["CUDA_VISIBLE_DEVICES"] = hardware_id.split(":")[-1]
         elif vendor == "vulkan":
@@ -224,7 +228,7 @@ class InferenceRuntime:
         return env
 
     def _build_vendor_args(self, vendor: str, vram_ratios: list[int] | None = None) -> list[str]:
-        if vendor == "nvidia_pool":
+        if vendor.endswith("_pool"):
             args: list[str] = []
             if vram_ratios and len(vram_ratios) >= 2:
                 args.extend(["--tensor-split", ",".join(str(r) for r in vram_ratios)])

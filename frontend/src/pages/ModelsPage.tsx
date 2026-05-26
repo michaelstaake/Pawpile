@@ -9,6 +9,7 @@ const AUTO_SAVE_DELAY_MS = 700;
 const ASSIGNMENT_MODE_OPTIONS = [
   { label: "Auto", value: "auto" },
   { label: "Pinned device", value: "pinned" },
+  { label: "Pool", value: "pool" },
 ] as const;
 
 type ModelsPageProps = {
@@ -86,7 +87,7 @@ export default function ModelsPage({ setupMode = false, onComplete }: ModelsPage
   const { token } = useAuth();
   const [models, setModels] = useState<ModelRecord[]>([]);
   const [devices, setDevices] = useState<DeviceRecord[]>([]);
-  const [pool, setPool] = useState<GpuPoolRecord | null>(null);
+  const [pools, setPools] = useState<GpuPoolRecord[]>([]);
   const [settingsModelId, setSettingsModelId] = useState<number | null>(null);
   const [modalDraft, setModalDraft] = useState<ModelRecord | null>(null);
   const [modalNumericDrafts, setModalNumericDraftsState] = useState<Record<string, string>>({});
@@ -127,14 +128,14 @@ export default function ModelsPage({ setupMode = false, onComplete }: ModelsPage
       const [modelsResponse, devicesResponse, poolResponse] = await Promise.all([
         apiGet<ModelRecord[]>("/api/models", activeToken),
         apiGet<DeviceRecord[]>("/api/devices", activeToken),
-        apiGet<GpuPoolRecord | null>("/api/devices/pool", activeToken),
+        apiGet<GpuPoolRecord[]>("/api/devices/pools", activeToken),
       ]);
       const orderedModels = sortModels(modelsResponse);
       savedConfigRef.current = Object.fromEntries(orderedModels.map((model) => [model.id, serializeModelConfig(model)]));
       savedActivationRef.current = Object.fromEntries(orderedModels.map((model) => [model.id, model.activated]));
       setModels(orderedModels);
       setDevices(devicesResponse);
-      setPool(poolResponse);
+      setPools(poolResponse);
       setPendingModelIds([]);
     } catch (error) {
       setErrorMessage(error instanceof Error ? error.message : "Failed to load model data");
@@ -595,12 +596,12 @@ export default function ModelsPage({ setupMode = false, onComplete }: ModelsPage
                 <div className="grid gap-3 md:grid-cols-2">
                   <label className="grid gap-1 text-sm text-black/70">
                     Assignment Mode
-                    <select className="rounded-xl border border-black/15 bg-white px-3 py-2 text-sm" value={modalDraft.assignment_mode === "pool" ? "pinned" : modalDraft.assignment_mode} onChange={(event) => {
+                    <select className="rounded-xl border border-black/15 bg-white px-3 py-2 text-sm" value={modalDraft.assignment_mode} onChange={(event) => {
                       const mode = event.target.value;
                       updateModalDraft({
                         assignment_mode: mode,
-                        pinned_device_id: mode !== "pinned" ? null : modalDraft.pinned_device_id,
-                        pinned_pool_id: mode !== "pinned" ? null : modalDraft.pinned_pool_id,
+                        pinned_device_id: mode === "pinned" ? modalDraft.pinned_device_id : null,
+                        pinned_pool_id: mode === "pool" ? (modalDraft.pinned_pool_id ?? pools[0]?.id ?? null) : null,
                       });
                     }}>
                       {ASSIGNMENT_MODE_OPTIONS.map((option) => (
@@ -609,12 +610,12 @@ export default function ModelsPage({ setupMode = false, onComplete }: ModelsPage
                     </select>
                   </label>
                   <label className="grid gap-1 text-sm text-black/70">
-                    Pinned Device
+                    {modalDraft.assignment_mode === "pool" ? "Assigned Pool" : "Pinned Device"}
                     <select
                       className="rounded-xl border border-black/15 bg-white px-3 py-2 text-sm disabled:bg-black/5"
                       value={
                         modalDraft.assignment_mode === "pool"
-                          ? "pool"
+                          ? (modalDraft.pinned_pool_id ? String(modalDraft.pinned_pool_id) : "")
                           : modalDraft.assignment_mode === "pinned" && modalDraft.pinned_device_id
                             ? String(modalDraft.pinned_device_id)
                             : ""
@@ -622,22 +623,21 @@ export default function ModelsPage({ setupMode = false, onComplete }: ModelsPage
                       disabled={modalDraft.assignment_mode === "auto"}
                       onChange={(event) => {
                         const value = event.target.value;
-                        if (value === "pool") {
-                          updateModalDraft({ assignment_mode: "pool", pinned_device_id: null, pinned_pool_id: pool?.id ?? null });
-                        } else if (value) {
-                          updateModalDraft({ assignment_mode: "pinned", pinned_device_id: Number(value), pinned_pool_id: null });
-                        } else {
-                          updateModalDraft({ pinned_device_id: null, pinned_pool_id: null });
+                        if (modalDraft.assignment_mode === "pool") {
+                          updateModalDraft({ pinned_device_id: null, pinned_pool_id: value ? Number(value) : null });
+                          return;
                         }
+                        updateModalDraft({ pinned_device_id: value ? Number(value) : null, pinned_pool_id: null });
                       }}
                     >
-                      <option value="">Choose a device</option>
-                      {pool ? (
-                        <option value="pool">{pool.name} ({pool.devices.length} GPU{pool.devices.length === 1 ? "" : "s"}) — Pool</option>
-                      ) : null}
-                      {devices.filter((device) => device.enabled).map((device) => (
-                        <option key={device.id} value={String(device.id)}>{device.name} ({device.vendor})</option>
-                      ))}
+                      <option value="">{modalDraft.assignment_mode === "pool" ? "Choose a pool" : "Choose a device"}</option>
+                      {modalDraft.assignment_mode === "pool"
+                        ? pools.map((pool) => (
+                            <option key={pool.id} value={String(pool.id)}>{pool.name} ({pool.vendor}, {pool.devices.length} GPU{pool.devices.length === 1 ? "" : "s"})</option>
+                          ))
+                        : devices.filter((device) => device.enabled).map((device) => (
+                            <option key={device.id} value={String(device.id)}>{device.name} ({device.vendor})</option>
+                          ))}
                     </select>
                   </label>
                   <label className="grid gap-1 text-sm text-black/70">

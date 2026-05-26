@@ -142,7 +142,7 @@ function DeviceCard({ device, isPooled }: { device: DeviceStatusRecord; isPooled
 export default function StatusPage() {
   const { token } = useAuth();
   const [devices, setDevices] = useState<DeviceStatusRecord[]>([]);
-  const [pool, setPool] = useState<GpuPoolRecord | null>(null);
+  const [pools, setPools] = useState<GpuPoolRecord[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [errorMessage, setErrorMessage] = useState("");
 
@@ -189,11 +189,11 @@ export default function StatusPage() {
     if (!token) {
       return;
     }
-    apiGet<GpuPoolRecord | null>("/api/devices/pool", token).then(setPool).catch(() => {});
+    apiGet<GpuPoolRecord[]>("/api/devices/pools", token).then(setPools).catch(() => {});
   }, [token]);
 
   const visibleDevices = useMemo(() => devices.filter((device) => device.enabled), [devices]);
-  const poolDeviceIds = useMemo(() => new Set(pool?.devices.map((d) => d.id) ?? []), [pool]);
+  const poolDeviceIds = useMemo(() => new Set(pools.flatMap((pool) => pool.devices.map((d) => d.id))), [pools]);
 
   const summary = useMemo(() => {
     const activeModels = visibleDevices.reduce((sum, device) => sum + device.models.length, 0);

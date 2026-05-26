@@ -9,6 +9,7 @@ class GpuPool(Base):
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True, index=True)
     name: Mapped[str] = mapped_column(String(120), nullable=False, default="GPU Pool")
+    vendor: Mapped[str] = mapped_column(String(32), nullable=False, default="nvidia")
 
 
 class GpuPoolDevice(Base):

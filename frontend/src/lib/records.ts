@@ -54,6 +54,7 @@ export type DeviceRecord = {
 export type GpuPoolRecord = {
   id: number;
   name: string;
+  vendor: string;
   devices: DeviceRecord[];
 };
 

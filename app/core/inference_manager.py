@@ -16,11 +16,16 @@ logger = logging.getLogger(__name__)
 
 @dataclass
 class PoolActivationTarget:
-    """Represents a pool of NVIDIA GPUs to use together for a single model."""
+    """Represents a vendor-specific pool of GPUs to use together for a single model."""
 
     pool_id: int
     pool_name: str
+    vendor: str
     devices: list[Device]
+
+    @property
+    def runtime_vendor(self) -> str:
+        return f"{self.vendor}_pool"
 
     @property
     def hardware_ids(self) -> list[str]:
@@ -71,8 +76,7 @@ class InferenceManager:
         return model_id in self._running
 
     def runtime_url_for_vendor(self, vendor: str) -> str | None:
-        # nvidia_pool uses the same runtime as nvidia
-        effective_vendor = "nvidia" if vendor == "nvidia_pool" else vendor
+        effective_vendor = vendor.removesuffix("_pool")
         return self.settings.inference_runtime_url_for_vendor(effective_vendor)
 
     def has_runtime_for_vendor(self, vendor: str) -> bool:
@@ -156,9 +160,9 @@ class InferenceManager:
         if model.id in self._running:
             return
 
-        runtime_url = self.runtime_url_for_vendor("nvidia_pool")
+        runtime_url = self.runtime_url_for_vendor(target.runtime_vendor)
         if not runtime_url:
-            raise RuntimeError("No inference runtime configured for NVIDIA (required for GPU pool)")
+            raise RuntimeError(f"No inference runtime configured for {target.vendor} (required for GPU pool)")
 
         payload = {
             "model_id": model.id,
@@ -167,7 +171,7 @@ class InferenceManager:
             "context_length": model.context_length,
             "threads": model.threads,
             "gpu_layers": model.gpu_layers,
-            "vendor": "nvidia_pool",
+            "vendor": target.runtime_vendor,
             "hardware_id": target.hardware_ids[0],
             "hardware_ids": target.hardware_ids,
             "vram_ratios": target.vram_ratios,
@@ -182,7 +186,7 @@ class InferenceManager:
             model_id=model.id,
             base_url=runtime_url,
             device_id=None,
-            vendor="nvidia_pool",
+            vendor=target.runtime_vendor,
             pool_device_ids=[d.id for d in target.devices],
         )
 
