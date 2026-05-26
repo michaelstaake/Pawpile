@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { apiDelete, apiGet, apiPatch, apiPost } from "../lib/api";
 import { useAuth } from "../context/AuthContext";
+import { formatDeviceIdLabel } from "../lib/deviceIds";
 import { DeviceRecord, DeviceUpdateResponse, GpuPoolRecord } from "../lib/records";
 
 const AUTO_SAVE_DELAY_MS = 700;
@@ -453,7 +454,7 @@ export default function DevicesPage({ setupMode = false, onContinue }: DevicesPa
                           <ul className="mt-3 space-y-1">
                             {pool.devices.map((device) => (
                               <li key={device.id} className="text-sm text-violet-900">
-                                {device.name} <span className="text-violet-500">· {device.hardware_id} · {device.memory_mb.toLocaleString()} MB</span>
+                                {device.name} <span className="text-violet-500">· {formatDeviceIdLabel(device)} · {device.memory_mb.toLocaleString()} MB</span>
                               </li>
                             ))}
                           </ul>
@@ -491,7 +492,7 @@ export default function DevicesPage({ setupMode = false, onContinue }: DevicesPa
                               onChange={() => togglePoolDevice(device.id)}
                             />
                             <span className="flex-1">{device.name}</span>
-                            <span className="text-xs text-black/45">{device.hardware_id} · {device.memory_mb.toLocaleString()} MB</span>
+                            <span className="text-xs text-black/45">{formatDeviceIdLabel(device)} · {device.memory_mb.toLocaleString()} MB</span>
                           </label>
                         )) : (
                           <p className="rounded-xl border border-dashed border-violet-200 bg-violet-50/70 px-3 py-3 text-sm text-violet-700/80">No unassigned {vendorLabel(poolDraftVendor)} GPUs are available for this pool.</p>
@@ -540,7 +541,7 @@ export default function DevicesPage({ setupMode = false, onContinue }: DevicesPa
                     <div className="flex flex-wrap items-center gap-2">
                       <h3 className="font-display text-base">{device.name}</h3>
                     </div>
-                    <p className="mt-1 text-sm text-black/70">{device.vendor} {device.device_type} · {device.hardware_id} · {device.memory_mb.toLocaleString()} MB</p>
+                    <p className="mt-1 text-sm text-black/70">{device.vendor} {device.device_type} · {formatDeviceIdLabel(device)} · {device.memory_mb.toLocaleString()} MB</p>
                   </div>
                   {inPool ? (
                     <span className="rounded-lg border border-violet-200 bg-violet-50 px-3 py-1.5 text-xs font-semibold text-violet-600">
@@ -578,7 +579,7 @@ export default function DevicesPage({ setupMode = false, onContinue }: DevicesPa
                 </div>
 
                 <div className="mt-4 flex flex-wrap items-center justify-between gap-3">
-                  <p className="break-all text-xs text-black/45">{device.hardware_id}</p>
+                  <p className="break-all text-xs text-black/45">{formatDeviceIdLabel(device)} · {device.hardware_id}</p>
                   {savingDeviceIds.includes(device.id) || pendingDeviceIds.includes(device.id) ? (
                     <p className="text-sm text-black/55">
                       {savingDeviceIds.includes(device.id) ? "Saving..." : "Saving changes..."}

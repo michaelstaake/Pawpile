@@ -5,7 +5,7 @@ from app.api.deps import get_admin_user
 from app.core.activity_logger import log_event
 from app.core.config import get_settings
 from app.core.db import get_db
-from app.core.device_manager import DeviceManager, get_supported_vendors
+from app.core.device_manager import DeviceManager, build_device_display_suffix, get_supported_vendors
 from app.models.device import Device
 from app.models.gpu_pool import GpuPool, GpuPoolDevice
 from app.models.model_config import ModelConfig
@@ -223,6 +223,9 @@ def _serialize_device(device: Device) -> dict:
     return {
         "id": device.id,
         "hardware_id": device.hardware_id,
+        "stable_hardware_id": device.stable_hardware_id,
+        "stable_hardware_id_source": device.stable_hardware_id_source,
+        "display_suffix": build_device_display_suffix(device.stable_hardware_id, device.hardware_id),
         "name": device.name,
         "vendor": device.vendor,
         "device_type": device.device_type,

@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { apiGet } from "../lib/api";
+import { formatDeviceIdLabel } from "../lib/deviceIds";
 import { DeviceStatusRecord, GpuPoolRecord, StatusModelRecord, StatusResponse } from "../lib/records";
 import { useAuth } from "../context/AuthContext";
 
@@ -92,7 +93,7 @@ function DeviceCard({ device, isPooled }: { device: DeviceStatusRecord; isPooled
             )}
           </div>
           <p className="mt-2 text-sm text-black/65">
-            {device.vendor} {device.device_type} · {device.hardware_id} · {device.models.length}/{formatSlotCapacity(device.max_slots)} slots active
+            {device.vendor} {device.device_type} · {formatDeviceIdLabel(device)} · {device.models.length}/{formatSlotCapacity(device.max_slots)} slots active
           </p>
         </div>
       </div>

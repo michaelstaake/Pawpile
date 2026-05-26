@@ -280,6 +280,8 @@ class InferenceRuntime:
             devices.append(
                 {
                     "hardware_id": device.hardware_id,
+                    "stable_hardware_id": device.stable_hardware_id,
+                    "stable_hardware_id_source": device.stable_hardware_id_source,
                     "name": device.name,
                     "vendor": device.vendor,
                     "device_type": device.device_type,
@@ -584,6 +586,8 @@ def runtime_devices() -> dict:
     devices = [
         {
             "hardware_id": device.hardware_id,
+            "stable_hardware_id": device.stable_hardware_id,
+            "stable_hardware_id_source": device.stable_hardware_id_source,
             "name": device.name,
             "vendor": device.vendor,
             "device_type": device.device_type,

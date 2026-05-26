@@ -1,6 +1,7 @@
 import { type DragEvent, type FormEvent, useEffect, useRef, useState } from "react";
 import { apiGet, apiPatch, apiPost, apiPostFormWithProgress } from "../lib/api";
 import { useAuth } from "../context/AuthContext";
+import { formatDeviceIdLabel } from "../lib/deviceIds";
 import { DeviceRecord, GpuPoolRecord, ModelRecord, ModelUpdateResponse, ScanResponse, UploadResponse } from "../lib/records";
 import Modal from "../components/ui/Modal";
 
@@ -8,8 +9,7 @@ const AUTO_SAVE_DELAY_MS = 700;
 
 const ASSIGNMENT_MODE_OPTIONS = [
   { label: "Auto", value: "auto" },
-  { label: "Pinned device", value: "pinned" },
-  { label: "Pool", value: "pool" },
+  { label: "Manual", value: "manual" },
 ] as const;
 
 const CONTEXT_LENGTH_MODE_OPTIONS = [
@@ -18,6 +18,71 @@ const CONTEXT_LENGTH_MODE_OPTIONS = [
 ] as const;
 
 type ContextLengthMode = (typeof CONTEXT_LENGTH_MODE_OPTIONS)[number]["value"];
+type AssignmentUiMode = (typeof ASSIGNMENT_MODE_OPTIONS)[number]["value"];
+
+type AssignmentTarget = {
+  label: string;
+  value: string;
+  assignment_mode: "pinned" | "pool";
+  id: number;
+};
+
+function buildAssignmentTargets(devices: DeviceRecord[], pools: GpuPoolRecord[]): AssignmentTarget[] {
+  return [
+    ...devices.filter((device) => device.enabled).map((device) => ({
+      label: `${device.name} (${device.vendor} device, ${formatDeviceIdLabel(device)})`,
+      value: `device:${device.id}`,
+      assignment_mode: "pinned" as const,
+      id: device.id,
+    })),
+    ...pools.map((pool) => ({
+      label: `${pool.name} (${pool.vendor} pool, ${pool.devices.length} GPU${pool.devices.length === 1 ? "" : "s"})`,
+      value: `pool:${pool.id}`,
+      assignment_mode: "pool" as const,
+      id: pool.id,
+    })),
+  ];
+}
+
+function getAssignmentUiMode(model: ModelRecord): AssignmentUiMode {
+  return model.assignment_mode === "auto" ? "auto" : "manual";
+}
+
+function getAssignmentTargetValue(model: ModelRecord): string {
+  if (model.assignment_mode === "pool" && model.pinned_pool_id != null) {
+    return `pool:${model.pinned_pool_id}`;
+  }
+
+  if (model.assignment_mode === "pinned" && model.pinned_device_id != null) {
+    return `device:${model.pinned_device_id}`;
+  }
+
+  return "";
+}
+
+function buildAssignmentUpdate(targetValue: string): Pick<ModelRecord, "assignment_mode" | "pinned_device_id" | "pinned_pool_id"> {
+  if (targetValue.startsWith("pool:")) {
+    return {
+      assignment_mode: "pool",
+      pinned_device_id: null,
+      pinned_pool_id: Number(targetValue.slice(5)) || null,
+    };
+  }
+
+  if (targetValue.startsWith("device:")) {
+    return {
+      assignment_mode: "pinned",
+      pinned_device_id: Number(targetValue.slice(7)) || null,
+      pinned_pool_id: null,
+    };
+  }
+
+  return {
+    assignment_mode: "auto",
+    pinned_device_id: null,
+    pinned_pool_id: null,
+  };
+}
 
 type ModelsPageProps = {
   setupMode?: boolean;
@@ -488,6 +553,7 @@ export default function ModelsPage({ setupMode = false, onComplete }: ModelsPage
   const activeModels = models.filter((model) => model.activated).length;
   const uploadTotal = uploadProgress.total || selectedFile?.size || 0;
   const uploadPercent = uploadTotal > 0 ? Math.min(100, Math.round((uploadProgress.loaded / uploadTotal) * 100)) : 0;
+  const assignmentTargets = buildAssignmentTargets(devices, pools);
   return (
     <section className="grid gap-4">
       <article className="rounded-2xl border border-black/10 bg-white/80 p-5 shadow-sm backdrop-blur">
@@ -676,13 +742,20 @@ export default function ModelsPage({ setupMode = false, onComplete }: ModelsPage
                 <div className="grid gap-3 md:grid-cols-2">
                   <label className="grid gap-1 text-sm text-black/70">
                     Assignment Mode
-                    <select className="rounded-xl border border-black/15 bg-white px-3 py-2 text-sm" value={modalDraft.assignment_mode} onChange={(event) => {
-                      const mode = event.target.value;
-                      updateModalDraft({
-                        assignment_mode: mode,
-                        pinned_device_id: mode === "pinned" ? modalDraft.pinned_device_id : null,
-                        pinned_pool_id: mode === "pool" ? (modalDraft.pinned_pool_id ?? pools[0]?.id ?? null) : null,
-                      });
+                    <select className="rounded-xl border border-black/15 bg-white px-3 py-2 text-sm" value={getAssignmentUiMode(modalDraft)} onChange={(event) => {
+                      const mode = event.target.value as AssignmentUiMode;
+                      if (mode === "auto") {
+                        updateModalDraft({
+                          assignment_mode: "auto",
+                          pinned_device_id: null,
+                          pinned_pool_id: null,
+                        });
+                        return;
+                      }
+
+                      const existingTargetValue = getAssignmentTargetValue(modalDraft);
+                      const nextTargetValue = existingTargetValue || assignmentTargets[0]?.value || "";
+                      updateModalDraft(buildAssignmentUpdate(nextTargetValue));
                     }}>
                       {ASSIGNMENT_MODE_OPTIONS.map((option) => (
                         <option key={option.value} value={option.value}>{option.label}</option>
@@ -690,34 +763,19 @@ export default function ModelsPage({ setupMode = false, onComplete }: ModelsPage
                     </select>
                   </label>
                   <label className="grid gap-1 text-sm text-black/70">
-                    {modalDraft.assignment_mode === "pool" ? "Assigned Pool" : "Pinned Device"}
+                    Assignment Target
                     <select
                       className="rounded-xl border border-black/15 bg-white px-3 py-2 text-sm disabled:bg-black/5"
-                      value={
-                        modalDraft.assignment_mode === "pool"
-                          ? (modalDraft.pinned_pool_id ? String(modalDraft.pinned_pool_id) : "")
-                          : modalDraft.assignment_mode === "pinned" && modalDraft.pinned_device_id
-                            ? String(modalDraft.pinned_device_id)
-                            : ""
-                      }
+                      value={getAssignmentTargetValue(modalDraft)}
                       disabled={modalDraft.assignment_mode === "auto"}
                       onChange={(event) => {
-                        const value = event.target.value;
-                        if (modalDraft.assignment_mode === "pool") {
-                          updateModalDraft({ pinned_device_id: null, pinned_pool_id: value ? Number(value) : null });
-                          return;
-                        }
-                        updateModalDraft({ pinned_device_id: value ? Number(value) : null, pinned_pool_id: null });
+                        updateModalDraft(buildAssignmentUpdate(event.target.value));
                       }}
                     >
-                      <option value="">{modalDraft.assignment_mode === "pool" ? "Choose a pool" : "Choose a device"}</option>
-                      {modalDraft.assignment_mode === "pool"
-                        ? pools.map((pool) => (
-                            <option key={pool.id} value={String(pool.id)}>{pool.name} ({pool.vendor}, {pool.devices.length} GPU{pool.devices.length === 1 ? "" : "s"})</option>
-                          ))
-                        : devices.filter((device) => device.enabled).map((device) => (
-                            <option key={device.id} value={String(device.id)}>{device.name} ({device.vendor})</option>
-                          ))}
+                      <option value="">Choose a device or pool</option>
+                      {assignmentTargets.map((target) => (
+                        <option key={target.value} value={target.value}>{target.label}</option>
+                      ))}
                     </select>
                   </label>
                   <label className="grid gap-1 text-sm text-black/70">

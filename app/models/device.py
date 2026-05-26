@@ -11,6 +11,8 @@ class Device(Base):
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True, index=True)
     hardware_id: Mapped[str] = mapped_column(String(120), unique=True, nullable=False)
+    stable_hardware_id: Mapped[str | None] = mapped_column(String(160), nullable=True)
+    stable_hardware_id_source: Mapped[str | None] = mapped_column(String(32), nullable=True)
     name: Mapped[str] = mapped_column(String(120), nullable=False)
     vendor: Mapped[str] = mapped_column(String(32), nullable=False)
     device_type: Mapped[str] = mapped_column(String(32), nullable=False, default="gpu")

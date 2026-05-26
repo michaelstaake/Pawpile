@@ -30,6 +30,8 @@ def is_supported_vendor(vendor: str) -> bool:
 @dataclass
 class DetectedDevice:
     hardware_id: str
+    stable_hardware_id: str | None
+    stable_hardware_id_source: str | None
     name: str
     vendor: str
     device_type: str
@@ -74,6 +76,8 @@ class DeviceManager:
             if row is None:
                 row = Device(
                     hardware_id=d.hardware_id,
+                    stable_hardware_id=d.stable_hardware_id,
+                    stable_hardware_id_source=d.stable_hardware_id_source,
                     name=d.name,
                     vendor=d.vendor,
                     device_type=d.device_type,
@@ -84,6 +88,8 @@ class DeviceManager:
                 )
                 db.add(row)
             else:
+                row.stable_hardware_id = d.stable_hardware_id
+                row.stable_hardware_id_source = d.stable_hardware_id_source
                 row.name = d.name
                 row.vendor = d.vendor
                 row.device_type = d.device_type
@@ -141,6 +147,8 @@ class DeviceManager:
 
         try:
             hardware_id = str(row["hardware_id"])
+            stable_hardware_id = _normalize_optional_identifier(row.get("stable_hardware_id"))
+            stable_hardware_id_source = _normalize_identifier_source(row.get("stable_hardware_id_source"))
             name = str(row["name"])
             vendor = str(row["vendor"])
             device_type = str(row.get("device_type", "gpu"))
@@ -152,6 +160,8 @@ class DeviceManager:
 
         return DetectedDevice(
             hardware_id=hardware_id,
+            stable_hardware_id=stable_hardware_id,
+            stable_hardware_id_source=stable_hardware_id_source,
             name=name,
             vendor=vendor,
             device_type=device_type,
@@ -169,19 +179,22 @@ class DeviceManager:
             return ""
 
     def _detect_nvidia(self) -> list[DetectedDevice]:
-        output = self._run("nvidia-smi --query-gpu=index,name,memory.total --format=csv,noheader,nounits")
+        output = self._run("nvidia-smi --query-gpu=index,gpu_uuid,name,memory.total --format=csv,noheader,nounits")
         devices: list[DetectedDevice] = []
         for line in output.splitlines():
             parts = [p.strip() for p in line.split(",")]
-            if len(parts) < 3:
+            if len(parts) < 4:
                 continue
+            stable_hardware_id = _normalize_optional_identifier(parts[1])
             devices.append(
                 DetectedDevice(
                     hardware_id=f"nvidia:{parts[0]}",
-                    name=parts[1],
+                    stable_hardware_id=stable_hardware_id,
+                    stable_hardware_id_source="nvidia_uuid" if stable_hardware_id else None,
+                    name=parts[2],
                     vendor="nvidia",
                     device_type="gpu",
-                    memory_mb=int(parts[2] or "0"),
+                    memory_mb=int(parts[3] or "0"),
                     max_slots=0,
                 )
             )
@@ -228,6 +241,8 @@ class DeviceManager:
             devices.append(
                 DetectedDevice(
                     hardware_id=f"vulkan:{idx}",
+                    stable_hardware_id=None,
+                    stable_hardware_id_source=None,
                     name=name,
                     vendor="vulkan",
                     device_type="gpu",
@@ -266,6 +281,8 @@ class DeviceManager:
         return [
             DetectedDevice(
                 hardware_id="cpu:0",
+                stable_hardware_id=None,
+                stable_hardware_id_source=None,
                 name="CPU",
                 vendor="cpu",
                 device_type="cpu",
@@ -289,6 +306,8 @@ class DeviceManager:
             devices.append(
                 DetectedDevice(
                     hardware_id="nvidia:0",
+                    stable_hardware_id=None,
+                    stable_hardware_id_source=None,
                     name="NVIDIA GPU",
                     vendor="nvidia",
                     device_type="gpu",
@@ -300,6 +319,8 @@ class DeviceManager:
             devices.append(
                 DetectedDevice(
                     hardware_id="vulkan:0",
+                    stable_hardware_id=None,
+                    stable_hardware_id_source=None,
                     name="Vulkan GPU",
                     vendor="vulkan",
                     device_type="gpu",
@@ -361,3 +382,26 @@ def _vulkan_size_to_mb(value: float, unit: str | None) -> int:
     if value < 1_000_000:
         return int(value)
     return int(value / (1024 * 1024))
+
+
+def build_device_display_suffix(stable_hardware_id: str | None, hardware_id: str) -> str:
+    source_value = stable_hardware_id or hardware_id
+    compact_value = re.sub(r"[^A-Za-z0-9]", "", source_value)
+    suffix = (compact_value or source_value)[-4:].upper()
+    return suffix if suffix else "????"
+
+
+def _normalize_optional_identifier(value: object) -> str | None:
+    if value is None:
+        return None
+
+    normalized = str(value).strip()
+    if not normalized or normalized.upper() in {"N/A", "NONE", "UNKNOWN"}:
+        return None
+
+    return normalized
+
+
+def _normalize_identifier_source(value: object) -> str | None:
+    normalized = _normalize_optional_identifier(value)
+    return normalized.lower() if normalized else None

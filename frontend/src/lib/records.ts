@@ -42,6 +42,9 @@ export type ModelRecord = {
 export type DeviceRecord = {
   id: number;
   hardware_id: string;
+  stable_hardware_id: string | null;
+  stable_hardware_id_source: string | null;
+  display_suffix: string;
   name: string;
   vendor: string;
   device_type: string;
@@ -69,6 +72,9 @@ export type StatusModelRecord = {
 export type DeviceStatusRecord = {
   id: number;
   hardware_id: string;
+  stable_hardware_id: string | null;
+  stable_hardware_id_source: string | null;
+  display_suffix: string;
   name: string;
   vendor: string;
   device_type: string;

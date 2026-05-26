@@ -5,6 +5,7 @@ from fastapi import APIRouter, Depends
 from sqlalchemy.orm import Session
 
 from app.core.config import get_settings
+from app.core.device_manager import build_device_display_suffix
 from app.core.db import get_db
 from app.core.inference_manager import InferenceManager
 from app.models.device import Device
@@ -72,6 +73,9 @@ async def get_status(db: Session = Depends(get_db)) -> dict:
             {
                 "id": device.id,
                 "hardware_id": device.hardware_id,
+                "stable_hardware_id": device.stable_hardware_id,
+                "stable_hardware_id_source": device.stable_hardware_id_source,
+                "display_suffix": build_device_display_suffix(device.stable_hardware_id, device.hardware_id),
                 "name": device.name,
                 "vendor": device.vendor,
                 "device_type": device.device_type,
