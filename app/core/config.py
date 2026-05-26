@@ -3,7 +3,7 @@ from pathlib import Path
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
-RUNTIME_VENDOR_KEYS = {"cpu", "nvidia", "amd", "intel", "default"}
+RUNTIME_VENDOR_KEYS = {"cpu", "nvidia", "amd", "intel", "vulkan", "default"}
 
 
 def _default_llama_server_path() -> str:
