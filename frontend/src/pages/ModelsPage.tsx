@@ -171,6 +171,7 @@ export default function ModelsPage({ setupMode = false, onComplete }: ModelsPage
   const [isSavingModal, setIsSavingModal] = useState(false);
   const [modalError, setModalError] = useState("");
   const [draggedModelId, setDraggedModelId] = useState<number | null>(null);
+  const [isUploadModalOpen, setIsUploadModalOpen] = useState(false);
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [uploadProgress, setUploadProgress] = useState<UploadProgressState>({ loaded: 0, total: 0 });
   const [isLoading, setIsLoading] = useState(false);
@@ -183,6 +184,7 @@ export default function ModelsPage({ setupMode = false, onComplete }: ModelsPage
   const [errorMessage, setErrorMessage] = useState("");
   const [successMessage, setSuccessMessage] = useState("");
   const latestModelsRef = useRef<ModelRecord[]>([]);
+  const uploadInputRef = useRef<HTMLInputElement | null>(null);
   const savedConfigRef = useRef<Record<number, string>>({});
   const savedActivationRef = useRef<Record<number, boolean>>({});
   const saveTimeoutsRef = useRef<Record<number, number>>({});
@@ -261,6 +263,7 @@ export default function ModelsPage({ setupMode = false, onComplete }: ModelsPage
     setErrorMessage("");
     setSuccessMessage("");
     setIsUploading(true);
+    setIsUploadModalOpen(false);
     setUploadProgress({ loaded: 0, total: selectedFile.size });
 
     try {
@@ -274,9 +277,8 @@ export default function ModelsPage({ setupMode = false, onComplete }: ModelsPage
       savedActivationRef.current[response.model.id] = response.model.activated;
       setModels((current) => sortModels([...current.filter((model) => model.id !== response.model.id), response.model]));
       setSelectedFile(null);
-      const input = document.getElementById("model-upload-input") as HTMLInputElement | null;
-      if (input) {
-        input.value = "";
+      if (uploadInputRef.current) {
+        uploadInputRef.current.value = "";
       }
       setUploadProgress({ loaded: selectedFile.size, total: selectedFile.size });
       setSuccessMessage(`Uploaded ${response.model.file_name}.`);
@@ -554,6 +556,15 @@ export default function ModelsPage({ setupMode = false, onComplete }: ModelsPage
   const uploadTotal = uploadProgress.total || selectedFile?.size || 0;
   const uploadPercent = uploadTotal > 0 ? Math.min(100, Math.round((uploadProgress.loaded / uploadTotal) * 100)) : 0;
   const assignmentTargets = buildAssignmentTargets(devices, pools);
+
+  function closeUploadModal() {
+    if (isUploading) {
+      return;
+    }
+
+    setIsUploadModalOpen(false);
+  }
+
   return (
     <section className="grid gap-4">
       <article className="rounded-2xl border border-black/10 bg-white/80 p-5 shadow-sm backdrop-blur">
@@ -561,9 +572,24 @@ export default function ModelsPage({ setupMode = false, onComplete }: ModelsPage
           <div>
             <h2 className="mt-2 font-display text-xl">{setupMode ? "Step 3: Models" : "Models"}</h2>
           </div>
-          <button className="rounded-xl border border-black/15 px-4 py-2 text-sm font-semibold text-black disabled:cursor-not-allowed disabled:opacity-60" type="button" onClick={handleScan} disabled={isScanning}>
-            {isScanning ? "Scanning..." : "Scan Models Folder"}
-          </button>
+          <div className="flex flex-wrap items-center gap-2">
+            <button
+              className="rounded-xl bg-amber px-4 py-2 text-sm font-semibold text-black disabled:cursor-not-allowed disabled:opacity-60"
+              type="button"
+              onClick={() => setIsUploadModalOpen(true)}
+              disabled={isUploading}
+            >
+              {isUploading ? "Uploading..." : "Upload Model File"}
+            </button>
+            <button
+              className="rounded-xl border border-black/15 px-4 py-2 text-sm font-semibold text-black disabled:cursor-not-allowed disabled:opacity-60"
+              type="button"
+              onClick={handleScan}
+              disabled={isScanning || isUploading}
+            >
+              {isScanning ? "Scanning..." : "Scan Models Folder"}
+            </button>
+          </div>
         </div>
 
         {setupMode ? <p className="mt-2 max-w-3xl text-sm text-black/70">Register and activate at least one model to complete setup.</p> : null}
@@ -571,26 +597,25 @@ export default function ModelsPage({ setupMode = false, onComplete }: ModelsPage
         {errorMessage ? <p className="mt-4 rounded-xl border border-rose-200 bg-rose-50 px-3 py-2 text-sm text-rose-700">{errorMessage}</p> : null}
         {successMessage ? <p className="mt-4 rounded-xl border border-emerald-200 bg-emerald-50 px-3 py-2 text-sm text-emerald-700">{successMessage}</p> : null}
 
-        <form className="mt-3 grid gap-3 rounded-2xl border border-dashed border-black/15 bg-sand/70 p-4" onSubmit={handleUpload}>
-          <h3 className="font-display text-base">Upload GGUF Model</h3>
-            <input id="model-upload-input" className="block w-full rounded-xl border border-black/15 bg-white px-3 py-2 text-sm file:mr-3 file:rounded-lg file:border-0 file:bg-amber file:px-3 file:py-2 file:font-semibold disabled:cursor-not-allowed disabled:opacity-60" type="file" accept=".gguf" onChange={(event) => setSelectedFile(event.target.files?.[0] ?? null)} disabled={isUploading} />
-          {isUploading && uploadTotal > 0 ? (
-            <div className="grid gap-2 rounded-xl border border-black/10 bg-white/70 px-3 py-3">
-              <div className="flex items-center justify-between gap-3 text-sm text-black/70">
-                <span>{uploadPercent}%</span>
-                <span>{formatUploadSizeInWholeMb(uploadProgress.loaded)} / {formatUploadSizeInWholeMb(uploadTotal)}</span>
-              </div>
-              <div className="h-2 overflow-hidden rounded-full bg-black/10">
-                <div className="h-full rounded-full bg-amber transition-[width] duration-150" style={{ width: `${uploadPercent}%` }} />
-              </div>
+        {isUploading || selectedFile ? (
+          <div className="mt-3 grid gap-3 rounded-2xl border border-dashed border-black/15 bg-sand/70 p-4">
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <h3 className="font-display text-base">Model uploading...</h3>
+              {selectedFile ? <span className="text-sm text-black/60">{selectedFile.name}</span> : null}
             </div>
-          ) : null}
-          <div className="flex flex-wrap gap-2">
-            <button className="rounded-xl bg-amber px-4 py-2 text-sm font-semibold text-black disabled:cursor-not-allowed disabled:opacity-60" type="submit" disabled={isUploading || !selectedFile}>
-              {isUploading ? "Uploading..." : "Upload Model"}
-            </button>
+            {isUploading && uploadTotal > 0 ? (
+              <div className="grid gap-2 rounded-xl border border-black/10 bg-white/70 px-3 py-3">
+                <div className="flex items-center justify-between gap-3 text-sm text-black/70">
+                  <span>{uploadPercent}%</span>
+                  <span>{formatUploadSizeInWholeMb(uploadProgress.loaded)} / {formatUploadSizeInWholeMb(uploadTotal)}</span>
+                </div>
+                <div className="h-2 overflow-hidden rounded-full bg-black/10">
+                  <div className="h-full rounded-full bg-amber transition-[width] duration-150" style={{ width: `${uploadPercent}%` }} />
+                </div>
+              </div>
+            ) : null}
           </div>
-        </form>
+        ) : null}
 
         <div className="mt-5 space-y-4">
           {models.map((model) => {
@@ -833,6 +858,49 @@ export default function ModelsPage({ setupMode = false, onComplete }: ModelsPage
           </div>
         </Modal>
       ) : null}
+
+      <Modal
+        open={isUploadModalOpen}
+        onClose={closeUploadModal}
+        labelledBy="model-upload-modal-title"
+        panelClassName="w-full max-w-xl"
+      >
+        <form className="p-6" onSubmit={handleUpload}>
+          <h2 id="model-upload-modal-title" className="font-display text-xl">Upload Model File</h2>
+          <p className="mt-1 text-sm text-black/55">Select a `.gguf` model file to upload into the models library.</p>
+
+          <div className="mt-5 grid gap-3">
+            <input
+              ref={uploadInputRef}
+              id="model-upload-input"
+              className="block w-full rounded-xl border border-black/15 bg-white px-3 py-2 text-sm file:mr-3 file:rounded-lg file:border-0 file:bg-amber file:px-3 file:py-2 file:font-semibold disabled:cursor-not-allowed disabled:opacity-60"
+              type="file"
+              accept=".gguf"
+              onChange={(event) => setSelectedFile(event.target.files?.[0] ?? null)}
+              disabled={isUploading}
+            />
+            {selectedFile ? <p className="text-sm text-black/60">Selected: {selectedFile.name}</p> : null}
+          </div>
+
+          <div className="mt-6 flex items-center justify-end gap-3 border-t border-black/10 pt-4">
+            <button
+              type="button"
+              className="rounded-xl border border-black/15 px-4 py-2 text-sm font-semibold text-black hover:bg-black/5 disabled:cursor-not-allowed disabled:opacity-60"
+              onClick={closeUploadModal}
+              disabled={isUploading}
+            >
+              Cancel
+            </button>
+            <button
+              type="submit"
+              className="rounded-xl bg-amber px-4 py-2 text-sm font-semibold text-black disabled:cursor-not-allowed disabled:opacity-60"
+              disabled={isUploading || !selectedFile}
+            >
+              {isUploading ? "Uploading..." : "Upload Model File"}
+            </button>
+          </div>
+        </form>
+      </Modal>
     </section>
   );
 }
