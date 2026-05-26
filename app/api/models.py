@@ -272,6 +272,29 @@ def deactivate_model(model_id: int, _: User = Depends(get_admin_user), db: Sessi
     return {"status": "ok"}
 
 
+@router.delete("/{model_id}")
+def delete_model(model_id: int, _: User = Depends(get_admin_user), db: Session = Depends(get_db)) -> dict:
+    model = db.query(ModelConfig).filter(ModelConfig.id == model_id).first()
+    if not model:
+        raise HTTPException(status_code=404, detail="Model not found")
+    if model.activated:
+        raise HTTPException(status_code=409, detail="Disable this model before deleting it")
+
+    model_alias = model.alias
+    model_file_path = Path(model.file_path)
+
+    try:
+        if model_file_path.exists():
+            model_file_path.unlink()
+    except OSError as exc:
+        raise HTTPException(status_code=500, detail="Failed to delete model file") from exc
+
+    db.delete(model)
+    db.commit()
+    log_event(db, "model.deleted", details={"alias": model_alias, "model_id": model_id})
+    return {"status": "ok"}
+
+
 async def _resolve_device_for_model(db: Session, model: ModelConfig, inference: InferenceManager) -> Device | PoolActivationTarget | None:
     supported_vendors = [vendor for vendor in ["cpu", "nvidia", "amd", "intel", "vulkan"] if is_supported_vendor(vendor)]
     model_size_mb = _estimate_model_size_mb(model.file_path)

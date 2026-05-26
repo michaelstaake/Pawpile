@@ -1,5 +1,5 @@
 import { type DragEvent, type FormEvent, useEffect, useRef, useState } from "react";
-import { apiGet, apiPatch, apiPost, apiPostFormWithProgress } from "../lib/api";
+import { apiDelete, apiGet, apiPatch, apiPost, apiPostFormWithProgress } from "../lib/api";
 import { useAuth } from "../context/AuthContext";
 import { formatDeviceIdLabel } from "../lib/deviceIds";
 import { DeviceRecord, GpuPoolRecord, ModelRecord, ModelUpdateResponse, ScanResponse, UploadResponse } from "../lib/records";
@@ -170,6 +170,7 @@ export default function ModelsPage({ setupMode = false, onComplete }: ModelsPage
   const [modalContextLengthMode, setModalContextLengthMode] = useState<ContextLengthMode>("custom");
   const [modalNumericDrafts, setModalNumericDraftsState] = useState<Record<string, string>>({});
   const [isSavingModal, setIsSavingModal] = useState(false);
+  const [isDeletingModal, setIsDeletingModal] = useState(false);
   const [modalError, setModalError] = useState("");
   const [draggedModelId, setDraggedModelId] = useState<number | null>(null);
   const [isUploadModalOpen, setIsUploadModalOpen] = useState(false);
@@ -518,6 +519,48 @@ export default function ModelsPage({ setupMode = false, onComplete }: ModelsPage
     }
   }
 
+  async function deleteModalModel() {
+    if (!token || !modalDraft) {
+      return;
+    }
+
+    if (modalDraft.activated) {
+      setModalError("Disable this model before deleting it.");
+      return;
+    }
+
+    const confirmed = window.confirm(`Delete ${modalDraft.alias}? This removes the registered model and its GGUF file.`);
+    if (!confirmed) {
+      return;
+    }
+
+    setIsDeletingModal(true);
+    setModalError("");
+
+    try {
+      await apiDelete<{ status: string }>(`/api/models/${modalDraft.id}`, token);
+      setModels((current) => current.filter((item) => item.id !== modalDraft.id));
+      delete savedConfigRef.current[modalDraft.id];
+      delete savedActivationRef.current[modalDraft.id];
+      const existingTimeout = saveTimeoutsRef.current[modalDraft.id];
+      if (existingTimeout) {
+        window.clearTimeout(existingTimeout);
+        delete saveTimeoutsRef.current[modalDraft.id];
+      }
+      savingIdsRef.current.delete(modalDraft.id);
+      resaveRequestedRef.current.delete(modalDraft.id);
+      setPendingModelIds((current) => current.filter((id) => id !== modalDraft.id));
+      setSavingModelIds((current) => current.filter((id) => id !== modalDraft.id));
+      setLoadingActivationIds((current) => current.filter((id) => id !== modalDraft.id));
+      setSuccessMessage(`Deleted ${modalDraft.alias}.`);
+      closeSettingsModal();
+    } catch (error) {
+      setModalError(error instanceof Error ? error.message : "Failed to delete model");
+    } finally {
+      setIsDeletingModal(false);
+    }
+  }
+
   function handleDragStart(event: DragEvent<HTMLElement>, modelId: number) {
     const target = event.target as HTMLElement;
     if (target.tagName === "INPUT" || target.tagName === "TEXTAREA" || target.tagName === "SELECT") {
@@ -841,12 +884,22 @@ export default function ModelsPage({ setupMode = false, onComplete }: ModelsPage
               </section>
             </div>
 
-            <div className="mt-6 flex items-center justify-end gap-3 border-t border-black/10 pt-4">
+            <div className="mt-6 flex items-center justify-between gap-3 border-t border-black/10 pt-4">
+              <button
+                type="button"
+                className="rounded-xl border border-rose-200 px-4 py-2 text-sm font-semibold text-rose-700 hover:bg-rose-50 disabled:cursor-not-allowed disabled:opacity-60"
+                onClick={() => void deleteModalModel()}
+                disabled={isSavingModal || isDeletingModal || modalDraft.activated}
+                title={modalDraft.activated ? "Disable this model before deleting it." : undefined}
+              >
+                {isDeletingModal ? "Deleting..." : "Delete Model"}
+              </button>
+              <div className="flex items-center gap-3">
               <button
                 type="button"
                 className="rounded-xl border border-black/15 px-4 py-2 text-sm font-semibold text-black hover:bg-black/5 disabled:cursor-not-allowed disabled:opacity-60"
                 onClick={closeSettingsModal}
-                disabled={isSavingModal}
+                disabled={isSavingModal || isDeletingModal}
               >
                 Cancel
               </button>
@@ -854,10 +907,11 @@ export default function ModelsPage({ setupMode = false, onComplete }: ModelsPage
                 type="button"
                 className="rounded-xl bg-ink px-4 py-2 text-sm font-semibold text-white disabled:cursor-not-allowed disabled:opacity-60"
                 onClick={() => void saveModalDraft()}
-                disabled={isSavingModal}
+                disabled={isSavingModal || isDeletingModal}
               >
                 {isSavingModal ? "Saving..." : modalDraft.activated ? "Save and Reload" : "Save"}
               </button>
+              </div>
             </div>
           </div>
         </Modal>
