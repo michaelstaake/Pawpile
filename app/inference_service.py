@@ -1,5 +1,4 @@
 import asyncio
-import csv
 import json
 import logging
 import os
@@ -216,10 +215,6 @@ class InferenceRuntime:
             env["CUDA_VISIBLE_DEVICES"] = ",".join(indices)
         elif vendor == "nvidia":
             env["CUDA_VISIBLE_DEVICES"] = hardware_id.split(":")[-1]
-        elif vendor == "amd":
-            env["HIP_VISIBLE_DEVICES"] = hardware_id.split(":")[-1]
-        elif vendor == "intel":
-            env["ONEAPI_DEVICE_SELECTOR"] = "level_zero:gpu"
         elif vendor == "vulkan":
             env["GGML_VK_VISIBLE_DEVICES"] = hardware_id.split(":")[-1]
         elif vendor == "cpu":
@@ -235,18 +230,7 @@ class InferenceRuntime:
                 args.extend(["--tensor-split", ",".join(str(r) for r in vram_ratios)])
             return args
 
-        if vendor != "amd":
-            return []
-
-        args = []
-        if self.settings.amd_llama_disable_warmup:
-            args.append("--no-warmup")
-
-        extra_args = self.settings.amd_llama_extra_args.strip()
-        if extra_args:
-            args.extend(shlex.split(extra_args))
-
-        return args
+        return []
 
     def status_payload(self) -> dict:
         supported_vendors = get_supported_vendors()
@@ -320,8 +304,6 @@ class InferenceRuntime:
         }
 
         metrics.update(self._collect_nvidia_metrics())
-        metrics.update(self._collect_amd_metrics())
-        metrics.update(self._collect_intel_metrics())
         return metrics
 
     def _collect_nvidia_metrics(self) -> dict[str, dict]:
@@ -375,165 +357,6 @@ class InferenceRuntime:
             metrics.setdefault(hardware_id, {"process_memory_by_pid": {}})
             process_memory_by_pid = metrics[hardware_id].setdefault("process_memory_by_pid", {})
             process_memory_by_pid[pid] = used_memory_mb
-
-        return metrics
-
-    def _collect_amd_metrics(self) -> dict[str, dict]:
-        # Try JSON first
-        json_output = self._run_command(["rocm-smi", "--showuse", "--showmeminfo", "vram", "--json"])
-        metrics = self._parse_amd_metrics_json(json_output)
-        if metrics:
-            return metrics
-
-        # Fallback to plain text output
-        text_output = self._run_command(["rocm-smi", "--showuse", "--showmeminfo", "vram"])
-        return self._parse_amd_metrics_text(text_output)
-
-    def _collect_intel_metrics(self) -> dict[str, dict]:
-        dump_output = self._run_command(["xpu-smi", "dump", "-d", "-1", "-m", "0,18", "-n", "1"])
-        return self._parse_intel_metrics_dump(dump_output)
-
-    @classmethod
-    def _parse_amd_metrics_json(cls, json_output: str) -> dict[str, dict]:
-        if not json_output:
-            return {}
-        try:
-            data = json.loads(json_output)
-        except Exception:
-            return {}
-        if not isinstance(data, dict):
-            return {}
-
-        metrics: dict[str, dict] = {}
-        for card_key, entry in data.items():
-            if not isinstance(entry, dict):
-                continue
-            card_lower = card_key.lower()
-            if not ("card" in card_lower or "device" in card_lower or "gpu" in card_lower):
-                continue
-
-            digits = re.sub(r"\D", "", card_key) or "0"
-            index = int(digits)
-            hardware_id = f"amd:{index}"
-
-            vram_used_bytes = 0
-            vram_total_bytes = 0
-            gpu_use = None
-
-            for path, raw_value in cls._flatten_metric_entries(entry):
-                if "vram" in path:
-                    parsed_size = cls._parse_size_to_bytes(raw_value)
-                    if parsed_size is None:
-                        continue
-                    if any(token in path for token in ["used", "use", "allocated", "used memory"]):
-                        vram_used_bytes = max(vram_used_bytes, parsed_size)
-                    elif "total" in path:
-                        vram_total_bytes = max(vram_total_bytes, parsed_size)
-
-                if gpu_use is None and any(token in path for token in ["gpu use", "gpu usage", "gpu busy", "gpu activity", "utilization"]):
-                    gpu_use = cls._parse_percentage(raw_value)
-
-            metrics[hardware_id] = {
-                "usage_percent": gpu_use,
-                "usage_source": "rocm-smi",
-                "memory_used_mb": int(vram_used_bytes / (1024 * 1024)) if vram_used_bytes else 0,
-                "memory_total_mb": int(vram_total_bytes / (1024 * 1024)) if vram_total_bytes else 0,
-                "memory_source": "rocm-smi",
-                "process_memory_by_pid": {},
-            }
-        return metrics
-
-    @classmethod
-    def _parse_amd_metrics_text(cls, text_output: str) -> dict[str, dict]:
-        if not text_output:
-            return {}
-
-        metrics: dict[str, dict] = {}
-        # Parse text output (e.g. Card0 GPU use %: 0.1, Card0 VRAM total memory: ..., Card0 VRAM memory use: ...)
-        for line in text_output.splitlines():
-            line_lower = line.lower()
-            card_match = re.search(r"(?:card|gpu|device)\[?(\d+)\]?", line_lower)
-            if not card_match:
-                continue
-
-            index = int(card_match.group(1))
-            hardware_id = f"amd:{index}"
-            metrics.setdefault(
-                hardware_id,
-                {
-                    "usage_percent": 0.0,
-                    "usage_source": "rocm-smi",
-                    "memory_used_mb": 0,
-                    "memory_total_mb": 0,
-                    "memory_source": "rocm-smi",
-                    "process_memory_by_pid": {},
-                },
-            )
-
-            parts = line_lower.split(":")
-            if len(parts) < 2:
-                continue
-            val_part = parts[-1].strip()
-
-            if "gpu" in line_lower and ("use" in line_lower or "activity" in line_lower or "%" in line_lower):
-                metrics[hardware_id]["usage_percent"] = cls._parse_percentage(val_part)
-            elif "vram" in line_lower:
-                parsed_size = cls._parse_size_to_bytes(val_part)
-                if parsed_size is None:
-                    continue
-                if "use" in line_lower or "allocated" in line_lower:
-                    metrics[hardware_id]["memory_used_mb"] = int(parsed_size / (1024 * 1024))
-                elif "total" in line_lower:
-                    metrics[hardware_id]["memory_total_mb"] = int(parsed_size / (1024 * 1024))
-
-        return metrics
-
-    @classmethod
-    def _parse_intel_metrics_dump(cls, dump_output: str) -> dict[str, dict]:
-        if not dump_output:
-            return {}
-
-        csv_lines = [line for line in dump_output.splitlines() if "," in line]
-        if len(csv_lines) < 2:
-            return {}
-
-        reader = csv.reader(csv_lines)
-        rows = [[cell.strip() for cell in row] for row in reader if row]
-        if len(rows) < 2:
-            return {}
-
-        header = rows[0]
-        column_map = {name: index for index, name in enumerate(header)}
-        device_column = column_map.get("DeviceId")
-        usage_column = column_map.get("GPU Utilization (%)")
-        memory_used_column = column_map.get("GPU Memory Used (MiB)")
-        if device_column is None:
-            return {}
-
-        metrics: dict[str, dict] = {}
-        for row in rows[1:]:
-            if device_column >= len(row):
-                continue
-            device_id = cls._parse_int(row[device_column])
-            if device_id is None:
-                continue
-
-            usage_percent = None
-            if usage_column is not None and usage_column < len(row):
-                usage_percent = cls._parse_float(row[usage_column])
-
-            memory_used_mb = 0
-            if memory_used_column is not None and memory_used_column < len(row):
-                memory_value = cls._parse_float(row[memory_used_column])
-                memory_used_mb = int(memory_value) if memory_value is not None else 0
-
-            metrics[f"intel:{device_id}"] = {
-                "usage_percent": usage_percent,
-                "usage_source": "xpu-smi",
-                "memory_used_mb": memory_used_mb,
-                "memory_source": "xpu-smi",
-                "process_memory_by_pid": {},
-            }
 
         return metrics
 

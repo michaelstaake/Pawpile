@@ -1,17 +1,17 @@
 # Pawpile
 
-Pawpile turns your collection of GPUs (or CPUs) into a flexible, intuitive AI server. It features a clean web interface and a fully OpenAI-compatible API that's ready to integrate with your workflow - all running via Docker on Ubuntu 26.04. Pretty much any GGUF AI model will work - whether you want a small model for basic tasks or have a massive workstation, Pawpile makes it simple to get started with self-hosted LLMs.
+Pawpile turns your collection of GPUs (or CPUs) into a flexible, intuitive AI server. It features a clean web interface and a fully OpenAI-compatible API that's ready to integrate with your workflow - all running via Docker on Ubuntu 26.04. Pretty much any GGUF AI model will work - whether you want a small model for basic tasks or want to run a massive model on a high end PC, Pawpile makes it simple to get started self-hosting LLMs.
 
-It supports x86_64 CPUs, NVIDIA GPUs, AMD GPUs, and Intel Arc GPUs. You can have multiple cards and even mix multiple devices from different vendors in the same setup. You can also pool multiple GPUs to run larger models (NVIDIA only). Pawpile might have a goofy name but it's easy, private, and free.
+It supports x86_64 CPUs, NVIDIA GPUs, and AMD/Intel GPUs via Vulkan. You can have multiple cards and even mix multiple devices in the same setup. You can also pool multiple GPUs to run larger models (NVIDIA only). Pawpile might have a goofy name but it's easy, private, and free.
 
 ## System Requirements
 
 ### Supported Devices
 
 - **CPU**: x86_64
-- **NVIDIA**: CUDA
-- **AMD**: ROCm or Vulkan
-- **Intel Arc**: Sycl or Vulkan. Note: `xe` is the correct driver for supported Arc GPUs - `i915` is not supported.
+- **NVIDIA GPU**: CUDA
+- **AMD GPU**: Vulkan
+- **Intel Arc GPU**: Vulkan
 
 ### Ubuntu 26.04
 
@@ -52,45 +52,23 @@ docker compose up -d --build
 docker compose --profile nvidia up -d --build
 ```
 
-#### CPU + AMD:
-
-To use Vulkan (recommended), use the vulkan profile:
+#### CPU + Vulkan (AMD/Intel Arc):
 
 ```bash
 docker compose --profile vulkan up -d --build
 ```
 
-To use ROCm, use the amd profile:
+#### CPU + NVIDIA + Vulkan (AMD/Intel Arc):
 
 ```bash
-docker compose --profile amd up -d --build
-```
-
-#### CPU + Intel:
-
-To use Vulkan (recommended), use the vulkan profile:
-
-```bash
-docker compose --profile vulkan up -d --build
-```
-
-To use Sycl, use the intel profile:
-
-```bash
-docker compose --profile intel up -d --build
-```
-
-#### Mixed vendor example with NVIDIA and AMD:
-
-```bash
-docker compose --profile nvidia --profile amd up -d --build
+docker compose --profile nvidia --profile vulkan up -d --build
 ```
 
 The backend stores its SQLite database in a Docker-managed volume. Model files stay in `models/` and runtime logs stay in `logs/` on the host.
 
 4. Add your AI models GGUF files under the `models/` directory or do this later using the Web UI.
 
-5. Initial setup will take a long time as we are building llama-cpp based on your selected devices.
+5. Initial setup will take a while as we are building llama-cpp based on your selected devices.
 
 6. Once Docker reports the containers are healthy and started, open the Pawpile web interface: https://localhost:5173 or replace localhost with your server's local IP. You will receive an SSL error since Pawpile generates a self-signed SSL certificate. It is safe to bypass this error.
 
@@ -182,7 +160,7 @@ Use this in your OpenCode config file to connect to Pawpile's OpenAI-compatible 
 
 - **Device not detected**:
   - Check vendor tooling is installed on the host system:
-    - Ubuntu 26.04: `nvidia-smi` (NVIDIA), `rocm-smi` (AMD), or `sycl-ls` (Intel Arc)
+    - Ubuntu 26.04: `nvidia-smi` (NVIDIA) or `vulkaninfo` (AMD/Intel Arc)
   - Ensure the appropriate GPU Docker runtime is configured and accessible to the environment.
   - Restart the application after installing drivers on the host.
 
@@ -192,8 +170,6 @@ Use this in your OpenCode config file to connect to Pawpile's OpenAI-compatible 
   - Confirm `LLAMA_SERVER_PATH` in `.env` is set correctly inside the container (defaults to `/opt/llama.cpp/build/bin/llama-server`).
   - Confirm the model path exists and is readable under the `models/` directory in the project root (which is mounted into the containers).
   - Ensure the models are not too large for the device you are running it on.
-  - On AMD, if the runtime log shows ROCm warmup failures or `invalid device function`, rebuild the AMD image first. If the default build still fails on a specific GPU family, set `AMDGPU_TARGETS` explicitly for that deployment and rebuild.
-  - On AMD, you can also set `AMD_LLAMA_DISABLE_WARMUP=true` to skip llama.cpp warmup or provide additional AMD-only launch arguments with `AMD_LLAMA_EXTRA_ARGS`.
 
 ## License
 

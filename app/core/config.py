@@ -3,7 +3,7 @@ from pathlib import Path
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
-RUNTIME_VENDOR_KEYS = {"cpu", "nvidia", "amd", "intel", "vulkan", "default"}
+RUNTIME_VENDOR_KEYS = {"cpu", "nvidia", "vulkan", "default"}
 
 
 def _default_llama_server_path() -> str:
@@ -36,8 +36,6 @@ class Settings(BaseSettings):
     llama_health_timeout_seconds: int = 5
     llama_startup_timeout_seconds: int = 120
     llama_request_timeout_seconds: int = 300
-    amd_llama_disable_warmup: bool = False
-    amd_llama_extra_args: str = ""
 
     default_context_length: int = 32768
     default_threads: int = 8
