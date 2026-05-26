@@ -79,6 +79,7 @@ export default function ChatPage() {
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const abortControllerRef = useRef<AbortController | null>(null);
   const [attachments, setAttachments] = useState<Attachment[]>([]);
+  const selectedModelSupportsThinking = selectedModel ? (modelThinkingDefaults[selectedModel] ?? false) : false;
 
   useEffect(() => {
     void loadModels();
@@ -482,18 +483,20 @@ export default function ChatPage() {
             <h2 className="font-display text-lg">Chat</h2>
           </div>
           <div className="flex items-center gap-2">
-            <button
-              type="button"
-              onClick={() => setThinkingEnabled((v) => !v)}
-              disabled={isLoadingModels || models.length === 0}
-              title={thinkingEnabled ? "Thinking on — click to disable" : "Thinking off — click to enable"}
-              className={`flex items-center gap-1.5 rounded-lg border px-3 py-2 text-sm font-medium transition-colors disabled:opacity-40 ${thinkingEnabled ? "border-amber/60 bg-amber/10 text-amber-700" : "border-black/20 bg-white text-black/50 hover:bg-black/5"}`}
-            >
-              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="h-4 w-4">
-                <path d="M11.983 1.907a.75.75 0 0 0-1.292-.657l-8.5 9.5A.75.75 0 0 0 2.75 12h6.572l-1.305 6.093a.75.75 0 0 0 1.292.657l8.5-9.5A.75.75 0 0 0 17.25 8h-6.572l1.305-6.093Z" />
-              </svg>
-              Think
-            </button>
+            {selectedModelSupportsThinking ? (
+              <button
+                type="button"
+                onClick={() => setThinkingEnabled((v) => !v)}
+                disabled={isLoadingModels || models.length === 0}
+                title={thinkingEnabled ? "Thinking on — click to disable" : "Thinking off — click to enable"}
+                className={`flex items-center gap-1.5 rounded-lg border px-3 py-2 text-sm font-medium transition-colors disabled:opacity-40 ${thinkingEnabled ? "border-amber/60 bg-amber/10 text-amber-700" : "border-black/20 bg-white text-black/50 hover:bg-black/5"}`}
+              >
+                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="h-4 w-4">
+                  <path d="M11.983 1.907a.75.75 0 0 0-1.292-.657l-8.5 9.5A.75.75 0 0 0 2.75 12h6.572l-1.305 6.093a.75.75 0 0 0 1.292.657l8.5-9.5A.75.75 0 0 0 17.25 8h-6.572l1.305-6.093Z" />
+                </svg>
+                Think
+              </button>
+            ) : null}
             <select
               value={selectedModel}
               onChange={(event) => {
