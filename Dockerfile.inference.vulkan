@@ -10,6 +10,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     git \
     libvulkan-dev \
     glslc \
+    spirv-headers \
     libcurl4-openssl-dev \
     mesa-vulkan-drivers \
     vulkan-tools \
