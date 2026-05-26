@@ -1,8 +1,8 @@
 # Pawpile
 
-Pawpile turns your collection of GPUs (or CPUs) into a flexible, intuitive AI server. It features a clean web interface and a fully OpenAI-compatible API that's ready to integrate with your workflow - all running via Docker on Ubuntu 26.04. Pretty much any GGUF AI model will work - whether you want a small model for basic tasks or want to run a massive model on a high end PC, Pawpile makes it simple to get started self-hosting LLMs.
+Pawpile turns your GPUs (or CPU) into a flexible, intuitive AI server. It features a clean web interface and a fully OpenAI-compatible API that's ready to integrate with your workflow - all running via Docker on Ubuntu 26.04. Pretty much any GGUF AI model will work - whether you want to run a small model on your laptop or want to run a massive model on a high end PC with multiple video cards, Pawpile makes it simple to get started self-hosting LLMs.
 
-It supports x86_64 CPUs, NVIDIA GPUs, and AMD/Intel GPUs via Vulkan. You can have multiple cards and even mix multiple devices in the same setup. You can also pool multiple GPUs to run larger models (although at this time you can't mix NVIDIA and Vulkan devices in a pool). Pawpile might have a goofy name but it's easy, private, and free.
+It supports x86_64 CPUs, NVIDIA GPUs, AMD GPUs, and Intel Arc GPUs. You can have multiple cards and even mix multiple devices in the same setup. You can also pool multiple GPUs (within the same vendor) to run larger models. Pawpile might have a goofy name but it's easy, private, and free, so hopefully you'll forgive that.
 
 ## System Requirements
 
