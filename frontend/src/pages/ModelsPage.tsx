@@ -162,6 +162,7 @@ function formatUploadSizeInWholeMb(bytes: number): string {
 export default function ModelsPage({ setupMode = false, onComplete }: ModelsPageProps) {
   const { token } = useAuth();
   const [models, setModels] = useState<ModelRecord[]>([]);
+  const [hasLoadedModels, setHasLoadedModels] = useState(false);
   const [devices, setDevices] = useState<DeviceRecord[]>([]);
   const [pools, setPools] = useState<GpuPoolRecord[]>([]);
   const [settingsModelId, setSettingsModelId] = useState<number | null>(null);
@@ -197,6 +198,7 @@ export default function ModelsPage({ setupMode = false, onComplete }: ModelsPage
 
   useEffect(() => {
     if (!token) {
+      setHasLoadedModels(false);
       return;
     }
     void refreshData(token);
@@ -221,6 +223,7 @@ export default function ModelsPage({ setupMode = false, onComplete }: ModelsPage
     } catch (error) {
       setErrorMessage(error instanceof Error ? error.message : "Failed to load model data");
     } finally {
+      setHasLoadedModels(true);
       setIsLoading(false);
     }
   }
@@ -670,7 +673,8 @@ export default function ModelsPage({ setupMode = false, onComplete }: ModelsPage
               </article>
             );
           })}
-          {models.length === 0 ? <p className="rounded-2xl border border-dashed border-black/15 bg-sand/60 px-4 py-6 text-sm text-black/60">No models registered yet.</p> : null}
+          {!hasLoadedModels ? <p className="rounded-2xl border border-dashed border-black/15 bg-sand/60 px-4 py-6 text-sm text-black/60">Loading...</p> : null}
+          {hasLoadedModels && models.length === 0 ? <p className="rounded-2xl border border-dashed border-black/15 bg-sand/60 px-4 py-6 text-sm text-black/60">No models registered yet.</p> : null}
         </div>
 
         {setupMode ? (
