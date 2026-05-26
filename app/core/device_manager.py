@@ -451,7 +451,17 @@ class DeviceManager:
     def _detect_vulkan(self) -> list[DetectedDevice]:
         if not is_supported_vendor("vulkan"):
             return []
-        output = self._run("vulkaninfo --summary")
+        try:
+            result = subprocess.run(
+                ["vulkaninfo", "--summary"],
+                stdout=subprocess.PIPE,
+                stderr=subprocess.DEVNULL,
+                text=True,
+            )
+            output = result.stdout.strip()
+        except Exception as exc:
+            logger.debug("Device probe command failed (vulkaninfo --summary): %s", exc)
+            return []
         if not output:
             return []
         devices: list[DetectedDevice] = []
