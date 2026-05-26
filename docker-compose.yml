@@ -188,6 +188,9 @@ services:
       - /dev/dri:/dev/dri
     device_cgroup_rules:
       - 'c 226:* rwm'
+    group_add:
+      - video
+      - render
     expose:
       - "8100"
     healthcheck:
