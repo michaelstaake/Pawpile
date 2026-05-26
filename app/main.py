@@ -32,7 +32,7 @@ async def lifespan(_: FastAPI):
     db = SessionLocal()
     try:
         prune_old_logs(db)
-        device_manager.sync_detected_devices(db)
+        device_manager.sync_detected_devices(db, auto_enable_defaults=True)
         app_settings = get_or_create_app_settings(db)
         if app_settings.auto_load_enabled_models_on_startup:
             activated_models = (

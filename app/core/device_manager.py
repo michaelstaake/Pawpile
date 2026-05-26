@@ -58,10 +58,11 @@ class DeviceManager:
         devices.extend(self._detect_cpu())
         return devices
 
-    def sync_detected_devices(self, db: Session) -> list[Device]:
+    def sync_detected_devices(self, db: Session, *, auto_enable_defaults: bool = False) -> list[Device]:
         detected = self.detect_all()
         existing = {d.hardware_id: d for d in db.query(Device).all()}
         detected_ids = {device.hardware_id for device in detected}
+        gpu_detected = any(device.device_type == "gpu" and device.vendor != "cpu" for device in detected)
 
         for row in existing.values():
             if not is_supported_vendor(row.vendor) or row.hardware_id not in detected_ids:
@@ -69,6 +70,7 @@ class DeviceManager:
 
         for d in detected:
             row = existing.get(d.hardware_id)
+            enabled = self._should_auto_enable(d, gpu_detected) if auto_enable_defaults else False
             if row is None:
                 row = Device(
                     hardware_id=d.hardware_id,
@@ -76,7 +78,7 @@ class DeviceManager:
                     vendor=d.vendor,
                     device_type=d.device_type,
                     memory_mb=d.memory_mb,
-                    enabled=False,
+                    enabled=enabled,
                     max_threads=d.max_threads,
                     max_slots=d.max_slots,
                 )
@@ -89,9 +91,18 @@ class DeviceManager:
                 if row.device_type == "cpu":
                     row.max_threads = d.max_threads or row.max_threads
                     row.max_slots = max(1, d.max_slots)
+                if auto_enable_defaults:
+                    row.enabled = enabled
 
         db.commit()
         return db.query(Device).order_by(Device.priority.asc(), Device.id.asc()).all()
+
+    @staticmethod
+    def _should_auto_enable(device: DetectedDevice, gpu_detected: bool) -> bool:
+        if gpu_detected:
+            return device.device_type == "gpu" and device.vendor != "cpu"
+
+        return device.device_type == "cpu" or device.vendor == "cpu"
 
     def _detect_runtime_devices(self) -> list[DetectedDevice]:
         settings = get_settings()
