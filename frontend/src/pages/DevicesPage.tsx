@@ -510,12 +510,10 @@ export default function DevicesPage({ setupMode = false, onContinue }: DevicesPa
               <div className="grid gap-4 px-5 py-5 sm:px-6">
                 <label className="grid gap-1 text-sm text-black/70">
                   <span>Pool Name</span>
-                  <span className="text-xs text-black/45">Shown when assigning models.</span>
                   <input className="rounded-xl border border-black/15 bg-white px-3 py-2 text-sm" value={poolDraftName} onChange={(event) => setPoolDraftName(event.target.value)} />
                 </label>
                 <label className="grid gap-1 text-sm text-black/70">
-                  <span>Pool Vendor</span>
-                  <span className="text-xs text-black/45">Keeps the pool on one GPU backend.</span>
+                  <span>Pool Type</span>
                   <select className="rounded-xl border border-black/15 bg-white px-3 py-2 text-sm" value={poolDraftVendor} onChange={(event) => setPoolDraftVendor(event.target.value as (typeof POOL_VENDORS)[number])}>
                     {draftVendorOptions.map((vendor) => (
                       <option key={vendor} value={vendor}>{vendorLabel(vendor)}</option>
@@ -524,7 +522,6 @@ export default function DevicesPage({ setupMode = false, onContinue }: DevicesPa
                 </label>
                 <div>
                   <p className="mb-2 text-xs font-semibold uppercase tracking-[0.15em] text-violet-600">Pool Members</p>
-                  <p className="mb-3 text-xs text-black/45">Pick the GPUs this pool should use together.</p>
                   <div className="space-y-2">
                     {filteredDraftDevices.length > 0 ? filteredDraftDevices.map((device) => (
                       <label key={device.id} className="flex cursor-pointer items-center gap-3 rounded-xl border border-violet-200 bg-white px-3 py-2 text-sm text-black/80 hover:bg-violet-50">
