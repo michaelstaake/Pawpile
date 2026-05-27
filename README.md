@@ -25,20 +25,26 @@ Ensure Docker is installed and running in the system context and is using the co
 
 ### Quick Start
 
-1. Clone or download the repository.
+**1. Clone or download the repository.**
+
+Currently Pawpile is in beta and undergoing very rapid development, so this is the easiest way to download it. To update, just use git pull and restart the containers. Once the project is in a more stable state, we will use releases.
 
 ```bash
 git clone https://github.com/michaelstaake/Pawpile.git
 cd Pawpile
 ```
 
-2. Copy environment file. The default settings should work for most users, but feel free to explore it to see what customization is offered.
+**2. Copy environment file.**
+
+The default settings should work for most users, but feel free to explore it to see what customization is offered.
 
 ```bash
 cp .env.example .env
 ```
 
-3. Run it. The base stack always starts the CPU inference runtime. Add one or more GPU profiles depending on the hardware in the host. You can mix multiple hardware types.
+**3. Run it.**
+
+The base stack always includes the CPU inference runtime. Add one or more GPU profiles depending on the hardware in the host. You can mix multiple hardware types.
 
 Choose one of these commands:
 
@@ -66,34 +72,36 @@ docker compose --profile vulkan up -d --build
 docker compose --profile nvidia --profile vulkan up -d --build
 ```
 
-The backend stores its SQLite database in a Docker-managed volume. Model files stay in `models/` and runtime logs stay in `logs/` on the host.
-The backend now runs Alembic migrations automatically during container startup before the API begins serving requests, including upgrading older SQLite volumes created by previous releases.
+The initial build process may take a while depending on your environment and host performance, as we are building llama-cpp based on your chosen inference runtime.
 
-4. Add your AI models GGUF files under the `models/` directory or do this later using the Web UI. Pawpile automatically scans this folder during initial setup and on each startup, so any `.gguf` files already present will be registered without a manual scan.
+**4. Proceed to web interface**
 
-5. Initial setup will take a while as we are building llama-cpp based on your selected devices.
+Once Docker reports the containers are healthy and started, open the Pawpile web interface: https://localhost:5173 or replace localhost with your server's local IP. You will receive an SSL error since Pawpile generates a self-signed SSL certificate. It is safe to bypass this error.
 
-6. Once Docker reports the containers are healthy and started, open the Pawpile web interface: https://localhost:5173 or replace localhost with your server's local IP. You will receive an SSL error since Pawpile generates a self-signed SSL certificate. It is safe to bypass this error.
+On a new install you will be redirected to the setup page where you can create your first admin account.
 
-7. On a new install you will be redirected to the setup page where you can create your first admin account. Once your account is created, go to Settings > Devices and set up at least one CPU or GPU device, then go to Settings > Models to upload and enable at least one AI model to use Pawpile.
+**5. Configure devices and pools**
 
-8. ENJOY! Next time you run Pawpile, run it without `--build` to speed up initialization.
+Once your admin account is created, go to the Devices page and configure your inference devices.
 
-9. To stop Pawpile, use the command that matches the profiles you started with:
+If you have multiple GPUs of the same vendor, you can create a pool, which allows you to run larger models than would fit on a single GPU. Please note that once a GPU is in a pool, it can not be used on an individual basis until you remove it from the pool.
+
+**6. Configure models**
+
+Go to the Models page to configure your AI models. Models must be in GGUF format.
+
+By default, models are in Auto mode for device selection. In this case, Pawpile will attempt to run the model on the most logical device or pool. However, if you want to pin a model to a specific device or pool, you may do so. Please ensure the device or pool has sufficient memory for the size of model you are running. Remember that the actual memory usage of a model may be higher than its file size, due to overhead, context, KV cache, etc.
+
+**7. ENJOY!**
+
+To stop Pawpile, use the command that matches the profiles you started with to ensure that all relevant containers are stopped. Docker Compose only stops services in the currently supplied profile set, so the `down` command must use the same profiles as `up`.
 
 ```bash
 docker compose down
-```
-
-For GPU-enabled stacks, use one of these instead:
-
-```bash
 docker compose --profile nvidia down
 docker compose --profile vulkan down
 docker compose --profile nvidia --profile vulkan down
 ```
-
-Docker Compose only stops services in the currently supplied profile set, so the `down` command must use the same profiles as `up`.
 
 ## Interacting with the AI Models
 
@@ -101,15 +109,17 @@ Docker Compose only stops services in the currently supplied profile set, so the
 
 You can chat with your enabled models through the web interface. This is the easiest but least powerful way to interact with Pawpile.
 
-### OpenAI Compatible API
+### OpenAI-Compatible API
 
-OpenAI-compatible endpoints require authentication by default.
-Provide a valid bearer token, which can be either a JWT access token or an API key.
-To disable this behavior (not recommended), set OPENAI_API_AUTH_REQUIRED=false.
+The API is the recommended way to use Pawpile through integrations with other software and platforms. Pawpile's API is OpenAI-Compatible, so you can easily integrate it into your workflow and applications.
+
+By default, an API key is required to communicate with the API. To disable this behavior (not recommended), set OPENAI_API_AUTH_REQUIRED=false.
 
 Pawpile currently supports `/v1/models` and `/v1/chat/completions`.
 
 Tool-calling fields on chat-completions requests are forwarded to the active runtime. Tool-bearing requests are rejected unless tool calling is enabled for that particular model.
+
+## Example API Call
 
 ```bash
 curl http://localhost:8000/v1/chat/completions \
@@ -164,10 +174,10 @@ Use this in your OpenCode config file to connect to Pawpile's OpenAI-compatible 
 
 - **Backend container is unhealthy after an update**:
   - Inspect `docker logs pawpile-backend` for migration errors
-  - If the SQLite volume comes from a very old or manually edited install and schema revision cannot be inferred automatically, back up the database and recreate the volume or run Alembic manually inside the backend container
+  - Version 0.3.0 must be a clean install - updates from previous versions are not supported.
 
 - **Docker Desktop**:
-  - If you are using Ubuntu Desktop not Ubuntu Server and have Docker Desktop installed, ensure Pawpile is running in the system's context not Docker Desktop's context
+  - While Ubuntu Server 26.04 is the recommended OS, Pawpile runs great on  Ubuntu Desktop 26.04. However, if you have Docker Desktop installed, and attempt to run Pawpile using the Docker Desktop system context, it will not be able to use all the system resources like RAM and GPUs.
   - Run `docker context use default` to correct the system context.
 
 
@@ -179,12 +189,10 @@ Use this in your OpenCode config file to connect to Pawpile's OpenAI-compatible 
   - Ensure the appropriate GPU Docker runtime is configured and accessible to the environment.
   - Restart the application after installing drivers on the host.
 
-### Model Issues
+## Need Help?
 
-- **Model activation failed**:
-  - Confirm `LLAMA_SERVER_PATH` in `.env` is set correctly inside the container (defaults to `/opt/llama.cpp/build/bin/llama-server`).
-  - Confirm the model path exists and is readable under the `models/` directory in the project root (which is mounted into the containers).
-  - Ensure the models are not too large for the device you are running it on.
+[Documentation on GitHub Wiki](https://github.com/michaelstaake/Pawpile/wiki)
+[Report Problems on GitHub Issues](https://github.com/michaelstaake/Pawpile/issues)
 
 ## License
 
