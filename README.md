@@ -65,6 +65,7 @@ docker compose --profile nvidia --profile vulkan up -d --build
 ```
 
 The backend stores its SQLite database in a Docker-managed volume. Model files stay in `models/` and runtime logs stay in `logs/` on the host.
+The backend now runs Alembic migrations automatically during container startup before the API begins serving requests, including upgrading older SQLite volumes created by previous releases.
 
 4. Add your AI models GGUF files under the `models/` directory or do this later using the Web UI. Pawpile automatically scans this folder during initial setup and on each startup, so any `.gguf` files already present will be registered without a manual scan.
 
@@ -158,6 +159,10 @@ Use this in your OpenCode config file to connect to Pawpile's OpenAI-compatible 
 - **Docker image build fails**:
   - Check available disk space
   - Run `docker system prune` to clean up old images
+
+- **Backend container is unhealthy after an update**:
+  - Inspect `docker logs pawpile-backend` for migration errors
+  - If the SQLite volume comes from a very old or manually edited install and schema revision cannot be inferred automatically, back up the database and recreate the volume or run Alembic manually inside the backend container
 
 - **Docker Desktop**:
   - If you are using Ubuntu Desktop not Ubuntu Server and have Docker Desktop installed, ensure Pawpile is running in the system's context not Docker Desktop's context

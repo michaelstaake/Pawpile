@@ -3,10 +3,14 @@ from logging.config import fileConfig
 from alembic import context
 from sqlalchemy import engine_from_config, pool
 
+from app.core.config import get_settings
 from app.core.db import Base
 from app.models import api_key, app_settings, chat, device, gpu_pool, inference_job, model_config, user  # noqa: F401
 
 config = context.config
+settings = get_settings()
+
+config.set_main_option("sqlalchemy.url", settings.database_url)
 
 if config.config_file_name is not None:
     fileConfig(config.config_file_name)

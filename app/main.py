@@ -10,7 +10,7 @@ from app.api import admin, auth, chat, devices, logs, models, openai_compat, sta
 from app.core.activity_logger import prune_old_logs, schedule_daily_pruning
 from app.core.app_settings import get_or_create_app_settings
 from app.core.config import get_settings
-from app.core.db import Base, SessionLocal, engine
+from app.core.db import SessionLocal
 from app.core.device_manager import DeviceManager
 from app.core.inference_manager import InferenceManager, PoolActivationTarget
 from app.core.logging import configure_logging
@@ -27,7 +27,6 @@ async def lifespan(_: FastAPI):
     configure_logging(settings.app_log_level)
     Path(settings.models_dir).mkdir(parents=True, exist_ok=True)
     Path(settings.data_dir).mkdir(parents=True, exist_ok=True)
-    Base.metadata.create_all(bind=engine)
 
     db = SessionLocal()
     try:
