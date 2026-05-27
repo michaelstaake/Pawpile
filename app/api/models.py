@@ -1,4 +1,5 @@
 import os
+import shutil
 from pathlib import Path
 
 from fastapi import APIRouter, Depends, File, HTTPException, UploadFile
@@ -23,22 +24,25 @@ router = APIRouter(prefix="/api/models", tags=["models"])
 
 ALLOWED_ASSIGNMENT_MODES = {"auto", "pinned", "pool"}
 UPLOAD_CHUNK_BYTES = 1024 * 1024
+ALLOWED_MODEL_ASSET_SUFFIXES = {".gguf", ".json", ".txt", ".yaml", ".yml", ".bin", ".safetensors"}
 
 
 def scan_models_dir(db: Session) -> tuple[int, int]:
     settings = get_settings()
-    os.makedirs(settings.models_dir, exist_ok=True)
-    files = sorted(f for f in os.listdir(settings.models_dir) if f.lower().endswith(".gguf"))
+    models_dir = Path(settings.models_dir)
+    models_dir.mkdir(parents=True, exist_ok=True)
 
     existing_by_file = {m.file_name: m for m in db.query(ModelConfig).all()}
     added = 0
-    for file_name in files:
+    discovered_files = list(_iter_model_files(models_dir))
+    for model_dir_name, file_name, file_path in discovered_files:
         if file_name in existing_by_file:
             continue
         model = ModelConfig(
             priority=_next_model_priority(db),
             file_name=file_name,
-            file_path=os.path.abspath(os.path.join(settings.models_dir, file_name)),
+            model_dir_name=model_dir_name,
+            file_path=str(file_path.resolve()),
             alias=_build_unique_alias(db, os.path.splitext(file_name)[0]),
             context_length=settings.default_context_length,
             gpu_layers=settings.default_gpu_layers,
@@ -48,12 +52,14 @@ def scan_models_dir(db: Session) -> tuple[int, int]:
             top_k=settings.default_top_k,
             presence_penalty=settings.default_presence_penalty,
             repetition_penalty=settings.default_repetition_penalty,
+            mmproj_file_name=_detect_mmproj_file_name(file_path.parent, file_name),
         )
         db.add(model)
+        existing_by_file[file_name] = model
         added += 1
 
     db.commit()
-    return len(files), added
+    return len(discovered_files), added
 
 
 @router.get("")
@@ -88,7 +94,9 @@ def upload_model(
     settings = get_settings()
     models_dir = Path(settings.models_dir)
     models_dir.mkdir(parents=True, exist_ok=True)
-    destination = models_dir / file_name
+    model_dir_name = _build_unique_model_dir_name(db, Path(file_name).stem)
+    model_dir = models_dir / model_dir_name
+    destination = model_dir / file_name
 
     existing_model = db.query(ModelConfig).filter(ModelConfig.file_name == file_name).first()
     if existing_model or destination.exists():
@@ -97,6 +105,7 @@ def upload_model(
     max_bytes = max(1, settings.max_upload_size_mb) * 1024 * 1024
     written = 0
     try:
+        model_dir.mkdir(parents=True, exist_ok=False)
         with destination.open("wb") as output:
             while True:
                 chunk = file.file.read(UPLOAD_CHUNK_BYTES)
@@ -105,14 +114,14 @@ def upload_model(
                 written += len(chunk)
                 if written > max_bytes:
                     output.close()
-                    destination.unlink(missing_ok=True)
+                    _remove_model_dir(model_dir)
                     raise HTTPException(
                         status_code=413,
                         detail=f"Uploaded file exceeds the {settings.max_upload_size_mb} MB limit",
                     )
                 output.write(chunk)
     except OSError as exc:
-        destination.unlink(missing_ok=True)
+        _remove_model_dir(model_dir)
         raise HTTPException(status_code=500, detail="Failed to store uploaded model") from exc
     finally:
         file.file.close()
@@ -120,6 +129,7 @@ def upload_model(
     model = ModelConfig(
         priority=_next_model_priority(db),
         file_name=file_name,
+        model_dir_name=model_dir_name,
         file_path=str(destination.resolve()),
         alias=_build_unique_alias(db, Path(file_name).stem),
         context_length=settings.default_context_length,
@@ -130,6 +140,7 @@ def upload_model(
         top_k=settings.default_top_k,
         presence_penalty=settings.default_presence_penalty,
         repetition_penalty=settings.default_repetition_penalty,
+        mmproj_file_name=_detect_mmproj_file_name(model_dir, file_name),
     )
     try:
         db.add(model)
@@ -137,7 +148,7 @@ def upload_model(
         db.refresh(model)
     except SQLAlchemyError as exc:
         db.rollback()
-        destination.unlink(missing_ok=True)
+        _remove_model_dir(model_dir)
         raise HTTPException(status_code=500, detail="Uploaded model could not be registered") from exc
 
     log_event(db, "model.uploaded", details={"file_name": file_name, "alias": model.alias})
@@ -149,6 +160,75 @@ def scan_models(_: User = Depends(get_admin_user), db: Session = Depends(get_db)
     discovered, added = scan_models_dir(db)
     log_event(db, "model.scanned", details={"discovered": discovered, "added": added})
     return {"status": "ok", "discovered": discovered, "added": added}
+
+
+@router.post("/{model_id}/files")
+def upload_model_files(
+    model_id: int,
+    files: list[UploadFile] = File(...),
+    _: User = Depends(get_admin_user),
+    db: Session = Depends(get_db),
+) -> dict:
+    if not files:
+        raise HTTPException(status_code=400, detail="No files were provided")
+
+    model = db.query(ModelConfig).filter(ModelConfig.id == model_id).first()
+    if not model:
+        raise HTTPException(status_code=404, detail="Model not found")
+
+    model_dir = _model_directory_path(model)
+    model_dir.mkdir(parents=True, exist_ok=True)
+    max_bytes = max(1, get_settings().max_upload_size_mb) * 1024 * 1024
+    uploaded_files: list[str] = []
+
+    try:
+        for upload in files:
+            asset_name = Path(upload.filename or "").name
+            if not asset_name:
+                raise HTTPException(status_code=400, detail="Missing file name")
+            if asset_name == model.file_name:
+                raise HTTPException(status_code=409, detail="Add Files cannot replace the primary model file")
+            if not _is_allowed_asset_file(asset_name):
+                raise HTTPException(status_code=400, detail=f"Unsupported model asset file: {asset_name}")
+
+            destination = model_dir / asset_name
+            written = 0
+            try:
+                with destination.open("wb") as output:
+                    while True:
+                        chunk = upload.file.read(UPLOAD_CHUNK_BYTES)
+                        if not chunk:
+                            break
+                        written += len(chunk)
+                        if written > max_bytes:
+                            output.close()
+                            destination.unlink(missing_ok=True)
+                            raise HTTPException(
+                                status_code=413,
+                                detail=f"Uploaded file exceeds the {get_settings().max_upload_size_mb} MB limit",
+                            )
+                        output.write(chunk)
+            except OSError as exc:
+                destination.unlink(missing_ok=True)
+                raise HTTPException(status_code=500, detail=f"Failed to store model asset: {asset_name}") from exc
+            finally:
+                upload.file.close()
+
+            uploaded_files.append(asset_name)
+
+        model.mmproj_file_name = _detect_mmproj_file_name(model_dir, model.file_name)
+        db.add(model)
+        db.commit()
+        db.refresh(model)
+    except HTTPException:
+        db.rollback()
+        raise
+    except SQLAlchemyError as exc:
+        db.rollback()
+        raise HTTPException(status_code=500, detail="Uploaded model files could not be registered") from exc
+
+    log_event(db, "model.files_uploaded", details={"alias": model.alias, "files": uploaded_files, "model_id": model.id})
+    return {"status": "ok", "uploaded": uploaded_files, "model": _serialize_model(model)}
 
 
 @router.patch("/{model_id}")
@@ -218,6 +298,7 @@ async def update_model(model_id: int, payload: ModelUpdateRequest, _: User = Dep
         "repetition_penalty",
         "tool_calling_enabled",
         "thinking_enabled",
+        "vision_enabled",
     ]:
         value = getattr(payload, field)
         if value is not None:
@@ -236,6 +317,8 @@ async def update_model(model_id: int, payload: ModelUpdateRequest, _: User = Dep
         model.activated = False
         db.add(model)
         db.commit()
+
+        _ensure_model_vision_assets(model)
 
         resolution = await _resolve_device_for_model(db, model, inference)
         if resolution is None:
@@ -265,6 +348,7 @@ async def activate_model(model_id: int, _: User = Depends(get_admin_user), db: S
     model = db.query(ModelConfig).filter(ModelConfig.id == model_id).first()
     if not model:
         raise HTTPException(status_code=404, detail="Model not found")
+    _ensure_model_vision_assets(model)
 
     resolution = await _resolve_device_for_model(db, model, inference)
     if resolution is None:
@@ -313,11 +397,11 @@ def delete_model(model_id: int, _: User = Depends(get_admin_user), db: Session =
         raise HTTPException(status_code=409, detail="Disable this model before deleting it")
 
     model_alias = model.alias
-    model_file_path = Path(model.file_path)
+    model_dir = _model_directory_path(model)
 
     try:
-        if model_file_path.exists():
-            model_file_path.unlink()
+        if model_dir.exists():
+            shutil.rmtree(model_dir)
     except OSError as exc:
         raise HTTPException(status_code=500, detail="Failed to delete model file") from exc
 
@@ -540,6 +624,7 @@ def _serialize_model(model: ModelConfig) -> dict:
         "id": model.id,
         "priority": model.priority,
         "file_name": model.file_name,
+        "model_dir_name": model.model_dir_name,
         "file_path": model.file_path,
         "file_size": file_size,
         "alias": model.alias,
@@ -557,11 +642,74 @@ def _serialize_model(model: ModelConfig) -> dict:
         "repetition_penalty": model.repetition_penalty,
         "tool_calling_enabled": model.tool_calling_enabled,
         "thinking_enabled": model.thinking_enabled,
+        "vision_enabled": model.vision_enabled,
+        "mmproj_file_name": model.mmproj_file_name,
         "assignment_mode": model.assignment_mode,
         "pinned_device_id": model.pinned_device_id,
         "pinned_pool_id": model.pinned_pool_id,
         "activated": model.activated,
     }
+
+
+def _iter_model_files(models_dir: Path) -> list[tuple[str, str, Path]]:
+    discovered: list[tuple[str, str, Path]] = []
+    for child in sorted(models_dir.iterdir(), key=lambda item: item.name.lower()):
+        if not child.is_dir():
+            continue
+        gguf_files = sorted(
+            (entry for entry in child.iterdir() if entry.is_file() and entry.suffix.lower() == ".gguf" and "mmproj" not in entry.name.lower()),
+            key=lambda item: item.name.lower(),
+        )
+        if not gguf_files:
+            continue
+        discovered.append((child.name, gguf_files[0].name, gguf_files[0]))
+    return discovered
+
+
+def _detect_mmproj_file_name(model_dir: Path, model_file_name: str) -> str | None:
+    normalized_model_name = model_file_name.lower()
+    for entry in sorted(model_dir.iterdir(), key=lambda item: item.name.lower()):
+        if not entry.is_file():
+            continue
+        if entry.name.lower() == normalized_model_name:
+            continue
+        if "mmproj" in entry.name.lower():
+            return entry.name
+    return None
+
+
+def _build_unique_model_dir_name(db: Session, base_name: str) -> str:
+    candidate = _sanitize_model_dir_name(base_name)
+    suffix = 1
+    while db.query(ModelConfig.id).filter(ModelConfig.model_dir_name == candidate).first():
+        candidate = f"{_sanitize_model_dir_name(base_name)}-{suffix}"
+        suffix += 1
+    return candidate
+
+
+def _sanitize_model_dir_name(base_name: str) -> str:
+    sanitized = "".join(char if char not in '<>:"/\\|?*' else "-" for char in base_name).strip().strip(".")
+    return sanitized or "model"
+
+
+def _model_directory_path(model: ModelConfig) -> Path:
+    return Path(get_settings().models_dir) / model.model_dir_name
+
+
+def _remove_model_dir(model_dir: Path) -> None:
+    if model_dir.exists():
+        shutil.rmtree(model_dir)
+
+
+def _is_allowed_asset_file(file_name: str) -> bool:
+    lower_name = file_name.lower()
+    suffix = Path(lower_name).suffix
+    return suffix in ALLOWED_MODEL_ASSET_SUFFIXES or "mmproj" in lower_name
+
+
+def _ensure_model_vision_assets(model: ModelConfig) -> None:
+    if model.vision_enabled and not model.mmproj_file_name:
+        raise HTTPException(status_code=409, detail="Vision-enabled models require an mmproj file in the model directory")
 
 
 def _build_unique_alias(db: Session, base_alias: str) -> str:

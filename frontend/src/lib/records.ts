@@ -19,6 +19,7 @@ export type ModelRecord = {
   id: number;
   priority: number;
   file_name: string;
+  model_dir_name: string;
   file_path: string;
   file_size: number | null;
   alias: string;
@@ -36,6 +37,8 @@ export type ModelRecord = {
   repetition_penalty: number;
   tool_calling_enabled: boolean;
   thinking_enabled: boolean;
+  vision_enabled: boolean;
+  mmproj_file_name: string | null;
   assignment_mode: string;
   pinned_device_id: number | null;
   pinned_pool_id: number | null;
@@ -115,6 +118,12 @@ export type ScanResponse = {
 
 export type UploadResponse = {
   status: string;
+  model: ModelRecord;
+};
+
+export type AssetUploadResponse = {
+  status: string;
+  uploaded: string[];
   model: ModelRecord;
 };
 

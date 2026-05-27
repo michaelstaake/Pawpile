@@ -132,6 +132,7 @@ class InferenceManager:
             "model_id": model.id,
             "alias": model.alias,
             "file_path": model.file_path,
+            "mmproj_path": _resolve_mmproj_path(model),
             "context_length": model.context_length,
             "threads": model.threads,
             "gpu_layers": model.gpu_layers,
@@ -168,6 +169,7 @@ class InferenceManager:
             "model_id": model.id,
             "alias": model.alias,
             "file_path": model.file_path,
+            "mmproj_path": _resolve_mmproj_path(model),
             "context_length": model.context_length,
             "threads": model.threads,
             "gpu_layers": model.gpu_layers,
@@ -252,3 +254,9 @@ class InferenceManager:
                 async for chunk in response.aiter_bytes():
                     if chunk:
                         yield chunk
+
+
+def _resolve_mmproj_path(model: ModelConfig) -> str | None:
+    if not model.vision_enabled or not model.mmproj_file_name:
+        return None
+    return str(Path(model.file_path).resolve().parent / model.mmproj_file_name)

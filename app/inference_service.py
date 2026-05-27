@@ -26,6 +26,7 @@ class ActivateModelRequest(BaseModel):
     model_id: int
     alias: str
     file_path: str
+    mmproj_path: str | None = None
     context_length: int
     threads: int
     gpu_layers: int
@@ -77,6 +78,8 @@ class InferenceRuntime:
             "--n-gpu-layers",
             str(payload.gpu_layers),
         ]
+        if payload.mmproj_path:
+            command.extend(["--mmproj", payload.mmproj_path])
         command.extend(self._build_vendor_args(payload.vendor, payload.vram_ratios))
 
         logs_dir = Path(self.settings.logs_dir)

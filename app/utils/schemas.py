@@ -183,6 +183,7 @@ class ModelUpdateRequest(BaseModel):
     repetition_penalty: float | None = Field(default=None, ge=0.0)
     tool_calling_enabled: bool | None = None
     thinking_enabled: bool | None = None
+    vision_enabled: bool | None = None
     assignment_mode: str | None = None
     pinned_device_id: int | None = None
     pinned_pool_id: int | None = None

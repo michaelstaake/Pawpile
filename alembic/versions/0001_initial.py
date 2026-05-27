@@ -66,6 +66,7 @@ def upgrade() -> None:
         sa.Column("id", sa.Integer(), nullable=False),
         sa.Column("priority", sa.Integer(), nullable=False),
         sa.Column("file_name", sa.String(length=255), nullable=False),
+        sa.Column("model_dir_name", sa.String(length=255), nullable=False),
         sa.Column("file_path", sa.String(length=1024), nullable=False),
         sa.Column("alias", sa.String(length=120), nullable=False),
         sa.Column("description", sa.Text(), nullable=False),
@@ -81,6 +82,8 @@ def upgrade() -> None:
         sa.Column("repetition_penalty", sa.Float(), nullable=False),
         sa.Column("tool_calling_enabled", sa.Boolean(), nullable=False),
         sa.Column("thinking_enabled", sa.Boolean(), nullable=False),
+        sa.Column("vision_enabled", sa.Boolean(), nullable=False),
+        sa.Column("mmproj_file_name", sa.String(length=255), nullable=True),
         sa.Column("assignment_mode", sa.String(length=32), nullable=False),
         sa.Column("pinned_device_id", sa.Integer(), nullable=True),
         sa.Column("pinned_pool_id", sa.Integer(), nullable=True),
@@ -91,6 +94,7 @@ def upgrade() -> None:
         sa.ForeignKeyConstraint(["pinned_pool_id"], ["gpu_pools.id"]),
         sa.PrimaryKeyConstraint("id"),
         sa.UniqueConstraint("alias"),
+        sa.UniqueConstraint("model_dir_name"),
         sa.UniqueConstraint("file_name"),
     )
     op.create_index(op.f("ix_model_configs_id"), "model_configs", ["id"], unique=False)

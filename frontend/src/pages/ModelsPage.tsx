@@ -2,10 +2,11 @@ import { type DragEvent, type FormEvent, useEffect, useRef, useState } from "rea
 import { apiDelete, apiGet, apiPatch, apiPost, apiPostFormWithProgress } from "../lib/api";
 import { useAuth } from "../context/AuthContext";
 import { formatDeviceIdLabel } from "../lib/deviceIds";
-import { DeviceRecord, GpuPoolRecord, ModelRecord, ModelUpdateResponse, ScanResponse, UploadResponse } from "../lib/records";
+import { AssetUploadResponse, DeviceRecord, GpuPoolRecord, ModelRecord, ModelUpdateResponse, ScanResponse, UploadResponse } from "../lib/records";
 import Modal from "../components/ui/Modal";
 
 const AUTO_SAVE_DELAY_MS = 700;
+const MODEL_ASSET_ACCEPT = ".gguf,.mmproj,.json,.txt,.yaml,.yml,.bin,.safetensors";
 
 const ASSIGNMENT_MODE_OPTIONS = [
   { label: "Auto", value: "auto" },
@@ -96,6 +97,8 @@ type UploadProgressState = {
   total: number;
 };
 
+type UploadModalMode = "model" | "files";
+
 function buildModelPayload(model: ModelRecord) {
   return {
     alias: model.alias,
@@ -112,6 +115,7 @@ function buildModelPayload(model: ModelRecord) {
     repetition_penalty: model.repetition_penalty,
     tool_calling_enabled: model.tool_calling_enabled,
     thinking_enabled: model.thinking_enabled,
+    vision_enabled: model.vision_enabled,
     assignment_mode: model.assignment_mode,
     pinned_device_id: model.assignment_mode === "pinned" ? model.pinned_device_id : null,
     pinned_pool_id: model.assignment_mode === "pool" ? model.pinned_pool_id : null,
@@ -187,7 +191,9 @@ export default function ModelsPage({ setupMode = false, onComplete }: ModelsPage
   const [modalError, setModalError] = useState("");
   const [draggedModelId, setDraggedModelId] = useState<number | null>(null);
   const [isUploadModalOpen, setIsUploadModalOpen] = useState(false);
-  const [selectedFile, setSelectedFile] = useState<File | null>(null);
+  const [uploadMode, setUploadMode] = useState<UploadModalMode>("model");
+  const [uploadTargetModelId, setUploadTargetModelId] = useState<number | null>(null);
+  const [selectedUploadFiles, setSelectedUploadFiles] = useState<File[]>([]);
   const [uploadProgress, setUploadProgress] = useState<UploadProgressState>({ loaded: 0, total: 0 });
   const [uploadStartedAt, setUploadStartedAt] = useState<number | null>(null);
   const [uploadClock, setUploadClock] = useState(() => Date.now());
@@ -284,15 +290,79 @@ export default function ModelsPage({ setupMode = false, onComplete }: ModelsPage
     scheduleModelSave(modelId);
   }
 
+  function resetUploadSelection() {
+    setSelectedUploadFiles([]);
+    setUploadProgress({ loaded: 0, total: 0 });
+    setUploadStartedAt(null);
+    setUploadClock(Date.now());
+    if (uploadInputRef.current) {
+      uploadInputRef.current.value = "";
+    }
+  }
+
+  function openModelUploadModal() {
+    setUploadMode("model");
+    setUploadTargetModelId(null);
+    resetUploadSelection();
+    setIsUploadModalOpen(true);
+  }
+
+  function openAssetUploadModal(modelId: number) {
+    setUploadMode("files");
+    setUploadTargetModelId(modelId);
+    resetUploadSelection();
+    setIsUploadModalOpen(true);
+  }
+
+  function applyUploadedModel(model: ModelRecord) {
+    savedConfigRef.current[model.id] = serializeModelConfig(model);
+    savedActivationRef.current[model.id] = model.activated;
+    setModels((current) => sortModels([...current.filter((item) => item.id !== model.id), model]));
+    setModalDraft((current) => {
+      if (!current || current.id !== model.id) {
+        return current;
+      }
+      return {
+        ...current,
+        model_dir_name: model.model_dir_name,
+        mmproj_file_name: model.mmproj_file_name,
+      };
+    });
+  }
+
+  function handleUploadSelection(fileList: FileList | null) {
+    const nextFiles = Array.from(fileList ?? []);
+    if (uploadMode === "model") {
+      setSelectedUploadFiles(nextFiles.slice(0, 1));
+      return;
+    }
+    setSelectedUploadFiles(nextFiles);
+  }
+
   async function handleUpload(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    if (!selectedFile || !token) {
+    if (!token) {
+      return;
+    }
+
+    if (uploadMode === "model" && selectedUploadFiles.length === 0) {
       setErrorMessage("Choose a .gguf file to upload.");
       return;
     }
 
+    if (uploadMode === "files" && (selectedUploadFiles.length === 0 || uploadTargetModelId == null)) {
+      setErrorMessage("Choose one or more files to upload.");
+      return;
+    }
+
     const formData = new FormData();
-    formData.append("file", selectedFile);
+    const filesToUpload = uploadMode === "model" ? selectedUploadFiles.slice(0, 1) : selectedUploadFiles;
+    if (uploadMode === "model") {
+      formData.append("file", filesToUpload[0]);
+    } else {
+      filesToUpload.forEach((file) => formData.append("files", file));
+    }
+    const totalBytes = filesToUpload.reduce((total, file) => total + file.size, 0);
 
     setErrorMessage("");
     setSuccessMessage("");
@@ -301,30 +371,42 @@ export default function ModelsPage({ setupMode = false, onComplete }: ModelsPage
     setIsUploadModalOpen(false);
     setUploadStartedAt(Date.now());
     setUploadClock(Date.now());
-    setUploadProgress({ loaded: 0, total: selectedFile.size });
+    setUploadProgress({ loaded: 0, total: totalBytes });
 
     try {
-      const response = await apiPostFormWithProgress<UploadResponse>("/api/models/upload", formData, token, (progress) => {
-        const total = progress.total || selectedFile.size;
-        setUploadProgress({
-          loaded: progress.loaded,
-          total,
+      if (uploadMode === "model") {
+        const response = await apiPostFormWithProgress<UploadResponse>("/api/models/upload", formData, token, (progress) => {
+          const total = progress.total || totalBytes;
+          setUploadProgress({
+            loaded: progress.loaded,
+            total,
+          });
+          if (progress.loaded >= total) {
+            setIsProcessingUpload(true);
+          }
         });
-        if (progress.loaded >= total) {
-          setIsProcessingUpload(true);
-        }
-      });
-      savedConfigRef.current[response.model.id] = serializeModelConfig(response.model);
-      savedActivationRef.current[response.model.id] = response.model.activated;
-      setModels((current) => sortModels([...current.filter((model) => model.id !== response.model.id), response.model]));
-      setSelectedFile(null);
-      if (uploadInputRef.current) {
-        uploadInputRef.current.value = "";
+        applyUploadedModel(response.model);
+        resetUploadSelection();
+        setUploadProgress({ loaded: totalBytes, total: totalBytes });
+        setSuccessMessage(`Uploaded ${response.model.file_name}.`);
+      } else {
+        const response = await apiPostFormWithProgress<AssetUploadResponse>(`/api/models/${uploadTargetModelId}/files`, formData, token, (progress) => {
+          const total = progress.total || totalBytes;
+          setUploadProgress({
+            loaded: progress.loaded,
+            total,
+          });
+          if (progress.loaded >= total) {
+            setIsProcessingUpload(true);
+          }
+        });
+        applyUploadedModel(response.model);
+        resetUploadSelection();
+        setUploadProgress({ loaded: totalBytes, total: totalBytes });
+        setSuccessMessage(`Uploaded ${response.uploaded.length} file${response.uploaded.length === 1 ? "" : "s"} to ${response.model.alias}.`);
       }
-      setUploadProgress({ loaded: selectedFile.size, total: selectedFile.size });
-      setSuccessMessage(`Uploaded ${response.model.file_name}.`);
     } catch (error) {
-      setErrorMessage(error instanceof Error ? error.message : "Upload failed");
+      setErrorMessage(error instanceof Error ? error.message : uploadMode === "model" ? "Upload failed" : "File upload failed");
     } finally {
       setIsUploading(false);
       setIsProcessingUpload(false);
@@ -638,7 +720,8 @@ export default function ModelsPage({ setupMode = false, onComplete }: ModelsPage
   }
 
   const activeModels = models.filter((model) => model.activated).length;
-  const uploadTotal = uploadProgress.total || selectedFile?.size || 0;
+  const selectedUploadBytes = selectedUploadFiles.reduce((total, file) => total + file.size, 0);
+  const uploadTotal = uploadProgress.total || selectedUploadBytes || 0;
   const uploadPercent = uploadTotal > 0 ? Math.min(100, Math.round((uploadProgress.loaded / uploadTotal) * 100)) : 0;
   const uploadEtaSeconds =
     uploadStartedAt != null && uploadProgress.loaded > 0 && uploadTotal > 0 && uploadPercent >= 10 && uploadProgress.loaded < uploadTotal
@@ -648,6 +731,20 @@ export default function ModelsPage({ setupMode = false, onComplete }: ModelsPage
         )
       : null;
   const assignmentTargets = buildAssignmentTargets(devices, pools);
+  const uploadContextModel = uploadTargetModelId != null ? models.find((model) => model.id === uploadTargetModelId) ?? null : null;
+  const uploadSummaryLabel =
+    selectedUploadFiles.length === 1
+      ? selectedUploadFiles[0].name
+      : selectedUploadFiles.length > 1
+        ? `${selectedUploadFiles.length} files selected`
+        : null;
+  const uploadHeading = isProcessingUpload
+    ? uploadMode === "files"
+      ? "Processing files..."
+      : "Model processing..."
+    : uploadMode === "files"
+      ? "Uploading files..."
+      : "Model uploading...";
 
   function closeUploadModal() {
     if (isUploading) {
@@ -655,6 +752,11 @@ export default function ModelsPage({ setupMode = false, onComplete }: ModelsPage
     }
 
     setIsUploadModalOpen(false);
+    if (uploadMode === "files") {
+      setUploadTargetModelId(null);
+    }
+    setUploadMode("model");
+    resetUploadSelection();
   }
 
   return (
@@ -668,7 +770,7 @@ export default function ModelsPage({ setupMode = false, onComplete }: ModelsPage
             <button
               className="rounded-xl border border-black/15 px-4 py-2 text-sm font-semibold text-black transition hover:bg-black/5 disabled:cursor-not-allowed disabled:opacity-60"
               type="button"
-              onClick={() => setIsUploadModalOpen(true)}
+              onClick={openModelUploadModal}
               disabled={isUploading}
             >
               {isUploading ? "Uploading..." : "Upload Model File"}
@@ -689,11 +791,11 @@ export default function ModelsPage({ setupMode = false, onComplete }: ModelsPage
         {errorMessage ? <p className="mt-4 rounded-xl border border-rose-200 bg-rose-50 px-3 py-2 text-sm text-rose-700">{errorMessage}</p> : null}
         {successMessage ? <p className="mt-4 rounded-xl border border-emerald-200 bg-emerald-50 px-3 py-2 text-sm text-emerald-700">{successMessage}</p> : null}
 
-        {isUploading || selectedFile ? (
+        {isUploading || selectedUploadFiles.length > 0 ? (
           <div className="mt-3 grid gap-3 rounded-2xl border border-dashed border-black/15 bg-sand/70 p-4">
             <div className="flex flex-wrap items-center justify-between gap-2">
-              <h3 className="font-display text-base">{isProcessingUpload ? "Model processing..." : "Model uploading..."}</h3>
-              {selectedFile ? <span className="text-sm text-black/60">{selectedFile.name}</span> : null}
+              <h3 className="font-display text-base">{uploadHeading}</h3>
+              {uploadSummaryLabel ? <span className="text-sm text-black/60">{uploadSummaryLabel}</span> : null}
             </div>
             {isUploading && isProcessingUpload ? (
               <p className="rounded-xl border border-black/10 bg-white/70 px-3 py-3 text-sm text-black/70">
@@ -784,7 +886,7 @@ export default function ModelsPage({ setupMode = false, onComplete }: ModelsPage
 
       {modalDraft ? (
         <Modal
-          open={settingsModelId !== null}
+          open={settingsModelId !== null && !isUploadModalOpen}
           onClose={closeSettingsModal}
           labelledBy="model-settings-modal-title"
           panelClassName="w-full max-w-2xl"
@@ -814,6 +916,10 @@ export default function ModelsPage({ setupMode = false, onComplete }: ModelsPage
                     <span className="text-xs text-black/45">Short note for admins and users.</span>
                     <input className="rounded-xl border border-black/15 bg-white px-3 py-2 text-sm" value={modalDraft.description} onChange={(event) => updateModalDraft({ description: event.target.value })} />
                   </label>
+                  <div className="rounded-xl border border-black/10 bg-sand/50 px-3 py-3 text-sm text-black/70 md:col-span-2">
+                    <p><span className="font-semibold text-black/80">Folder:</span> {modalDraft.model_dir_name}</p>
+                    <p className="mt-1"><span className="font-semibold text-black/80">Detected mmproj:</span> {modalDraft.mmproj_file_name ?? "None detected"}</p>
+                  </div>
                 </div>
               </section>
 
@@ -866,6 +972,13 @@ export default function ModelsPage({ setupMode = false, onComplete }: ModelsPage
                     <span className="grid gap-0.5">
                       <span className="text-sm text-black/70">Thinking Enabled</span>
                       <span className="text-xs text-black/45">Allows extended reasoning features.</span>
+                    </span>
+                  </label>
+                  <label className="flex gap-3 rounded-xl border border-black/10 bg-white px-3 py-2 text-sm text-black/70 md:col-span-2">
+                    <input className="mt-1" type="checkbox" checked={modalDraft.vision_enabled} onChange={(event) => updateModalDraft({ vision_enabled: event.target.checked })} />
+                    <span className="grid gap-0.5">
+                      <span className="text-sm text-black/70">Vision Enabled</span>
+                      <span className="text-xs text-black/45">Requires an mmproj file in this model folder to handle images.</span>
                     </span>
                   </label>
                 </div>
@@ -970,15 +1083,25 @@ export default function ModelsPage({ setupMode = false, onComplete }: ModelsPage
             </div>
 
             <div className="mt-6 flex items-center justify-between gap-3 border-t border-black/10 pt-4">
-              <button
-                type="button"
-                className="rounded-xl border border-rose-200 px-4 py-2 text-sm font-semibold text-rose-700 hover:bg-rose-50 disabled:cursor-not-allowed disabled:opacity-60"
-                onClick={() => void deleteModalModel()}
-                disabled={isSavingModal || isDeletingModal || modalDraft.activated}
-                title={modalDraft.activated ? "Disable this model before deleting it." : undefined}
-              >
-                {isDeletingModal ? "Deleting..." : "Delete Model"}
-              </button>
+              <div className="flex items-center gap-3">
+                <button
+                  type="button"
+                  className="rounded-xl border border-black/15 px-4 py-2 text-sm font-semibold text-black hover:bg-black/5 disabled:cursor-not-allowed disabled:opacity-60"
+                  onClick={() => openAssetUploadModal(modalDraft.id)}
+                  disabled={isSavingModal || isDeletingModal || isUploading}
+                >
+                  Add Files
+                </button>
+                <button
+                  type="button"
+                  className="rounded-xl border border-rose-200 px-4 py-2 text-sm font-semibold text-rose-700 hover:bg-rose-50 disabled:cursor-not-allowed disabled:opacity-60"
+                  onClick={() => void deleteModalModel()}
+                  disabled={isSavingModal || isDeletingModal || modalDraft.activated}
+                  title={modalDraft.activated ? "Disable this model before deleting it." : undefined}
+                >
+                  {isDeletingModal ? "Deleting..." : "Delete Model"}
+                </button>
+              </div>
               <div className="flex items-center gap-3">
               <button
                 type="button"
@@ -1009,8 +1132,12 @@ export default function ModelsPage({ setupMode = false, onComplete }: ModelsPage
         panelClassName="w-full max-w-xl"
       >
         <form className="p-6" onSubmit={handleUpload}>
-          <h2 id="model-upload-modal-title" className="font-display text-xl">Upload Model File</h2>
-          <p className="mt-1 text-sm text-black/55">Select a `.gguf` model file to upload into the models library.</p>
+          <h2 id="model-upload-modal-title" className="font-display text-xl">{uploadMode === "files" ? "Add Files" : "Upload Model File"}</h2>
+          <p className="mt-1 text-sm text-black/55">
+            {uploadMode === "files"
+              ? `Select additional files to store in ${uploadContextModel?.model_dir_name ?? "this model folder"}.`
+              : "Select a `.gguf` model file to upload into the models library."}
+          </p>
 
           <div className="mt-5 grid gap-3">
             <input
@@ -1018,11 +1145,21 @@ export default function ModelsPage({ setupMode = false, onComplete }: ModelsPage
               id="model-upload-input"
               className="block w-full rounded-xl border border-black/15 bg-white px-3 py-2 text-sm file:mr-3 file:rounded-lg file:border-0 file:bg-amber file:px-3 file:py-2 file:font-semibold disabled:cursor-not-allowed disabled:opacity-60"
               type="file"
-              accept=".gguf"
-              onChange={(event) => setSelectedFile(event.target.files?.[0] ?? null)}
+              accept={uploadMode === "files" ? MODEL_ASSET_ACCEPT : ".gguf"}
+              multiple={uploadMode === "files"}
+              onChange={(event) => handleUploadSelection(event.target.files)}
               disabled={isUploading}
             />
-            {selectedFile ? <p className="text-sm text-black/60">Selected: {selectedFile.name}</p> : null}
+            {selectedUploadFiles.length > 0 ? (
+              <div className="rounded-xl border border-black/10 bg-sand/50 px-3 py-3 text-sm text-black/65">
+                <p className="font-semibold text-black/75">Selected</p>
+                <div className="mt-2 grid gap-1">
+                  {selectedUploadFiles.map((file) => (
+                    <p key={`${file.name}-${file.size}`}>{file.name}</p>
+                  ))}
+                </div>
+              </div>
+            ) : null}
           </div>
 
           <div className="mt-6 flex items-center justify-end gap-3 border-t border-black/10 pt-4">
@@ -1037,9 +1174,9 @@ export default function ModelsPage({ setupMode = false, onComplete }: ModelsPage
             <button
               type="submit"
               className="rounded-xl bg-amber px-4 py-2 text-sm font-semibold text-black disabled:cursor-not-allowed disabled:opacity-60"
-              disabled={isUploading || !selectedFile}
+              disabled={isUploading || selectedUploadFiles.length === 0}
             >
-              {isUploading ? "Uploading..." : "Upload Model File"}
+              {isUploading ? "Uploading..." : uploadMode === "files" ? "Add Files" : "Upload Model File"}
             </button>
           </div>
         </form>
