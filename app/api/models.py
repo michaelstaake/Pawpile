@@ -11,6 +11,7 @@ from app.core.config import get_settings
 from app.core.db import get_db
 from app.core.device_manager import is_supported_vendor
 from app.core.gguf import read_gguf_max_context_length
+from app.core.gpu_pool_manager import get_pooled_device_ids, is_pooled_device
 from app.core.inference_manager import InferenceManager, PoolActivationTarget
 from app.models.device import Device
 from app.models.gpu_pool import GpuPool, GpuPoolDevice
@@ -152,17 +153,38 @@ async def update_model(model_id: int, payload: ModelUpdateRequest, _: User = Dep
         raise HTTPException(status_code=404, detail="Model not found")
 
     was_activated = model.activated
+    next_assignment_mode = payload.assignment_mode or model.assignment_mode
+    next_pinned_device_id = model.pinned_device_id
+    next_pinned_pool_id = model.pinned_pool_id
 
     if payload.assignment_mode is not None and payload.assignment_mode not in ALLOWED_ASSIGNMENT_MODES:
         raise HTTPException(status_code=400, detail="Invalid assignment mode")
 
-    if payload.pinned_device_id is not None:
-        pinned_device = db.query(Device).filter(Device.id == payload.pinned_device_id).first()
+    if next_assignment_mode == "auto":
+        next_pinned_device_id = None
+        next_pinned_pool_id = None
+    elif next_assignment_mode == "pinned":
+        if payload.pinned_device_id is not None:
+            next_pinned_device_id = payload.pinned_device_id
+        next_pinned_pool_id = None
+    elif next_assignment_mode == "pool":
+        if payload.pinned_pool_id is not None:
+            next_pinned_pool_id = payload.pinned_pool_id
+        next_pinned_device_id = None
+
+    if next_assignment_mode == "pinned":
+        if next_pinned_device_id is None:
+            raise HTTPException(status_code=400, detail="Pinned assignment requires a device")
+        pinned_device = db.query(Device).filter(Device.id == next_pinned_device_id).first()
         if not pinned_device:
             raise HTTPException(status_code=404, detail="Pinned device not found")
+        if is_pooled_device(db, next_pinned_device_id):
+            raise HTTPException(status_code=409, detail="Models cannot be pinned directly to a GPU that belongs to a pool")
 
-    if payload.pinned_pool_id is not None:
-        pinned_pool = db.query(GpuPool).filter(GpuPool.id == payload.pinned_pool_id).first()
+    if next_assignment_mode == "pool":
+        if next_pinned_pool_id is None:
+            raise HTTPException(status_code=400, detail="Pool assignment requires a GPU pool")
+        pinned_pool = db.query(GpuPool).filter(GpuPool.id == next_pinned_pool_id).first()
         if not pinned_pool:
             raise HTTPException(status_code=404, detail="GPU pool not found")
 
@@ -187,13 +209,14 @@ async def update_model(model_id: int, payload: ModelUpdateRequest, _: User = Dep
         "top_p",
         "tool_calling_enabled",
         "thinking_enabled",
-        "assignment_mode",
-        "pinned_device_id",
-        "pinned_pool_id",
     ]:
         value = getattr(payload, field)
         if value is not None:
             setattr(model, field, value)
+
+    model.assignment_mode = next_assignment_mode
+    model.pinned_device_id = next_pinned_device_id
+    model.pinned_pool_id = next_pinned_pool_id
 
     db.add(model)
     db.commit()
@@ -382,8 +405,12 @@ async def _resolve_device_for_model(db: Session, model: ModelConfig, inference: 
         .filter(Device.enabled.is_(True), Device.vendor.in_(supported_vendors))
         .all()
     )
+    pooled_device_ids = get_pooled_device_ids(db)
 
-    gpu_candidates = [c for c in candidates if c.vendor != "cpu" and inference.has_runtime_for_vendor(c.vendor)]
+    gpu_candidates = [
+        c for c in candidates
+        if c.vendor != "cpu" and c.id not in pooled_device_ids and inference.has_runtime_for_vendor(c.vendor)
+    ]
     cpu_candidates = [c for c in candidates if c.vendor == "cpu" and inference.has_runtime_for_vendor(c.vendor)]
 
     if not gpu_candidates and not cpu_candidates:

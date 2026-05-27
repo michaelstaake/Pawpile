@@ -12,6 +12,7 @@ from app.core.app_settings import get_or_create_app_settings
 from app.core.config import get_settings
 from app.core.db import SessionLocal
 from app.core.device_manager import DeviceManager
+from app.core.gpu_pool_manager import delete_pools_with_unavailable_devices
 from app.core.inference_manager import InferenceManager, PoolActivationTarget
 from app.core.logging import configure_logging
 from app.models.model_config import ModelConfig
@@ -32,6 +33,21 @@ async def lifespan(_: FastAPI):
     try:
         prune_old_logs(db)
         device_manager.sync_detected_devices(db, auto_enable_defaults=True)
+        detected_hardware_ids = {device.hardware_id for device in device_manager.detect_all()}
+        removed_pools = delete_pools_with_unavailable_devices(db, detected_hardware_ids, inference_manager)
+        db.commit()
+        for removed_pool in removed_pools:
+            log_event(
+                db,
+                "pool.deleted",
+                details={
+                    "pool_id": removed_pool.pool_id,
+                    "pool_name": removed_pool.pool_name,
+                    "reason": "device_unavailable_on_startup",
+                    "device_ids": removed_pool.member_device_ids,
+                    "reverted_model_ids": removed_pool.reverted_model_ids,
+                },
+            )
         get_or_create_app_settings(db)
         models.scan_models_dir(db)
         activated_models = (

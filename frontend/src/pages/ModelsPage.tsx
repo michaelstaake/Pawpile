@@ -28,8 +28,10 @@ type AssignmentTarget = {
 };
 
 function buildAssignmentTargets(devices: DeviceRecord[], pools: GpuPoolRecord[]): AssignmentTarget[] {
+  const pooledDeviceIds = new Set(pools.flatMap((pool) => pool.devices.map((device) => device.id)));
+
   return [
-    ...devices.filter((device) => device.enabled).map((device) => ({
+    ...devices.filter((device) => device.enabled && !pooledDeviceIds.has(device.id)).map((device) => ({
       label: `${device.name} (${device.vendor} device, ${formatDeviceIdLabel(device)})`,
       value: `device:${device.id}`,
       assignment_mode: "pinned" as const,

@@ -6,6 +6,7 @@ from app.core.activity_logger import log_event
 from app.core.config import get_settings
 from app.core.db import get_db
 from app.core.device_manager import DeviceManager, build_device_display_suffix, get_supported_vendors
+from app.core.gpu_pool_manager import delete_pool_and_revert_models, revert_models_pinned_to_devices
 from app.models.device import Device
 from app.models.gpu_pool import GpuPool, GpuPoolDevice
 from app.models.model_config import ModelConfig
@@ -65,10 +66,13 @@ def create_pool(payload: GpuPoolCreateRequest, _: User = Depends(get_admin_user)
     vendor = _validate_pool_vendor(payload.vendor)
     devices = _validate_pool_devices(payload.device_ids, vendor, db)
     _validate_pool_membership(devices, db)
+    inference = router.inference_manager  # type: ignore[attr-defined]
 
     pool = GpuPool(name=payload.name.strip(), vendor=vendor)
     db.add(pool)
     db.flush()
+
+    reverted_models = revert_models_pinned_to_devices(db, [device.id for device in devices], inference)
 
     for device in devices:
         db.add(GpuPoolDevice(pool_id=pool.id, device_id=device.id))
@@ -77,6 +81,8 @@ def create_pool(payload: GpuPoolCreateRequest, _: User = Depends(get_admin_user)
     db.refresh(pool)
 
     log_event(db, "pool.created", details={"pool_id": pool.id, "pool_name": pool.name, "vendor": pool.vendor, "device_ids": payload.device_ids})
+    for model in reverted_models:
+        log_event(db, "model.assignment_reset", details={"model_id": model.id, "alias": model.alias, "reason": "device_joined_pool", "pool_id": pool.id})
     return {"status": "ok", "pool": _serialize_pool(pool, db)}
 
 
@@ -85,6 +91,7 @@ def update_pool(pool_id: int, payload: GpuPoolUpdateRequest, _: User = Depends(g
     pool = db.query(GpuPool).filter(GpuPool.id == pool_id).first()
     if not pool:
         raise HTTPException(status_code=404, detail="GPU pool not found")
+    inference = router.inference_manager  # type: ignore[attr-defined]
 
     vendor = pool.vendor
     if payload.vendor is not None:
@@ -92,11 +99,16 @@ def update_pool(pool_id: int, payload: GpuPoolUpdateRequest, _: User = Depends(g
 
     devices = _validate_pool_devices(payload.device_ids, vendor, db)
     _validate_pool_membership(devices, db, current_pool_id=pool.id)
+    previous_device_ids = {row.device_id for row in db.query(GpuPoolDevice).filter(GpuPoolDevice.pool_id == pool.id).all()}
+    next_device_ids = {device.id for device in devices}
+    added_device_ids = sorted(next_device_ids - previous_device_ids)
 
     if payload.name is not None:
         pool.name = payload.name.strip()
     pool.vendor = vendor
     db.add(pool)
+
+    reverted_models = revert_models_pinned_to_devices(db, added_device_ids, inference)
 
     db.query(GpuPoolDevice).filter(GpuPoolDevice.pool_id == pool.id).delete()
     for device in devices:
@@ -106,6 +118,8 @@ def update_pool(pool_id: int, payload: GpuPoolUpdateRequest, _: User = Depends(g
     db.refresh(pool)
 
     log_event(db, "pool.updated", details={"pool_id": pool.id, "pool_name": pool.name, "vendor": pool.vendor, "device_ids": payload.device_ids})
+    for model in reverted_models:
+        log_event(db, "model.assignment_reset", details={"model_id": model.id, "alias": model.alias, "reason": "device_joined_pool", "pool_id": pool.id})
     return {"status": "ok", "pool": _serialize_pool(pool, db)}
 
 
@@ -115,29 +129,12 @@ def delete_pool(pool_id: int, _: User = Depends(get_admin_user), db: Session = D
     if not pool:
         raise HTTPException(status_code=404, detail="GPU pool not found")
 
-    # Deactivate and revert any models pinned to this pool
     from app.core.inference_manager import InferenceManager
     inference: InferenceManager = router.inference_manager  # type: ignore[attr-defined]
-
-    pool_models = db.query(ModelConfig).filter(
-        ModelConfig.assignment_mode == "pool",
-        ModelConfig.pinned_pool_id == pool.id,
-    ).all()
-    for model in pool_models:
-        if model.activated:
-            inference.deactivate_model(model.id)
-            model.activated = False
-        model.assignment_mode = "auto"
-        model.pinned_pool_id = None
-        db.add(model)
-
-    db.flush()
-
-    # Cascade deletes gpu_pool_devices rows via FK ondelete=CASCADE
-    db.delete(pool)
+    cleanup = delete_pool_and_revert_models(db, pool, inference)
     db.commit()
 
-    log_event(db, "pool.deleted", details={"pool_id": pool.id, "pool_name": pool.name, "vendor": pool.vendor})
+    log_event(db, "pool.deleted", details={"pool_id": cleanup.pool_id, "pool_name": cleanup.pool_name, "vendor": pool.vendor})
     return {"status": "ok"}
 
 
