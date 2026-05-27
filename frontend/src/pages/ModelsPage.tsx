@@ -694,7 +694,7 @@ export default function ModelsPage({ setupMode = false, onComplete }: ModelsPage
             </div>
             {isUploading && isProcessingUpload ? (
               <p className="rounded-xl border border-black/10 bg-white/70 px-3 py-3 text-sm text-black/70">
-                This may take a while, even a few minutes. Please wait.
+                This could take several minutes. Please do not leave this page. You will be notified with a success or error message upon completion.
               </p>
             ) : null}
             {isUploading && uploadTotal > 0 && !isProcessingUpload ? (
