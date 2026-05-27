@@ -7,6 +7,7 @@ Create Date: 2026-05-24
 
 from alembic import op
 import sqlalchemy as sa
+from sqlalchemy import inspect as sa_inspect
 
 # revision identifiers, used by Alembic.
 revision = "0009_gpu_pool"
@@ -16,27 +17,32 @@ depends_on = None
 
 
 def upgrade() -> None:
-    op.create_table(
-        "gpu_pools",
-        sa.Column("id", sa.Integer(), nullable=False),
-        sa.Column("name", sa.String(length=120), nullable=False),
-        sa.PrimaryKeyConstraint("id"),
-    )
-    op.create_index(op.f("ix_gpu_pools_id"), "gpu_pools", ["id"], unique=False)
+    bind = op.get_bind()
+    existing_tables = set(sa_inspect(bind).get_table_names())
 
-    op.create_table(
-        "gpu_pool_devices",
-        sa.Column("pool_id", sa.Integer(), nullable=False),
-        sa.Column("device_id", sa.Integer(), nullable=False),
-        sa.ForeignKeyConstraint(["device_id"], ["devices.id"], ondelete="CASCADE"),
-        sa.ForeignKeyConstraint(["pool_id"], ["gpu_pools.id"], ondelete="CASCADE"),
-        sa.PrimaryKeyConstraint("pool_id", "device_id"),
-    )
+    if "gpu_pools" not in existing_tables:
+        op.create_table(
+            "gpu_pools",
+            sa.Column("id", sa.Integer(), nullable=False),
+            sa.Column("name", sa.String(length=120), nullable=False),
+            sa.PrimaryKeyConstraint("id"),
+        )
+        op.create_index(op.f("ix_gpu_pools_id"), "gpu_pools", ["id"], unique=False)
 
-    op.add_column(
-        "model_configs",
-        sa.Column("pinned_pool_id", sa.Integer(), sa.ForeignKey("gpu_pools.id"), nullable=True),
-    )
+    if "gpu_pool_devices" not in existing_tables:
+        op.create_table(
+            "gpu_pool_devices",
+            sa.Column("pool_id", sa.Integer(), nullable=False),
+            sa.Column("device_id", sa.Integer(), nullable=False),
+            sa.ForeignKeyConstraint(["device_id"], ["devices.id"], ondelete="CASCADE"),
+            sa.ForeignKeyConstraint(["pool_id"], ["gpu_pools.id"], ondelete="CASCADE"),
+            sa.PrimaryKeyConstraint("pool_id", "device_id"),
+        )
+
+    model_cols = {col["name"] for col in sa_inspect(bind).get_columns("model_configs")}
+    if "pinned_pool_id" not in model_cols:
+        with op.batch_alter_table("model_configs") as batch_op:
+            batch_op.add_column(sa.Column("pinned_pool_id", sa.Integer(), sa.ForeignKey("gpu_pools.id"), nullable=True))
 
 
 def downgrade() -> None:
