@@ -1,4 +1,5 @@
 import logging
+import os
 import sqlite3
 from pathlib import Path
 import shutil
@@ -132,8 +133,13 @@ def _run_alembic(*args: str) -> None:
     if not alembic_path:
         raise RuntimeError("Alembic CLI was not found in PATH")
 
-    command = [alembic_path, "-c", str(Path(__file__).resolve().parent.parent / "alembic.ini"), *args]
-    subprocess.run(command, check=True)
+    repo_root = Path(__file__).resolve().parent.parent
+    env = os.environ.copy()
+    current_pythonpath = env.get("PYTHONPATH", "")
+    env["PYTHONPATH"] = str(repo_root) if not current_pythonpath else f"{repo_root}:{current_pythonpath}"
+
+    command = [alembic_path, "-c", str(repo_root / "alembic.ini"), *args]
+    subprocess.run(command, check=True, cwd=repo_root, env=env)
 
 
 def _bridge_legacy_sqlite_database(database_path: Path) -> None:
