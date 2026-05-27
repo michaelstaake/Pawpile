@@ -6,8 +6,10 @@ from sqlalchemy import create_engine
 from sqlalchemy.orm import Session, sessionmaker
 
 from app.api import models as models_api
+from app.api import status as status_api
 from app.core.db import Base
 from app.core.gpu_pool_manager import delete_pools_with_unavailable_devices, revert_models_pinned_to_devices
+from app.core.inference_manager import RunningModel
 from app.models import activity_log  # noqa: F401
 from app.models import device as device_model  # noqa: F401
 from app.models import gpu_pool as gpu_pool_model  # noqa: F401
@@ -25,6 +27,7 @@ class DummyInferenceManager:
         self.runtimes = runtimes or {"cpu", "nvidia", "nvidia_pool"}
         self.memory_metrics = memory_metrics or {}
         self.deactivated: list[int] = []
+        self._running: dict[int, RunningModel] = {}
 
     def has_runtime_for_vendor(self, vendor: str) -> bool:
         return vendor in self.runtimes
@@ -188,6 +191,64 @@ class GpuPoolRuleTests(unittest.TestCase):
         self.assertIsNone(model.pinned_pool_id)
         self.assertFalse(model.activated)
         self.assertIsNone(self.db_session.query(GpuPool).filter(GpuPool.id == pool.id).first())
+
+    def test_status_attributes_pool_memory_for_all_pool_members(self) -> None:
+        inference = DummyInferenceManager()
+        status_api.router.inference_manager = inference  # type: ignore[attr-defined]
+
+        gpu_a = add_device(self.db_session, hardware_id="nvidia:0", name="GPU A")
+        gpu_b = add_device(self.db_session, hardware_id="nvidia:1", name="GPU B")
+        gpu_c = add_device(self.db_session, hardware_id="nvidia:2", name="GPU C")
+        pool = add_pool(self.db_session, name="Tri Pool", vendor="nvidia", devices=[gpu_a, gpu_b, gpu_c])
+        model = add_model(self.db_session, alias="tri-pool-model", assignment_mode="pool", pinned_pool_id=pool.id, activated=True)
+
+        inference._running[model.id] = RunningModel(
+            model_id=model.id,
+            base_url="http://runtime",
+            device_id=None,
+            vendor="nvidia_pool",
+            pool_device_ids=[gpu_a.id, gpu_b.id, gpu_c.id],
+        )
+
+        runtime_devices = {
+            gpu_a.hardware_id: {
+                "memory_total_mb": 8192,
+                "memory_used_mb": 6000,
+                "models": [{"model_id": model.id, "alias": model.alias, "memory_used_mb": 2000, "pid": 4321}],
+            },
+            gpu_b.hardware_id: {
+                "memory_total_mb": 8192,
+                "memory_used_mb": 6000,
+                "models": [],
+            },
+            gpu_c.hardware_id: {
+                "memory_total_mb": 8192,
+                "memory_used_mb": 6000,
+                "models": [],
+            },
+        }
+
+        async def fake_fetch_runtime_devices(_settings):
+            return runtime_devices, []
+
+        original_fetch_runtime_devices = status_api._fetch_runtime_devices
+        status_api._fetch_runtime_devices = fake_fetch_runtime_devices
+        try:
+            payload = asyncio.run(status_api.get_status(self.db_session))
+        finally:
+            status_api._fetch_runtime_devices = original_fetch_runtime_devices
+
+        devices_by_id = {device["id"]: device for device in payload["devices"]}
+        for gpu in (gpu_a, gpu_b, gpu_c):
+            device_payload = devices_by_id[gpu.id]
+            self.assertEqual(device_payload["memory_used_mb"], 6000)
+            self.assertEqual(len(device_payload["models"]), 1)
+            self.assertEqual(device_payload["models"][0]["model_id"], model.id)
+            self.assertEqual(device_payload["models"][0]["display_memory_used_mb"], 6000)
+
+        self.assertEqual(devices_by_id[gpu_a.id]["models"][0]["memory_used_mb"], 2000)
+        self.assertEqual(devices_by_id[gpu_b.id]["models"][0]["memory_used_mb"], 0)
+        self.assertEqual(devices_by_id[gpu_c.id]["models"][0]["memory_used_mb"], 0)
 
 
 if __name__ == "__main__":

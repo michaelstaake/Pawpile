@@ -67,6 +67,7 @@ export type StatusModelRecord = {
   alias: string;
   file_name: string;
   memory_used_mb: number;
+  display_memory_used_mb: number;
   pid: number | null;
 };
 
