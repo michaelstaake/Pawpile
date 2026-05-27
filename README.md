@@ -119,6 +119,8 @@ Pawpile currently supports `/v1/models` and `/v1/chat/completions`.
 
 Tool-calling fields on chat-completions requests are forwarded to the active runtime. Tool-bearing requests are rejected unless tool calling is enabled for that particular model.
 
+OpenAI-compatible multimodal chat requests are also supported for vision-enabled models. Image-bearing requests are rejected unless vision is enabled for that particular model.
+
 ## Example API Call
 
 ```bash
@@ -128,6 +130,32 @@ curl http://localhost:8000/v1/chat/completions \
   -d '{
     "model": "your-model-alias",
     "messages": [{"role": "user", "content": "Hello"}],
+    "stream": false
+  }'
+```
+
+### Example Vision API Call
+
+```bash
+curl http://localhost:8000/v1/chat/completions \
+  -H "Authorization: Bearer YOUR_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "model": "your-vision-model-alias",
+    "messages": [
+      {
+        "role": "user",
+        "content": [
+          {"type": "text", "text": "What is in this image?"},
+          {
+            "type": "image_url",
+            "image_url": {
+              "url": "data:image/jpeg;base64,/9j/4AAQSkZJRgABAQ..."
+            }
+          }
+        ]
+      }
+    ],
     "stream": false
   }'
 ```

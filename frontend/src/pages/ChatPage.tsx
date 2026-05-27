@@ -6,9 +6,16 @@ import MessageContent from "../components/ui/MessageContent";
 
 type ChatRole = "system" | "user" | "assistant";
 
+type ChatContentPart =
+  | { type: "text"; text: string }
+  | { type: "image_url"; image_url: { url: string } };
+
+type ChatMessageContent = string | ChatContentPart[];
+
 type ChatMessage = {
   role: ChatRole;
   content: string;
+  apiContent?: ChatMessageContent;
   thinking?: string;
   phase?: "thinking" | "streaming" | "complete";
   modelName?: string;
@@ -26,7 +33,7 @@ type ChatCompletionStats = {
 
 type ModelListResponse = {
   object: string;
-  data: { id: string; object: string; created: number; owned_by: string; thinking_enabled?: boolean }[];
+  data: { id: string; object: string; created: number; owned_by: string; thinking_enabled?: boolean; vision_enabled?: boolean }[];
 };
 
 type ChatSummary = {
@@ -68,6 +75,7 @@ export default function ChatPage() {
   const { token, user } = useAuth();
   const [models, setModels] = useState<string[]>([]);
   const [modelThinkingDefaults, setModelThinkingDefaults] = useState<Record<string, boolean>>({});
+  const [modelVisionDefaults, setModelVisionDefaults] = useState<Record<string, boolean>>({});
   const [selectedModel, setSelectedModel] = useState<string>("");
   const [thinkingEnabled, setThinkingEnabled] = useState(false);
   const [thinkingExpandedByIndex, setThinkingExpandedByIndex] = useState<Record<number, boolean>>({});
@@ -85,6 +93,7 @@ export default function ChatPage() {
   const abortControllerRef = useRef<AbortController | null>(null);
   const [attachments, setAttachments] = useState<Attachment[]>([]);
   const selectedModelSupportsThinking = selectedModel ? (modelThinkingDefaults[selectedModel] ?? false) : false;
+  const selectedModelSupportsVision = selectedModel ? (modelVisionDefaults[selectedModel] ?? false) : false;
 
   useEffect(() => {
     void loadModels();
@@ -114,15 +123,18 @@ export default function ChatPage() {
     try {
       const response = await apiGet<ModelListResponse>("/v1/models", token || undefined);
       const aliases = response.data.map((entry) => entry.id);
-      const defaults: Record<string, boolean> = {};
+      const thinkingDefaults: Record<string, boolean> = {};
+      const visionDefaults: Record<string, boolean> = {};
       for (const entry of response.data) {
-        defaults[entry.id] = entry.thinking_enabled ?? false;
+        thinkingDefaults[entry.id] = entry.thinking_enabled ?? false;
+        visionDefaults[entry.id] = entry.vision_enabled ?? false;
       }
-      setModelThinkingDefaults(defaults);
+      setModelThinkingDefaults(thinkingDefaults);
+      setModelVisionDefaults(visionDefaults);
       setModels(aliases);
       setSelectedModel((current) => {
         const next = current || aliases[0] || "";
-        setThinkingEnabled(defaults[next] ?? false);
+        setThinkingEnabled(thinkingDefaults[next] ?? false);
         return next;
       });
     } catch (error) {
@@ -318,23 +330,16 @@ export default function ChatPage() {
       return;
     }
 
-    let combinedContent = trimmed;
-    if (attachments.length > 0) {
-      const attachmentsText = attachments
-        .map((file) => {
-          if (file.content) {
-            return `\n\n[Attached File: ${file.name}]\n\`\`\`\n${file.content}\n\`\`\``;
-          } else {
-            return `\n\n[Attached File: ${file.name} (Binary/Image File, ${(file.size / 1024).toFixed(1)} KB)]`;
-          }
-        })
-        .join("");
-      combinedContent = (trimmed ? trimmed : "Analyze the attached file(s).") + attachmentsText;
+    if (attachments.some((file) => file.type.startsWith("image/") && file.dataUrl) && !selectedModelSupportsVision) {
+      setErrorMessage("Vision is disabled for the selected model. Enable vision in the model settings or switch to a vision-enabled model before sending images.");
+      return;
     }
+
+    const { displayContent, apiContent } = buildUserMessageContent(trimmed, attachments);
 
     const nextMessages: ChatMessage[] = [
       ...messages,
-      { role: "user", content: combinedContent, phase: "complete" },
+      { role: "user", content: displayContent, apiContent, phase: "complete" },
     ];
     setMessages([
       ...nextMessages,
@@ -347,7 +352,7 @@ export default function ChatPage() {
 
     const chatId = await ensureChat(trimmed ? trimmed : "Sent attachments");
     if (chatId !== null) {
-      void persistMessage(chatId, "user", combinedContent);
+      void persistMessage(chatId, "user", displayContent);
     }
 
     const abortController = new AbortController();
@@ -358,7 +363,7 @@ export default function ChatPage() {
     try {
       const stats = await streamCompletion(
         selectedModel,
-        nextMessages.map((message) => ({ role: message.role, content: message.content })),
+        nextMessages.map((message) => ({ role: message.role, content: message.apiContent ?? message.content })),
         thinkingEnabled,
         abortController.signal,
         (delta, type) => {
@@ -764,7 +769,7 @@ export default function ChatPage() {
 
 async function streamCompletion(
   model: string,
-  messages: ChatMessage[],
+  messages: { role: ChatRole; content: ChatMessageContent }[],
   enableThinking: boolean,
   signal: AbortSignal,
   onDelta: (delta: string, type: "thinking" | "content") => void
@@ -940,6 +945,44 @@ async function streamCompletion(
     completionTokens,
     totalTokens: usage?.total_tokens ?? null,
     tokensPerSecond: completionTokens !== null ? completionTokens / elapsedSeconds : null,
+  };
+}
+
+function buildUserMessageContent(inputText: string, attachments: Attachment[]): { displayContent: string; apiContent: ChatMessageContent } {
+  if (attachments.length === 0) {
+    return { displayContent: inputText, apiContent: inputText };
+  }
+
+  const displaySegments: string[] = [];
+  const contentParts: ChatContentPart[] = [];
+  const introText = inputText || "Analyze the attached file(s).";
+
+  displaySegments.push(introText);
+  contentParts.push({ type: "text", text: introText });
+
+  for (const file of attachments) {
+    if (file.content) {
+      const attachmentText = `[Attached File: ${file.name}]\n\`\`\`\n${file.content}\n\`\`\``;
+      displaySegments.push(attachmentText);
+      contentParts.push({ type: "text", text: attachmentText });
+      continue;
+    }
+
+    if (file.type.startsWith("image/") && file.dataUrl) {
+      displaySegments.push(`[Attached Image: ${file.name} (${(file.size / 1024).toFixed(1)} KB)]`);
+      contentParts.push({ type: "image_url", image_url: { url: file.dataUrl } });
+      continue;
+    }
+
+    const binaryText = `[Attached File: ${file.name} (Binary File, ${(file.size / 1024).toFixed(1)} KB)]`;
+    displaySegments.push(binaryText);
+    contentParts.push({ type: "text", text: binaryText });
+  }
+
+  const containsImage = attachments.some((file) => file.type.startsWith("image/") && file.dataUrl);
+  return {
+    displayContent: displaySegments.join("\n\n"),
+    apiContent: containsImage ? contentParts : displaySegments.join("\n\n"),
   };
 }
 

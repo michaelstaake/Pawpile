@@ -11,9 +11,21 @@ from app.core.db import get_db
 from app.core.inference_manager import InferenceManager
 from app.models.model_config import ModelConfig
 from app.models.user import User
-from app.utils.schemas import OpenAIChatRequest, normalize_message_content
+from app.utils.schemas import OpenAIChatRequest
 
 router = APIRouter(prefix="/v1", tags=["openai"])
+
+
+def _prepend_system_text(content: str | list[dict], prefix: str) -> str | list[dict]:
+    if isinstance(content, str):
+        return f"{prefix}\n{content}" if content else prefix
+
+    if content and isinstance(content[0], dict) and content[0].get("type") == "text":
+        first = content[0]
+        existing_text = first.get("text") or ""
+        return [{**first, "text": f"{prefix}\n{existing_text}" if existing_text else prefix}, *content[1:]]
+
+    return [{"type": "text", "text": prefix}, *content]
 
 
 @router.get("/models")
@@ -33,6 +45,7 @@ def v1_models(_: User = Depends(require_api_access), db: Session = Depends(get_d
                 "created": int(time.time()),
                 "owned_by": "pawpile",
                 "thinking_enabled": m.thinking_enabled,
+                "vision_enabled": m.vision_enabled,
             }
             for m in models
         ],
@@ -56,6 +69,12 @@ async def v1_chat_completions(payload: OpenAIChatRequest, current_user: User = D
                 status_code=400,
                 detail="Tool calling is disabled for this model. Enable tool calling in the model settings before sending tool requests.",
             )
+
+    if payload.requests_vision() and not model.vision_enabled:
+        raise HTTPException(
+            status_code=400,
+            detail="Vision is disabled for this model. Enable vision in the model settings before sending image requests.",
+        )
 
     log_event(
         db,
@@ -84,7 +103,6 @@ async def v1_chat_completions(payload: OpenAIChatRequest, current_user: User = D
             for key, value in message.model_dump(exclude_none=True).items()
             if key != "content" or value != ""
         }
-        | {"content": normalize_message_content(message.content)}
         for message in payload.messages
     ]
 
@@ -96,9 +114,14 @@ async def v1_chat_completions(payload: OpenAIChatRequest, current_user: User = D
         msgs = request_payload["messages"]
         if msgs and msgs[0].get("role") == "system":
             existing = msgs[0].get("content") or ""
-            if "/no_think" not in existing:
+            existing_text = existing if isinstance(existing, str) else "\n".join(
+                part.get("text", "")
+                for part in existing
+                if isinstance(part, dict) and part.get("type") == "text"
+            )
+            if "/no_think" not in existing_text:
                 request_payload["messages"] = [
-                    {**msgs[0], "content": "/no_think\n" + existing if existing else "/no_think"},
+                    {**msgs[0], "content": _prepend_system_text(existing, "/no_think")},
                     *msgs[1:],
                 ]
         else:

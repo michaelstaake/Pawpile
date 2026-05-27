@@ -42,6 +42,79 @@ def normalize_message_content(content: Any) -> str:
     raise ValueError("content must be a string or an array of content parts")
 
 
+def validate_openai_message_content(content: Any) -> str | list[dict[str, Any]]:
+    """Validate OpenAI-style content while preserving multimodal parts."""
+    if content is None:
+        return ""
+
+    if isinstance(content, str):
+        return content
+
+    if isinstance(content, list):
+        normalized_parts: list[dict[str, Any]] = []
+        for index, part in enumerate(content):
+            if not isinstance(part, dict):
+                raise ValueError(f"content part at index {index} must be an object")
+
+            part_type = part.get("type")
+            if not isinstance(part_type, str):
+                raise ValueError(f"content part at index {index} is missing a valid type")
+
+            if part_type == "text":
+                text = part.get("text", "")
+                if text is None:
+                    text = ""
+                if not isinstance(text, str):
+                    raise ValueError(f"text content part at index {index} must have string text")
+                normalized_parts.append({**part, "text": text})
+                continue
+
+            if part_type == "image_url":
+                image_url = part.get("image_url")
+                if not isinstance(image_url, dict):
+                    raise ValueError(f"image_url content part at index {index} must have an image_url object")
+                url = image_url.get("url")
+                if not isinstance(url, str) or not url:
+                    raise ValueError(f"image_url content part at index {index} must include a non-empty string url")
+                normalized_parts.append(part)
+                continue
+
+            if part_type == "input_text":
+                text = part.get("text", "")
+                if text is None:
+                    text = ""
+                if not isinstance(text, str):
+                    raise ValueError(f"input_text content part at index {index} must have string text")
+                normalized_parts.append({**part, "text": text})
+                continue
+
+            if part_type == "input_image":
+                image_url = part.get("image_url") or part.get("image")
+                if not isinstance(image_url, str) or not image_url:
+                    raise ValueError(f"input_image content part at index {index} must include a non-empty image string")
+                normalized_parts.append(part)
+                continue
+
+            raise ValueError(f"unsupported content part type at index {index}: {part_type}")
+
+        return normalized_parts
+
+    raise ValueError("content must be a string or an array of content parts")
+
+
+def content_includes_vision(content: str | list[dict[str, Any]] | None) -> bool:
+    if not isinstance(content, list):
+        return False
+
+    for part in content:
+        if not isinstance(part, dict):
+            continue
+        if part.get("type") in {"image_url", "input_image"}:
+            return True
+
+    return False
+
+
 class LoginRequest(BaseModel):
     username: str
     password: str
@@ -201,8 +274,8 @@ class ChatMessageRequest(BaseModel):
 
     @field_validator("content", mode="before")
     @classmethod
-    def _normalize_content(cls, value: Any) -> str:
-        return normalize_message_content(value)
+    def _normalize_content(cls, value: Any) -> str | list[dict[str, Any]]:
+        return validate_openai_message_content(value)
 
     def includes_tooling(self) -> bool:
         return (
@@ -211,6 +284,9 @@ class ChatMessageRequest(BaseModel):
             or bool(self.tool_calls)
             or self.function_call is not None
         )
+
+    def includes_vision(self) -> bool:
+        return content_includes_vision(self.content)
 
 
 class ChatCreateRequest(BaseModel):
@@ -281,3 +357,6 @@ class OpenAIChatRequest(BaseModel):
             or self.function_call is not None
             or any(message.includes_tooling() for message in self.messages)
         )
+
+    def requests_vision(self) -> bool:
+        return any(message.includes_vision() for message in self.messages)
