@@ -422,7 +422,6 @@ export default function DevicesPage({ setupMode = false, onContinue }: DevicesPa
                               <h4 className="font-display text-base text-violet-950">{pool.name}</h4>
                               <span className="rounded-full border border-violet-200 bg-violet-100 px-2 py-0.5 text-[11px] font-semibold uppercase tracking-[0.12em] text-violet-700">{vendorLabel(pool.vendor)}</span>
                             </div>
-                            <p className="mt-1 text-sm text-violet-700/80">{pool.devices.length} member GPU{pool.devices.length === 1 ? "" : "s"}</p>
                           </div>
                           <div className="flex flex-wrap gap-2">
                             <button
@@ -490,9 +489,6 @@ export default function DevicesPage({ setupMode = false, onContinue }: DevicesPa
               <div className="border-b border-black/10 px-5 py-4 sm:px-6">
                 <div className="flex items-start justify-between gap-4">
                   <div>
-                    <p className="text-xs font-semibold uppercase tracking-[0.15em] text-violet-600">
-                      {editingPoolId === null ? "Create Pool" : "Edit Pool"}
-                    </p>
                     <h3 id="pool-modal-title" className="mt-2 font-display text-xl text-black">
                       {editingPoolId === null ? "New GPU Pool" : `Edit ${editablePool?.name ?? "GPU Pool"}`}
                     </h3>
