@@ -43,6 +43,24 @@ CHAT_METADATA_COLUMNS = {
     "tokens_per_second",
 }
 
+REVISION_ORDER = [
+    "0001_initial",
+    "0002_app_settings",
+    "0003_model_priority",
+    "0004_auto_load_models_setting",
+    "0005_add_sitename_setting",
+    "0006_model_tool_calling_enabled",
+    "0007_activity_log",
+    "0008_model_thinking_enabled",
+    "0009_gpu_pool",
+    "0010_gpu_pool_vendor",
+    "0011_remove_auto_load_models_setting",
+    "0012_device_stable_hardware_id",
+    "0013_chat_message_metadata",
+]
+
+REVISION_INDEX = {revision: index for index, revision in enumerate(REVISION_ORDER)}
+
 
 def _configure_logging() -> None:
     settings = get_settings()
@@ -142,23 +160,59 @@ def _run_alembic(*args: str) -> None:
     subprocess.run(command, check=True, cwd=repo_root, env=env)
 
 
-def _bridge_legacy_sqlite_database(database_path: Path) -> None:
+def _read_stamped_revision(database_path: Path) -> str | None:
+    with sqlite3.connect(database_path) as connection:
+        row = connection.execute("SELECT version_num FROM alembic_version LIMIT 1").fetchone()
+    if not row:
+        return None
+    return str(row[0])
+
+
+def _stamp_inferred_revision(database_path: Path, inferred_revision: str, current_revision: str | None) -> None:
+    if current_revision == inferred_revision:
+        return
+
+    if current_revision is None:
+        logger.info("Stamping legacy SQLite database at %s to revision %s", database_path, inferred_revision)
+        _run_alembic("stamp", inferred_revision)
+        return
+
+    current_rank = REVISION_INDEX.get(current_revision)
+    inferred_rank = REVISION_INDEX.get(inferred_revision)
+    if current_rank is None or inferred_rank is None:
+        logger.warning(
+            "Skipping Alembic stamp reconciliation for unknown revision state current=%s inferred=%s",
+            current_revision,
+            inferred_revision,
+        )
+        return
+
+    if inferred_rank > current_rank:
+        logger.info(
+            "Stamping SQLite database at %s forward from revision %s to inferred revision %s",
+            database_path,
+            current_revision,
+            inferred_revision,
+        )
+        _run_alembic("stamp", inferred_revision)
+
+
+def _reconcile_sqlite_database(database_path: Path) -> None:
     if not database_path.exists() or database_path.stat().st_size == 0:
         return
 
     tables, columns_by_table = _load_sqlite_schema(database_path)
-    if "alembic_version" in tables:
-        return
+    inferred_revision = _infer_legacy_revision(tables, columns_by_table)
+    current_revision = _read_stamped_revision(database_path) if "alembic_version" in tables else None
 
-    revision = _infer_legacy_revision(tables, columns_by_table)
-    if revision is None:
+    if inferred_revision is None and current_revision is None:
         raise RuntimeError(
             "Unable to infer Alembic revision for existing SQLite database. "
             "Back up the database and run a manual migration or recreate the volume."
         )
 
-    logger.info("Stamping legacy SQLite database at %s to revision %s", database_path, revision)
-    _run_alembic("stamp", revision)
+    if inferred_revision is not None:
+        _stamp_inferred_revision(database_path, inferred_revision, current_revision)
 
 
 def prepare_database() -> None:
@@ -167,7 +221,7 @@ def prepare_database() -> None:
 
     database_path = _sqlite_database_path(settings.database_url)
     if database_path is not None:
-        _bridge_legacy_sqlite_database(database_path)
+        _reconcile_sqlite_database(database_path)
 
     logger.info("Applying database migrations")
     _run_alembic("upgrade", "head")
