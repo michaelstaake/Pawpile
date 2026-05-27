@@ -21,6 +21,7 @@ async def get_status(db: Session = Depends(get_db)) -> dict:
     devices = db.query(Device).order_by(Device.priority.asc(), Device.id.asc()).all()
     models_by_id = {model.id: model for model in db.query(ModelConfig).all()}
     runtime_devices, runtime_errors = await _fetch_runtime_devices(settings)
+    system_cpu_usage_percent = _coalesce_float(runtime_devices.get("cpu:0", {}).get("usage_percent"))
     fallback_models_by_device_id: dict[int, list[dict]] = {}
     # pool_model_device_ids maps model_id -> set of device IDs it spans (for pool models)
     pool_model_device_ids: dict[int, set[int]] = {}
@@ -96,6 +97,7 @@ async def get_status(db: Session = Depends(get_db)) -> dict:
     return {
         "status": "ok",
         "refreshed_at": datetime.now(timezone.utc).isoformat(),
+        "system_cpu_usage_percent": system_cpu_usage_percent,
         "devices": serialized_devices,
         "runtime_errors": runtime_errors,
     }

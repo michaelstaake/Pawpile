@@ -173,6 +173,7 @@ export default function StatusPage() {
   const { token } = useAuth();
   const [devices, setDevices] = useState<DeviceStatusRecord[]>([]);
   const [pools, setPools] = useState<GpuPoolRecord[]>([]);
+  const [systemCpuUsagePercent, setSystemCpuUsagePercent] = useState<number | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [errorMessage, setErrorMessage] = useState("");
 
@@ -190,11 +191,13 @@ export default function StatusPage() {
           return;
         }
         setDevices(response.devices);
+        setSystemCpuUsagePercent(response.system_cpu_usage_percent);
         setErrorMessage("");
       } catch (error) {
         if (!isMounted) {
           return;
         }
+        setSystemCpuUsagePercent(null);
         setErrorMessage(error instanceof Error ? error.message : "Failed to load status");
       } finally {
         if (!isMounted) {
@@ -251,10 +254,18 @@ export default function StatusPage() {
         <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
           <h2 className="font-display text-3xl text-ink md:text-4xl">Status</h2>
 
-          <div className="rounded-2xl border border-black/10 bg-white/75 p-4">
-            <p className="text-xs font-semibold uppercase tracking-[0.24em] text-black/45">Memory Usage</p>
-            <p className="mt-2 font-display text-3xl text-ink">{summary.memoryUsagePercent !== null ? `${summary.memoryUsagePercent.toFixed(1)}%` : "N/A"}</p>
-            <p className="mt-1 text-sm text-black/55">{formatMemorySummary(summary.usedMemory, summary.totalMemory)}</p>
+          <div className="grid gap-3 sm:grid-cols-2">
+            <div className="rounded-2xl border border-black/10 bg-white/75 p-4">
+              <p className="text-xs font-semibold uppercase tracking-[0.24em] text-black/45">System CPU</p>
+              <p className="mt-2 font-display text-3xl text-ink">{systemCpuUsagePercent !== null ? `${systemCpuUsagePercent.toFixed(1)}%` : "N/A"}</p>
+              <p className="mt-1 text-sm text-black/55">Total host CPU utilization</p>
+            </div>
+
+            <div className="rounded-2xl border border-black/10 bg-white/75 p-4">
+              <p className="text-xs font-semibold uppercase tracking-[0.24em] text-black/45">Memory Usage</p>
+              <p className="mt-2 font-display text-3xl text-ink">{summary.memoryUsagePercent !== null ? `${summary.memoryUsagePercent.toFixed(1)}%` : "N/A"}</p>
+              <p className="mt-1 text-sm text-black/55">{formatMemorySummary(summary.usedMemory, summary.totalMemory)}</p>
+            </div>
           </div>
         </div>
       </article>

@@ -95,6 +95,7 @@ export type DeviceStatusRecord = {
 export type StatusResponse = {
   status: string;
   refreshed_at: string;
+  system_cpu_usage_percent: number | null;
   devices: DeviceStatusRecord[];
   runtime_errors: {
     vendor: string;
