@@ -830,7 +830,7 @@ export default function ModelsPage({ setupMode = false, onComplete }: ModelsPage
 
               <section>
                 <p className="mb-3 text-xs font-semibold uppercase tracking-[0.2em] text-black/45">Devices</p>
-                <div className="grid gap-3 md:grid-cols-2">
+                <div className="grid gap-3">
                   <label className="grid gap-1 text-sm text-black/70">
                     <span>Assignment Mode</span>
                     <span className="text-xs text-black/45">Auto lets Pawpile choose the hardware.</span>
