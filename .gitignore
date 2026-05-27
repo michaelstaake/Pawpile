@@ -8,6 +8,7 @@ frontend/dist/
 data/*.db
 logs/*.log
 /models/
+certs/
 
 # Editor/OS temporary files
 .vscode/
