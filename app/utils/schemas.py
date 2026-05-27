@@ -1,4 +1,4 @@
-from typing import Any
+from typing import Any, Literal
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 
@@ -327,6 +327,23 @@ class ChatMessageStatsRequest(BaseModel):
     completion_tokens: int | None = Field(default=None, alias="completionTokens", ge=0)
     total_tokens: int | None = Field(default=None, alias="totalTokens", ge=0)
     tokens_per_second: float | None = Field(default=None, alias="tokensPerSecond", ge=0)
+
+
+class AttachmentExtractionResult(BaseModel):
+    model_config = ConfigDict(populate_by_name=True)
+
+    name: str
+    content_type: str | None = Field(default=None, alias="contentType")
+    size: int = Field(ge=0)
+    status: Literal["ok", "unsupported", "error"]
+    content: str | None = None
+    detail: str | None = None
+    truncated: bool = False
+    extractor: str | None = None
+
+
+class AttachmentExtractionResponse(BaseModel):
+    attachments: list[AttachmentExtractionResult]
 
 
 class OpenAIChatRequest(BaseModel):

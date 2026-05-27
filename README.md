@@ -117,10 +117,6 @@ By default, an API key is required to communicate with the API. To disable this 
 
 Pawpile currently supports `/v1/models` and `/v1/chat/completions`.
 
-Tool-calling fields on chat-completions requests are forwarded to the active runtime. Tool-bearing requests are rejected unless tool calling is enabled for that particular model.
-
-OpenAI-compatible multimodal chat requests are also supported for vision-enabled models. Image-bearing requests are rejected unless vision is enabled for that particular model.
-
 ## Example API Call
 
 ```bash

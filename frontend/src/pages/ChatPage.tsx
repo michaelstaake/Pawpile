@@ -1,5 +1,5 @@
 import { FormEvent, useEffect, useRef, useState } from "react";
-import { apiDelete, apiGet, apiPost, handleBackendUnavailableError, isBackendUnavailableResponse } from "../lib/api";
+import { apiDelete, apiGet, apiPost, apiPostForm, handleBackendUnavailableError, isBackendUnavailableResponse } from "../lib/api";
 import { useAuth } from "../context/AuthContext";
 import { getStoredToken } from "../lib/session";
 import MessageContent from "../components/ui/MessageContent";
@@ -61,15 +61,180 @@ type ChatCreateResponse = {
   chat: ChatSummary;
 };
 
+type AttachmentKind = "text" | "image" | "document" | "binary";
+
+type AttachmentExtractionResponse = {
+  attachments: {
+    name: string;
+    contentType?: string | null;
+    size: number;
+    status: "ok" | "unsupported" | "error";
+    content?: string | null;
+    detail?: string | null;
+    truncated: boolean;
+    extractor?: string | null;
+  }[];
+};
+
 const BASE_URL = import.meta.env.VITE_API_BASE_URL ?? "";
 
 type Attachment = {
   name: string;
   size: number;
   type: string;
+  kind: AttachmentKind;
+  sourceFile: File;
   content?: string;
   dataUrl?: string;
+  extractionStatus?: "pending" | "ready" | "unsupported" | "error";
+  extractionDetail?: string;
+  truncated?: boolean;
 };
+
+const TEXT_ATTACHMENT_SUFFIXES = new Set([
+  ".conf",
+  ".css",
+  ".csv",
+  ".html",
+  ".ini",
+  ".js",
+  ".json",
+  ".log",
+  ".md",
+  ".py",
+  ".sh",
+  ".ts",
+  ".tsx",
+  ".txt",
+  ".yaml",
+  ".yml",
+]);
+
+const DOCUMENT_ATTACHMENT_SUFFIXES = new Set([".docx", ".pdf"]);
+
+function hasKnownSuffix(name: string, suffixes: Set<string>): boolean {
+  const lowerName = name.toLowerCase();
+  for (const suffix of suffixes) {
+    if (lowerName.endsWith(suffix)) {
+      return true;
+    }
+  }
+
+  return false;
+}
+
+function isTextAttachment(file: File): boolean {
+  if (file.type.startsWith("text/")) {
+    return true;
+  }
+
+  return hasKnownSuffix(file.name, TEXT_ATTACHMENT_SUFFIXES);
+}
+
+function isBackendExtractableAttachment(file: File): boolean {
+  return (
+    file.type === "application/pdf" ||
+    file.type === "application/vnd.openxmlformats-officedocument.wordprocessingml.document" ||
+    hasKnownSuffix(file.name, DOCUMENT_ATTACHMENT_SUFFIXES)
+  );
+}
+
+function classifyAttachment(file: File): AttachmentKind {
+  if (isTextAttachment(file)) {
+    return "text";
+  }
+
+  if (file.type.startsWith("image/")) {
+    return "image";
+  }
+
+  if (isBackendExtractableAttachment(file)) {
+    return "document";
+  }
+
+  return "binary";
+}
+
+async function resolveDocumentAttachments(attachments: Attachment[], token?: string): Promise<Attachment[]> {
+  const pendingDocuments = attachments.filter((attachment) => attachment.kind === "document" && !attachment.content);
+  if (pendingDocuments.length === 0) {
+    return attachments;
+  }
+
+  const formData = new FormData();
+  pendingDocuments.forEach((attachment) => {
+    formData.append("files", attachment.sourceFile);
+  });
+
+  const response = await apiPostForm<AttachmentExtractionResponse>("/api/chat/attachments/extract", formData, token);
+  if (response.attachments.length !== pendingDocuments.length) {
+    throw new Error("Attachment extraction returned an unexpected number of results.");
+  }
+
+  let responseIndex = 0;
+  return attachments.map((attachment) => {
+    if (attachment.kind !== "document" || attachment.content) {
+      return attachment;
+    }
+
+    const result = response.attachments[responseIndex++];
+    const extractionDetail = result.detail ?? undefined;
+
+    if (result.status === "ok" && result.content) {
+      return {
+        ...attachment,
+        type: result.contentType ?? attachment.type,
+        content: result.content,
+        extractionStatus: "ready",
+        extractionDetail,
+        truncated: result.truncated,
+      };
+    }
+
+    return {
+      ...attachment,
+      extractionStatus: result.status === "unsupported" ? "unsupported" : "error",
+      extractionDetail,
+      truncated: false,
+    };
+  });
+}
+
+function formatAttachmentFallbackText(file: Attachment): string {
+  const sizeLabel = `${(file.size / 1024).toFixed(1)} KB`;
+
+  if (file.extractionStatus === "unsupported") {
+    return `[Attached File: ${file.name} (${file.extractionDetail ?? "Unsupported for text extraction"}, ${sizeLabel})]`;
+  }
+
+  if (file.extractionStatus === "error") {
+    return `[Attached File: ${file.name} (${file.extractionDetail ?? "Text extraction failed"}, ${sizeLabel})]`;
+  }
+
+  return `[Attached File: ${file.name} (Binary File, ${sizeLabel})]`;
+}
+
+function describeAttachment(file: Attachment): string {
+  if (file.kind === "image") {
+    return "Image attachment";
+  }
+
+  if (file.kind === "text") {
+    return "Text ready";
+  }
+
+  if (file.kind === "document") {
+    if (file.extractionStatus === "ready") {
+      return file.truncated ? "Text extracted, truncated" : "Text extracted";
+    }
+    if (file.extractionStatus === "error") {
+      return "Extraction failed";
+    }
+    return "Text will be extracted on send";
+  }
+
+  return "Metadata only";
+}
 
 export default function ChatPage() {
   const { token, user } = useAuth();
@@ -255,24 +420,9 @@ export default function ChatPage() {
     const filesArray = Array.from(e.target.files);
 
     filesArray.forEach((file) => {
-      const isText =
-        file.type.startsWith("text/") ||
-        file.name.endsWith(".json") ||
-        file.name.endsWith(".js") ||
-        file.name.endsWith(".ts") ||
-        file.name.endsWith(".tsx") ||
-        file.name.endsWith(".py") ||
-        file.name.endsWith(".md") ||
-        file.name.endsWith(".csv") ||
-        file.name.endsWith(".yaml") ||
-        file.name.endsWith(".yml") ||
-        file.name.endsWith(".html") ||
-        file.name.endsWith(".css") ||
-        file.name.endsWith(".ini") ||
-        file.name.endsWith(".conf") ||
-        file.name.endsWith(".sh");
+      const attachmentKind = classifyAttachment(file);
 
-      if (isText) {
+      if (attachmentKind === "text") {
         const reader = new FileReader();
         reader.onload = (event) => {
           setAttachments((prev) => [
@@ -281,12 +431,15 @@ export default function ChatPage() {
               name: file.name,
               size: file.size,
               type: file.type,
+              kind: attachmentKind,
+              sourceFile: file,
               content: event.target?.result as string,
+              extractionStatus: "ready",
             },
           ]);
         };
         reader.readAsText(file);
-      } else if (file.type.startsWith("image/")) {
+      } else if (attachmentKind === "image") {
         const reader = new FileReader();
         reader.onload = (event) => {
           setAttachments((prev) => [
@@ -295,6 +448,8 @@ export default function ChatPage() {
               name: file.name,
               size: file.size,
               type: file.type,
+              kind: attachmentKind,
+              sourceFile: file,
               dataUrl: event.target?.result as string,
             },
           ]);
@@ -307,6 +462,13 @@ export default function ChatPage() {
             name: file.name,
             size: file.size,
             type: file.type,
+            kind: attachmentKind,
+            sourceFile: file,
+            extractionStatus: attachmentKind === "document" ? "pending" : "unsupported",
+            extractionDetail:
+              attachmentKind === "document"
+                ? "Text will be extracted when you send this message."
+                : "This file will be sent as metadata only.",
           },
         ]);
       }
@@ -335,21 +497,31 @@ export default function ChatPage() {
       return;
     }
 
-    const { displayContent, apiContent } = buildUserMessageContent(trimmed, attachments);
+    setIsSending(true);
+    setErrorMessage("");
+
+    let preparedAttachments: Attachment[];
+    try {
+      preparedAttachments = await resolveDocumentAttachments(attachments, token ?? undefined);
+    } catch (error) {
+      setErrorMessage(error instanceof Error ? error.message : "Failed to extract attachment text");
+      setIsSending(false);
+      return;
+    }
+
+    const { displayContent, apiContent } = buildUserMessageContent(trimmed, preparedAttachments);
 
     const nextMessages: ChatMessage[] = [
       ...messages,
       { role: "user", content: displayContent, apiContent, phase: "complete" },
     ];
-    const hasUploadStage = attachments.length > 0;
+    const hasUploadStage = preparedAttachments.length > 0;
     setMessages([
       ...nextMessages,
       { role: "assistant", content: "", phase: hasUploadStage ? "uploading" : "thinking", modelName: selectedModel, stats: null },
     ]);
     setInput("");
     setAttachments([]);
-    setErrorMessage("");
-    setIsSending(true);
 
     const chatId = await ensureChat(trimmed ? trimmed : "Sent attachments");
     if (chatId !== null) {
@@ -698,14 +870,17 @@ export default function ChatPage() {
             <div className="flex flex-wrap gap-2 rounded-xl border border-black/10 bg-black/5 p-2">
               {attachments.map((file, idx) => (
                 <div key={idx} className="relative flex items-center gap-2 rounded-lg bg-white p-2 shadow-sm pr-8 text-xs font-semibold text-black/70">
-                  {file.type.startsWith("image/") && file.dataUrl ? (
+                  {file.kind === "image" && file.dataUrl ? (
                     <img src={file.dataUrl} alt={file.name} className="h-8 w-8 rounded object-cover" />
                   ) : (
                     <span className="text-xl">📄</span>
                   )}
                   <div className="truncate max-w-[150px]">
                     <div className="truncate">{file.name}</div>
-                    <div className="text-[10px] text-black/40">{(file.size / 1024).toFixed(1)} KB</div>
+                    <div className="text-[10px] text-black/40">
+                      {(file.size / 1024).toFixed(1)} KB • {describeAttachment(file)}
+                    </div>
+                    {file.extractionDetail ? <div className="truncate text-[10px] text-black/35">{file.extractionDetail}</div> : null}
                   </div>
                   <button
                     type="button"
@@ -992,12 +1167,12 @@ function buildUserMessageContent(inputText: string, attachments: Attachment[]): 
       continue;
     }
 
-    const binaryText = `[Attached File: ${file.name} (Binary File, ${(file.size / 1024).toFixed(1)} KB)]`;
-    displaySegments.push(binaryText);
-    contentParts.push({ type: "text", text: binaryText });
+    const fallbackText = formatAttachmentFallbackText(file);
+    displaySegments.push(fallbackText);
+    contentParts.push({ type: "text", text: fallbackText });
   }
 
-  const containsImage = attachments.some((file) => file.type.startsWith("image/") && file.dataUrl);
+  const containsImage = attachments.some((file) => file.kind === "image" && file.dataUrl);
   return {
     displayContent: displaySegments.join("\n\n"),
     apiContent: containsImage ? contentParts : displaySegments.join("\n\n"),

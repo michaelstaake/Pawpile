@@ -1,11 +1,12 @@
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, File, HTTPException, UploadFile
 from sqlalchemy.orm import Session
 
 from app.api.deps import get_current_user
+from app.core.attachment_parser import extract_attachment_text
 from app.core.db import get_db
 from app.models.chat import Chat, ChatMessage
 from app.models.user import User
-from app.utils.schemas import ChatCreateRequest, ChatMessageAppendRequest, ChatRenameRequest, normalize_message_content
+from app.utils.schemas import AttachmentExtractionResponse, ChatCreateRequest, ChatMessageAppendRequest, ChatRenameRequest, normalize_message_content
 
 router = APIRouter(prefix="/api/chat", tags=["chat"])
 
@@ -32,6 +33,28 @@ def create_chat(
     db.commit()
     db.refresh(chat)
     return {"status": "ok", "chat": _serialize_chat(chat)}
+
+
+@router.post("/attachments/extract", response_model=AttachmentExtractionResponse)
+async def extract_attachments(
+    files: list[UploadFile] = File(...),
+    _: User = Depends(get_current_user),
+) -> dict:
+    attachments: list[dict] = []
+
+    for upload in files:
+        filename = upload.filename or "attachment"
+        payload = await upload.read()
+        attachments.append(
+            extract_attachment_text(
+                filename=filename,
+                content_type=upload.content_type,
+                payload=payload,
+            )
+        )
+        await upload.close()
+
+    return {"attachments": attachments}
 
 
 @router.get("/{chat_id}")
