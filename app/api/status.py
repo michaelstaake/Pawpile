@@ -131,6 +131,7 @@ def _serialize_status_model(row: dict, models_by_id: dict[int, ModelConfig]) -> 
     return {
         "model_id": model_id,
         "alias": row.get("alias") or (model.alias if model else f"Model {model_id}"),
+        "file_name": model.file_name if model else "",
         "memory_used_mb": _coalesce_int(row.get("memory_used_mb")) or 0,
         "pid": _coalesce_int(row.get("pid")),
     }

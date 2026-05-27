@@ -136,10 +136,12 @@ function DeviceCard({ device, isPooled }: { device: DeviceStatusRecord; isPooled
             {device.models.length > 0 ? device.models.map((model, index) => (
               <div key={`${device.id}-legend-${model.model_id}`} className="rounded-2xl border border-black/10 bg-white px-3 py-3">
                 <div>
-                  <p className="text-sm font-semibold text-ink">{model.alias}</p>
-                  <p className="mt-0.5 flex items-center gap-1.5 text-xs text-black/50">
+                  <p className="flex items-center gap-1.5 text-sm font-semibold text-ink">
                     <span className="h-2.5 w-2.5 shrink-0 rounded-full" style={{ backgroundColor: colorForModel(index) }} />
-                    Model #{model.model_id}{model.pid ? ` · PID ${model.pid}` : ""} · {formatMemory(model.memory_used_mb)}
+                    <span>{model.alias}</span>
+                  </p>
+                  <p className="mt-0.5 text-xs text-black/50">
+                    {model.file_name}
                   </p>
                 </div>
               </div>

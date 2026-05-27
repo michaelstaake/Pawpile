@@ -65,6 +65,7 @@ export type GpuPoolRecord = {
 export type StatusModelRecord = {
   model_id: number;
   alias: string;
+  file_name: string;
   memory_used_mb: number;
   pid: number | null;
 };
