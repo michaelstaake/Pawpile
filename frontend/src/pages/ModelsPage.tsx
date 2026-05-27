@@ -161,6 +161,14 @@ function formatUploadSizeInWholeMb(bytes: number): string {
   return `${Math.round(bytes / (1024 * 1024)).toLocaleString()} MB`;
 }
 
+function formatUploadEta(seconds: number | null): string {
+  if (seconds == null) {
+    return "Calculating...";
+  }
+
+  return `${seconds} second${seconds === 1 ? "" : "s"}`;
+}
+
 export default function ModelsPage({ setupMode = false, onComplete }: ModelsPageProps) {
   const { token } = useAuth();
   const [models, setModels] = useState<ModelRecord[]>([]);
@@ -178,6 +186,8 @@ export default function ModelsPage({ setupMode = false, onComplete }: ModelsPage
   const [isUploadModalOpen, setIsUploadModalOpen] = useState(false);
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [uploadProgress, setUploadProgress] = useState<UploadProgressState>({ loaded: 0, total: 0 });
+  const [uploadStartedAt, setUploadStartedAt] = useState<number | null>(null);
+  const [uploadClock, setUploadClock] = useState(() => Date.now());
   const [isLoading, setIsLoading] = useState(false);
   const [isUploading, setIsUploading] = useState(false);
   const [isProcessingUpload, setIsProcessingUpload] = useState(false);
@@ -207,6 +217,20 @@ export default function ModelsPage({ setupMode = false, onComplete }: ModelsPage
     }
     void refreshData(token);
   }, [token]);
+
+  useEffect(() => {
+    if (!isUploading || isProcessingUpload) {
+      return;
+    }
+
+    const intervalId = window.setInterval(() => {
+      setUploadClock(Date.now());
+    }, 1000);
+
+    return () => {
+      window.clearInterval(intervalId);
+    };
+  }, [isProcessingUpload, isUploading]);
 
   async function refreshData(activeToken: string) {
     setIsLoading(true);
@@ -272,6 +296,8 @@ export default function ModelsPage({ setupMode = false, onComplete }: ModelsPage
     setIsUploading(true);
     setIsProcessingUpload(false);
     setIsUploadModalOpen(false);
+    setUploadStartedAt(Date.now());
+    setUploadClock(Date.now());
     setUploadProgress({ loaded: 0, total: selectedFile.size });
 
     try {
@@ -299,6 +325,7 @@ export default function ModelsPage({ setupMode = false, onComplete }: ModelsPage
     } finally {
       setIsUploading(false);
       setIsProcessingUpload(false);
+      setUploadStartedAt(null);
     }
   }
 
@@ -610,6 +637,13 @@ export default function ModelsPage({ setupMode = false, onComplete }: ModelsPage
   const activeModels = models.filter((model) => model.activated).length;
   const uploadTotal = uploadProgress.total || selectedFile?.size || 0;
   const uploadPercent = uploadTotal > 0 ? Math.min(100, Math.round((uploadProgress.loaded / uploadTotal) * 100)) : 0;
+  const uploadEtaSeconds =
+    uploadStartedAt != null && uploadProgress.loaded > 0 && uploadTotal > 0 && uploadPercent >= 10 && uploadProgress.loaded < uploadTotal
+      ? Math.max(
+          1,
+          Math.ceil((((uploadTotal - uploadProgress.loaded) / uploadProgress.loaded) * Math.max(1, uploadClock - uploadStartedAt)) / 1000),
+        )
+      : null;
   const assignmentTargets = buildAssignmentTargets(devices, pools);
 
   function closeUploadModal() {
@@ -658,7 +692,12 @@ export default function ModelsPage({ setupMode = false, onComplete }: ModelsPage
               <h3 className="font-display text-base">{isProcessingUpload ? "Model processing..." : "Model uploading..."}</h3>
               {selectedFile ? <span className="text-sm text-black/60">{selectedFile.name}</span> : null}
             </div>
-            {isUploading && uploadTotal > 0 ? (
+            {isUploading && isProcessingUpload ? (
+              <p className="rounded-xl border border-black/10 bg-white/70 px-3 py-3 text-sm text-black/70">
+                This may take a while, even a few minutes. Please wait.
+              </p>
+            ) : null}
+            {isUploading && uploadTotal > 0 && !isProcessingUpload ? (
               <div className="grid gap-2 rounded-xl border border-black/10 bg-white/70 px-3 py-3">
                 <div className="flex items-center justify-between gap-3 text-sm text-black/70">
                   <span>{uploadPercent}%</span>
@@ -667,6 +706,7 @@ export default function ModelsPage({ setupMode = false, onComplete }: ModelsPage
                 <div className="h-2 overflow-hidden rounded-full bg-black/10">
                   <div className="h-full rounded-full bg-amber transition-[width] duration-150" style={{ width: `${uploadPercent}%` }} />
                 </div>
+                <p className="text-sm text-black/70">Estimated time remaining: {formatUploadEta(uploadEtaSeconds)}</p>
               </div>
             ) : null}
           </div>
