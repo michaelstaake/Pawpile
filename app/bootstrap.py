@@ -100,52 +100,58 @@ def _infer_legacy_revision(tables: set[str], columns_by_table: dict[str, set[str
     if not user_tables.intersection(APP_TABLES):
         return None
 
-    has_activity_logs = "activity_logs" in tables
-
-    if CHAT_METADATA_COLUMNS.issubset(columns_by_table.get("chat_messages", set())) and has_activity_logs:
-        return "0013_chat_message_metadata"
-
-    device_columns = columns_by_table.get("devices", set())
-    if {"stable_hardware_id", "stable_hardware_id_source"}.issubset(device_columns) and has_activity_logs:
-        return "0012_device_stable_hardware_id"
-
-    app_settings_columns = columns_by_table.get("app_settings", set())
-    if "app_settings" in tables and "auto_load_enabled_models_on_startup" not in app_settings_columns and has_activity_logs:
-        return "0011_remove_auto_load_models_setting"
-
-    gpu_pool_columns = columns_by_table.get("gpu_pools", set())
-    if "vendor" in gpu_pool_columns and has_activity_logs:
-        return "0010_gpu_pool_vendor"
-
-    if "gpu_pools" in tables and has_activity_logs:
-        return "0009_gpu_pool"
-
+    # Walk revisions from oldest to newest and stop at the first one whose indicator
+    # is absent.  This bottom-up scan ensures we never claim a revision higher than
+    # what the schema actually supports, which prevents upgrade-head from skipping
+    # migrations that were never applied.
     model_columns = columns_by_table.get("model_configs", set())
-    if "thinking_enabled" in model_columns and has_activity_logs:
-        return "0008_model_thinking_enabled"
+    app_settings_columns = columns_by_table.get("app_settings", set())
+    device_columns = columns_by_table.get("devices", set())
+    gpu_pool_columns = columns_by_table.get("gpu_pools", set())
+    chat_message_columns = columns_by_table.get("chat_messages", set())
 
-    if has_activity_logs:
-        return "0007_activity_log"
+    if not INITIAL_TABLES.issubset(tables):
+        return None
 
-    if "tool_calling_enabled" in model_columns:
-        return "0006_model_tool_calling_enabled"
-
-    if "sitename" in app_settings_columns:
-        return "0005_add_sitename_setting"
-
-    if "auto_load_enabled_models_on_startup" in app_settings_columns:
-        return "0004_auto_load_models_setting"
-
-    if "priority" in model_columns:
-        return "0003_model_priority"
-
-    if "app_settings" in tables:
-        return "0002_app_settings"
-
-    if INITIAL_TABLES.issubset(tables):
+    if "app_settings" not in tables:
         return "0001_initial"
 
-    return None
+    if "priority" not in model_columns:
+        return "0002_app_settings"
+
+    if "auto_load_enabled_models_on_startup" not in app_settings_columns:
+        return "0003_model_priority"
+
+    if "sitename" not in app_settings_columns:
+        return "0004_auto_load_models_setting"
+
+    if "tool_calling_enabled" not in model_columns:
+        return "0005_add_sitename_setting"
+
+    if "activity_logs" not in tables:
+        return "0006_model_tool_calling_enabled"
+
+    if "thinking_enabled" not in model_columns:
+        return "0007_activity_log"
+
+    if "gpu_pools" not in tables:
+        return "0008_model_thinking_enabled"
+
+    if "vendor" not in gpu_pool_columns:
+        return "0009_gpu_pool"
+
+    # 0011 removed auto_load_enabled_models_on_startup; reaching here confirms 0010
+    # (vendor column) is present, so 0011 is applied only if auto_load is absent.
+    if "auto_load_enabled_models_on_startup" in app_settings_columns:
+        return "0010_gpu_pool_vendor"
+
+    if not {"stable_hardware_id", "stable_hardware_id_source"}.issubset(device_columns):
+        return "0011_remove_auto_load_models_setting"
+
+    if not CHAT_METADATA_COLUMNS.issubset(chat_message_columns):
+        return "0012_device_stable_hardware_id"
+
+    return "0013_chat_message_metadata"
 
 
 def _run_alembic(*args: str) -> None:
@@ -197,6 +203,14 @@ def _stamp_inferred_revision(database_path: Path, inferred_revision: str, curren
             inferred_revision,
         )
         _run_alembic("stamp", inferred_revision)
+    elif inferred_rank < current_rank:
+        logger.warning(
+            "Stamped revision %s is ahead of actual schema level %s; "
+            "correcting stamp backward so upgrade-head fills the gaps",
+            current_revision,
+            inferred_revision,
+        )
+        _run_alembic("stamp", inferred_revision)
 
 
 def _reconcile_sqlite_database(database_path: Path) -> None:
@@ -215,31 +229,6 @@ def _reconcile_sqlite_database(database_path: Path) -> None:
 
     if inferred_revision is not None:
         _stamp_inferred_revision(database_path, inferred_revision, current_revision)
-
-    # Detect and repair a database where activity_logs is missing but the schema is
-    # otherwise at a post-0006 level.  This can happen when the database was first
-    # populated via Base.metadata.create_all() with ActivityLog absent from Base.metadata,
-    # or when the alembic_version stamp was advanced past 0007 without migration 0007
-    # actually running.  The fix is to stamp back to 0006, apply only migration 0007
-    # (which purely creates the activity_logs table — no conflict risk), then restore
-    # the stamp so that the subsequent upgrade-head call does not re-run the
-    # already-applied later migrations.
-    if "activity_logs" not in tables and APP_TABLES.issubset(tables):
-        schema_ceiling = _infer_legacy_revision(tables | {"activity_logs"}, columns_by_table)
-        effective_revision = current_revision or schema_ceiling
-        if (
-            effective_revision is not None
-            and REVISION_INDEX.get(effective_revision, -1) >= REVISION_INDEX.get("0007_activity_log", -1)
-        ):
-            logger.warning(
-                "activity_logs table is missing from a post-0006 database "
-                "(effective revision: %s); selectively applying migration 0007",
-                effective_revision,
-            )
-            _run_alembic("stamp", "0006_model_tool_calling_enabled")
-            _run_alembic("upgrade", "0007_activity_log")
-            if REVISION_INDEX.get(effective_revision, -1) > REVISION_INDEX.get("0007_activity_log", -1):
-                _run_alembic("stamp", effective_revision)
 
 
 def prepare_database() -> None:

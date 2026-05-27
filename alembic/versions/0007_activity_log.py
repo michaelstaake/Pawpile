@@ -7,6 +7,7 @@ Create Date: 2026-05-23
 
 from alembic import op
 import sqlalchemy as sa
+from sqlalchemy import inspect as sa_inspect
 
 # revision identifiers, used by Alembic.
 revision = "0007_activity_log"
@@ -16,6 +17,9 @@ depends_on = None
 
 
 def upgrade() -> None:
+    bind = op.get_bind()
+    if "activity_logs" in sa_inspect(bind).get_table_names():
+        return
     op.create_table(
         "activity_logs",
         sa.Column("id", sa.Integer(), primary_key=True, nullable=False),
