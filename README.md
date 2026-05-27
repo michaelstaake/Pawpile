@@ -17,7 +17,7 @@ It supports x86_64 CPUs, NVIDIA GPUs, AMD GPUs, and Intel Arc GPUs. You can have
 
 If it works on other operating systems, cool, but supporting that is outside the scope of this project. Ensure the correct GPU drivers and necessary extras (e.g., NVIDIA Container Toolkit) for your hardware are installed.
 
-## If you have Windows, that's OK - Pawpile works in WSL!
+**If you are running Windows, that's OK - Pawpile works in WSL!** 
 
 ### Docker
 
