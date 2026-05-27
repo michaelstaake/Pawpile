@@ -42,6 +42,9 @@ class Settings(BaseSettings):
     default_gpu_layers: int = -1
     default_temperature: float = 0.7
     default_top_p: float = 0.95
+    default_top_k: int = 40
+    default_presence_penalty: float = 0.0
+    default_repetition_penalty: float = 1.0
 
     queue_max_size: int = 1000
     queue_poll_interval_ms: int = 100

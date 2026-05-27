@@ -178,6 +178,9 @@ class ModelUpdateRequest(BaseModel):
     threads: int | None = Field(default=None, ge=1)
     temperature: float | None = Field(default=None, ge=0.0, le=2.0)
     top_p: float | None = Field(default=None, ge=0.0, le=1.0)
+    top_k: int | None = Field(default=None, ge=0)
+    presence_penalty: float | None = Field(default=None, ge=-2.0, le=2.0)
+    repetition_penalty: float | None = Field(default=None, ge=0.0)
     tool_calling_enabled: bool | None = None
     thinking_enabled: bool | None = None
     assignment_mode: str | None = None
@@ -257,6 +260,9 @@ class OpenAIChatRequest(BaseModel):
     stream: bool = False
     temperature: float | None = None
     top_p: float | None = None
+    top_k: int | None = Field(default=None, ge=0)
+    presence_penalty: float | None = None
+    repetition_penalty: float | None = Field(default=None, ge=0.0)
     max_tokens: int | None = None
     tools: list[dict[str, Any]] | None = None
     tool_choice: str | dict[str, Any] | None = None

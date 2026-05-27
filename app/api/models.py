@@ -45,6 +45,9 @@ def scan_models_dir(db: Session) -> tuple[int, int]:
             threads=settings.default_threads,
             temperature=settings.default_temperature,
             top_p=settings.default_top_p,
+            top_k=settings.default_top_k,
+            presence_penalty=settings.default_presence_penalty,
+            repetition_penalty=settings.default_repetition_penalty,
         )
         db.add(model)
         added += 1
@@ -124,6 +127,9 @@ def upload_model(
         threads=settings.default_threads,
         temperature=settings.default_temperature,
         top_p=settings.default_top_p,
+        top_k=settings.default_top_k,
+        presence_penalty=settings.default_presence_penalty,
+        repetition_penalty=settings.default_repetition_penalty,
     )
     try:
         db.add(model)
@@ -207,6 +213,9 @@ async def update_model(model_id: int, payload: ModelUpdateRequest, _: User = Dep
         "threads",
         "temperature",
         "top_p",
+        "top_k",
+        "presence_penalty",
+        "repetition_penalty",
         "tool_calling_enabled",
         "thinking_enabled",
     ]:
@@ -543,6 +552,9 @@ def _serialize_model(model: ModelConfig) -> dict:
         "threads": model.threads,
         "temperature": model.temperature,
         "top_p": model.top_p,
+        "top_k": model.top_k,
+        "presence_penalty": model.presence_penalty,
+        "repetition_penalty": model.repetition_penalty,
         "tool_calling_enabled": model.tool_calling_enabled,
         "thinking_enabled": model.thinking_enabled,
         "assignment_mode": model.assignment_mode,

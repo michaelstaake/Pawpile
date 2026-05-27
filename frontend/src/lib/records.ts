@@ -31,6 +31,9 @@ export type ModelRecord = {
   threads: number;
   temperature: number;
   top_p: number;
+  top_k: number;
+  presence_penalty: number;
+  repetition_penalty: number;
   tool_calling_enabled: boolean;
   thinking_enabled: boolean;
   assignment_mode: string;

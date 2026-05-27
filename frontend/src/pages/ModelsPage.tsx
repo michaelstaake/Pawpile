@@ -107,6 +107,9 @@ function buildModelPayload(model: ModelRecord) {
     threads: model.threads,
     temperature: model.temperature,
     top_p: model.top_p,
+    top_k: model.top_k,
+    presence_penalty: model.presence_penalty,
+    repetition_penalty: model.repetition_penalty,
     tool_calling_enabled: model.tool_calling_enabled,
     thinking_enabled: model.thinking_enabled,
     assignment_mode: model.assignment_mode,
@@ -936,6 +939,21 @@ export default function ModelsPage({ setupMode = false, onComplete }: ModelsPage
                     <span>Top P</span>
                     <span className="text-xs text-black/45">Limits sampling to likely next tokens.</span>
                     <input className="rounded-xl border border-black/15 bg-white px-3 py-2 text-sm" type="number" min={0} max={1} step={0.05} value={modalNumericDrafts.top_p ?? String(modalDraft.top_p)} onChange={(event) => setModalNumericDraft("top_p", event.target.value)} onBlur={(event) => commitModalNumericDraft("top_p", event.target.value, (n) => Math.min(1, Math.max(0, n)))} />
+                  </label>
+                  <label className="grid gap-1 text-sm text-black/70">
+                    <span>Top K</span>
+                    <span className="text-xs text-black/45">Caps sampling to the top token candidates.</span>
+                    <input className="rounded-xl border border-black/15 bg-white px-3 py-2 text-sm" type="number" min={0} step={1} value={modalNumericDrafts.top_k ?? String(modalDraft.top_k)} onChange={(event) => setModalNumericDraft("top_k", event.target.value)} onBlur={(event) => commitModalNumericDraft("top_k", event.target.value, (n) => Math.max(0, Math.round(n)))} />
+                  </label>
+                  <label className="grid gap-1 text-sm text-black/70">
+                    <span>Presence Penalty</span>
+                    <span className="text-xs text-black/45">Encourages the model to introduce new tokens.</span>
+                    <input className="rounded-xl border border-black/15 bg-white px-3 py-2 text-sm" type="number" min={-2} max={2} step={0.05} value={modalNumericDrafts.presence_penalty ?? String(modalDraft.presence_penalty)} onChange={(event) => setModalNumericDraft("presence_penalty", event.target.value)} onBlur={(event) => commitModalNumericDraft("presence_penalty", event.target.value, (n) => Math.min(2, Math.max(-2, n)))} />
+                  </label>
+                  <label className="grid gap-1 text-sm text-black/70">
+                    <span>Repetition Penalty</span>
+                    <span className="text-xs text-black/45">Discourages the model from repeating prior text.</span>
+                    <input className="rounded-xl border border-black/15 bg-white px-3 py-2 text-sm" type="number" min={0} step={0.05} value={modalNumericDrafts.repetition_penalty ?? String(modalDraft.repetition_penalty)} onChange={(event) => setModalNumericDraft("repetition_penalty", event.target.value)} onBlur={(event) => commitModalNumericDraft("repetition_penalty", event.target.value, (n) => Math.max(0, n))} />
                   </label>
                   <label className="grid gap-1 text-sm text-black/70 md:col-span-2">
                     <span>System Prompt</span>

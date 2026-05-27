@@ -70,6 +70,12 @@ async def v1_chat_completions(payload: OpenAIChatRequest, current_user: User = D
         request_payload["temperature"] = model.temperature
     if "top_p" not in request_payload:
         request_payload["top_p"] = model.top_p
+    if "top_k" not in request_payload:
+        request_payload["top_k"] = model.top_k
+    if "presence_penalty" not in request_payload:
+        request_payload["presence_penalty"] = model.presence_penalty
+    if "repetition_penalty" not in request_payload:
+        request_payload["repetition_penalty"] = model.repetition_penalty
     if "enable_thinking" not in request_payload:
         request_payload["enable_thinking"] = model.thinking_enabled
     request_payload["messages"] = [
