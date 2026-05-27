@@ -57,6 +57,7 @@ REVISION_ORDER = [
     "0011_remove_auto_load_models_setting",
     "0012_device_stable_hardware_id",
     "0013_chat_message_metadata",
+    "0014_model_config_sampling_defaults",
 ]
 
 REVISION_INDEX = {revision: index for index, revision in enumerate(REVISION_ORDER)}
@@ -151,7 +152,10 @@ def _infer_legacy_revision(tables: set[str], columns_by_table: dict[str, set[str
     if not CHAT_METADATA_COLUMNS.issubset(chat_message_columns):
         return "0012_device_stable_hardware_id"
 
-    return "0013_chat_message_metadata"
+    if not {"temperature", "top_p"}.issubset(model_columns):
+        return "0013_chat_message_metadata"
+
+    return "0014_model_config_sampling_defaults"
 
 
 def _run_alembic(*args: str) -> None:
