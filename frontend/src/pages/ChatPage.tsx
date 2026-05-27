@@ -17,7 +17,7 @@ type ChatMessage = {
   content: string;
   apiContent?: ChatMessageContent;
   thinking?: string;
-  phase?: "thinking" | "streaming" | "complete";
+  phase?: "uploading" | "thinking" | "streaming" | "complete";
   modelName?: string;
   stats?: ChatCompletionStats | null;
 };
@@ -341,9 +341,10 @@ export default function ChatPage() {
       ...messages,
       { role: "user", content: displayContent, apiContent, phase: "complete" },
     ];
+    const hasUploadStage = attachments.length > 0;
     setMessages([
       ...nextMessages,
-      { role: "assistant", content: "", phase: "thinking", modelName: selectedModel, stats: null },
+      { role: "assistant", content: "", phase: hasUploadStage ? "uploading" : "thinking", modelName: selectedModel, stats: null },
     ]);
     setInput("");
     setAttachments([]);
@@ -366,6 +367,20 @@ export default function ChatPage() {
         nextMessages.map((message) => ({ role: message.role, content: message.apiContent ?? message.content })),
         thinkingEnabled,
         abortController.signal,
+        (phase) => {
+          setMessages((current) => {
+            if (current.length === 0) {
+              return current;
+            }
+            const updated = [...current];
+            const last = updated[updated.length - 1];
+            if (last.role !== "assistant" || last.phase === "streaming" || last.phase === "complete") {
+              return current;
+            }
+            updated[updated.length - 1] = { ...last, phase };
+            return updated;
+          });
+        },
         (delta, type) => {
         if (type === "thinking") {
           thinkingBuffer += delta;
@@ -588,10 +603,10 @@ export default function ChatPage() {
           ) : (
             <div className="space-y-3">
               {messages.map((message, index) => (
-                message.role === "assistant" && message.phase === "thinking" && !message.content && !message.thinking ? (
+                message.role === "assistant" && (message.phase === "uploading" || message.phase === "thinking") && !message.content && !message.thinking ? (
                   <div key={index} className="px-1 py-1 text-sm font-medium text-black/45">
                     <span className="inline-flex items-center gap-2">
-                      <span className="animate-pulse">Processing...</span>
+                      <span className="animate-pulse">{message.phase === "uploading" ? "Uploading..." : "Processing..."}</span>
                     </span>
                   </div>
                 ) : (
@@ -772,6 +787,7 @@ async function streamCompletion(
   messages: { role: ChatRole; content: ChatMessageContent }[],
   enableThinking: boolean,
   signal: AbortSignal,
+  onStageChange: (phase: "thinking") => void,
   onDelta: (delta: string, type: "thinking" | "content") => void
 ): Promise<ChatCompletionStats> {
   const token = getStoredToken() || undefined;
@@ -811,6 +827,8 @@ async function streamCompletion(
     }
     throw new Error(detail);
   }
+
+  onStageChange("thinking");
 
   if (!response.body) {
     throw new Error("Streaming response has no body");
