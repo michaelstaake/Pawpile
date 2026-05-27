@@ -7,6 +7,7 @@ Create Date: 2026-05-21
 
 from alembic import op
 import sqlalchemy as sa
+from sqlalchemy import inspect as sa_inspect
 
 # revision identifiers, used by Alembic.
 revision = "0005_add_sitename_setting"
@@ -16,11 +17,12 @@ depends_on = None
 
 
 def upgrade() -> None:
-    op.add_column(
-        "app_settings",
-        sa.Column("sitename", sa.String(length=255), nullable=False, server_default="Pawpile"),
-    )
-    op.alter_column("app_settings", "sitename", server_default=None)
+    existing = {col["name"] for col in sa_inspect(op.get_bind()).get_columns("app_settings")}
+    if "sitename" not in existing:
+        op.add_column(
+            "app_settings",
+            sa.Column("sitename", sa.String(length=255), nullable=False, server_default="Pawpile"),
+        )
 
 
 def downgrade() -> None:

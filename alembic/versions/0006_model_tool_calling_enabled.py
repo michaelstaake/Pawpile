@@ -7,6 +7,7 @@ Create Date: 2026-05-21
 
 from alembic import op
 import sqlalchemy as sa
+from sqlalchemy import inspect as sa_inspect
 
 # revision identifiers, used by Alembic.
 revision = "0006_model_tool_calling_enabled"
@@ -16,11 +17,12 @@ depends_on = None
 
 
 def upgrade() -> None:
-    op.add_column(
-        "model_configs",
-        sa.Column("tool_calling_enabled", sa.Boolean(), nullable=False, server_default=sa.false()),
-    )
-    op.alter_column("model_configs", "tool_calling_enabled", server_default=None)
+    existing = {col["name"] for col in sa_inspect(op.get_bind()).get_columns("model_configs")}
+    if "tool_calling_enabled" not in existing:
+        op.add_column(
+            "model_configs",
+            sa.Column("tool_calling_enabled", sa.Boolean(), nullable=False, server_default=sa.false()),
+        )
 
 
 def downgrade() -> None:
