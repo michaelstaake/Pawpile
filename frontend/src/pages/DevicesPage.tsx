@@ -394,7 +394,7 @@ export default function DevicesPage({ setupMode = false, onContinue }: DevicesPa
                 <div>
                   <h3 className="font-display text-base text-violet-900">GPU Pools</h3>
                   <p className="mt-1 text-sm text-violet-700/80">
-                    Create named NVIDIA-only or Vulkan-only pools to load larger models across multiple GPUs using llama.cpp tensor splitting.
+                    Use Pools to load larger models across multiple GPUs. Once a GPU is in a Pool, it will not be available to run models independently.
                   </p>
                 </div>
                 <button
@@ -409,7 +409,7 @@ export default function DevicesPage({ setupMode = false, onContinue }: DevicesPa
               <div className="mt-4 space-y-3">
                 {pools.length === 0 ? (
                   <p className="rounded-xl border border-dashed border-violet-200 bg-white/70 px-4 py-4 text-sm text-violet-700/80">
-                    No pools created yet. Use New Pool to group compatible GPUs under one assignable target.
+                    No pools currently exist. Use the New Pool button to create one!
                   </p>
                 ) : (
                   pools.map((pool) => {
@@ -496,9 +496,6 @@ export default function DevicesPage({ setupMode = false, onContinue }: DevicesPa
                     <h3 id="pool-modal-title" className="mt-2 font-display text-xl text-black">
                       {editingPoolId === null ? "New GPU Pool" : `Edit ${editablePool?.name ?? "GPU Pool"}`}
                     </h3>
-                    <p id="pool-modal-description" className="mt-2 text-sm text-black/60">
-                      Group same-backend GPUs so larger models can be assigned to them together.
-                    </p>
                   </div>
                   <button
                     type="button"
