@@ -135,8 +135,14 @@ function DeviceCard({ device, isPooled }: { device: DeviceStatusRecord; isPooled
                   }}
                   title={`${model.alias}: ${formatMemory(model.memory_used_mb)}`}
                 />
-              )) : <div className="h-full w-full bg-black/25" title="Memory capacity unavailable" />}
-              {unassignedMemoryPercent > 0 ? <div className="h-full bg-black/20" style={{ width: `${unassignedMemoryPercent}%` }} title="Used by runtime or system overhead" /> : null}
+              )) : <div className="h-full w-full rounded-full bg-black/25" title="Memory capacity unavailable" />}
+              {unassignedMemoryPercent > 0 ? (
+                <div
+                  className={`h-full bg-black/20 ${device.models.length > 0 ? "rounded-r-full" : "rounded-full"}`}
+                  style={{ width: `${unassignedMemoryPercent}%` }}
+                  title="Used by runtime or system overhead"
+                />
+              ) : null}
             </div>
           </section>
         </div>
