@@ -2,6 +2,7 @@ import { FormEvent, useEffect, useRef, useState } from "react";
 import { apiDelete, apiGet, apiPost, handleBackendUnavailableError, isBackendUnavailableResponse } from "../lib/api";
 import { useAuth } from "../context/AuthContext";
 import { getStoredToken } from "../lib/session";
+import MessageContent from "../components/ui/MessageContent";
 
 type ChatRole = "system" | "user" | "assistant";
 
@@ -638,11 +639,15 @@ export default function ChatPage() {
                         ) : null}
                       </div>
                     ) : null}
-                    <div className="whitespace-pre-wrap leading-7 text-[15px] text-black/85">
-                      {message.content}
-                      {message.role === "assistant" && message.phase === "streaming" && message.content ? (
-                        <span className="ml-1 inline-block h-5 w-2 animate-pulse rounded-full bg-amber align-middle" />
-                      ) : null}
+                    <div className="leading-7 text-[15px] text-black/85">
+                      {message.role === "assistant" ? (
+                        <MessageContent
+                          content={message.content}
+                          showStreamingCursor={message.phase === "streaming" && Boolean(message.content)}
+                        />
+                      ) : (
+                        <span className="whitespace-pre-wrap">{message.content}</span>
+                      )}
                     </div>
                     {message.role === "assistant" && message.phase === "complete" && message.stats ? (
                       <div className="mt-3 border-t border-black/8 pt-2 text-[11px] text-black/45">
