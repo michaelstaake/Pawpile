@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { apiDelete, apiGet, apiPatch, apiPost } from "../lib/api";
 import { useAuth } from "../context/AuthContext";
+import Modal from "../components/ui/Modal";
 import { formatDeviceIdLabel } from "../lib/deviceIds";
 import { DeviceRecord, DeviceUpdateResponse, GpuPoolRecord } from "../lib/records";
 
@@ -63,6 +64,7 @@ export default function DevicesPage({ setupMode = false, onContinue }: DevicesPa
   const [poolDraftName, setPoolDraftName] = useState("GPU Pool");
   const [poolDraftVendor, setPoolDraftVendor] = useState<(typeof POOL_VENDORS)[number]>("nvidia");
   const [editingPoolId, setEditingPoolId] = useState<number | null>(null);
+  const [isPoolModalOpen, setIsPoolModalOpen] = useState(false);
   const [showDeletePoolConfirmId, setShowDeletePoolConfirmId] = useState<number | null>(null);
 
   useEffect(() => {
@@ -230,11 +232,22 @@ export default function DevicesPage({ setupMode = false, onContinue }: DevicesPa
     setShowDeletePoolConfirmId(null);
   }
 
+  function closePoolModal() {
+    setIsPoolModalOpen(false);
+    resetPoolDraft();
+  }
+
+  function openNewPoolModal() {
+    resetPoolDraft();
+    setIsPoolModalOpen(true);
+  }
+
   function startEditingPool(pool: GpuPoolRecord) {
     setEditingPoolId(pool.id);
     setPoolDraftName(pool.name);
     setPoolDraftVendor(pool.vendor as (typeof POOL_VENDORS)[number]);
     setSelectedPoolDeviceIds(pool.devices.map((device) => device.id));
+    setIsPoolModalOpen(true);
     setShowDeletePoolConfirmId(null);
   }
 
@@ -284,6 +297,7 @@ export default function DevicesPage({ setupMode = false, onContinue }: DevicesPa
         token,
       );
       setPools((current) => sortPools([...current, response.pool]));
+      setIsPoolModalOpen(false);
       resetPoolDraft();
       setSuccessMessage(`Created ${response.pool.name}.`);
     } catch (error) {
@@ -316,6 +330,7 @@ export default function DevicesPage({ setupMode = false, onContinue }: DevicesPa
         );
       }
       setPools((current) => sortPools(current.map((pool) => (pool.id === response.pool.id ? response.pool : pool))));
+      setIsPoolModalOpen(false);
       resetPoolDraft();
       await refreshDevices(token);
       setSuccessMessage(`Updated ${response.pool.name}.`);
@@ -347,6 +362,7 @@ export default function DevicesPage({ setupMode = false, onContinue }: DevicesPa
       }
       setPools((current) => current.filter((item) => item.id !== pool.id));
       if (editingPoolId === pool.id) {
+        setIsPoolModalOpen(false);
         resetPoolDraft();
       }
       await refreshDevices(token);
@@ -383,147 +399,174 @@ export default function DevicesPage({ setupMode = false, onContinue }: DevicesPa
                 </div>
                 <button
                   type="button"
-                  onClick={() => resetPoolDraft()}
+                  onClick={openNewPoolModal}
                   className="cursor-pointer rounded-lg border border-violet-300 bg-white px-3 py-1.5 text-xs font-semibold text-violet-800 shadow-sm hover:bg-violet-100"
                 >
                   New Pool
                 </button>
               </div>
 
-              <div className="mt-4 grid gap-3 xl:grid-cols-[minmax(0,1.2fr)_minmax(320px,0.9fr)]">
-                <div className="space-y-3">
-                  {pools.length === 0 ? (
-                    <p className="rounded-xl border border-dashed border-violet-200 bg-white/70 px-4 py-4 text-sm text-violet-700/80">No pools created yet.</p>
-                  ) : (
-                    pools.map((pool) => {
-                      const poolEnabled = isPoolEnabled(pool);
-                      return (
-                        <div key={pool.id} className="rounded-xl border border-violet-200 bg-white/80 p-4">
-                          <div className="flex flex-wrap items-start justify-between gap-3">
-                            <div>
-                              <div className="flex flex-wrap items-center gap-2">
-                                <h4 className="font-display text-base text-violet-950">{pool.name}</h4>
-                                <span className="rounded-full border border-violet-200 bg-violet-100 px-2 py-0.5 text-[11px] font-semibold uppercase tracking-[0.12em] text-violet-700">{vendorLabel(pool.vendor)}</span>
-                              </div>
-                              <p className="mt-1 text-sm text-violet-700/80">{pool.devices.length} member GPU{pool.devices.length === 1 ? "" : "s"}</p>
+              <div className="mt-4 space-y-3">
+                {pools.length === 0 ? (
+                  <p className="rounded-xl border border-dashed border-violet-200 bg-white/70 px-4 py-4 text-sm text-violet-700/80">
+                    No pools created yet. Use New Pool to group compatible GPUs under one assignable target.
+                  </p>
+                ) : (
+                  pools.map((pool) => {
+                    const poolEnabled = isPoolEnabled(pool);
+                    return (
+                      <div key={pool.id} className="rounded-xl border border-violet-200 bg-white/80 p-4">
+                        <div className="flex flex-wrap items-start justify-between gap-3">
+                          <div>
+                            <div className="flex flex-wrap items-center gap-2">
+                              <h4 className="font-display text-base text-violet-950">{pool.name}</h4>
+                              <span className="rounded-full border border-violet-200 bg-violet-100 px-2 py-0.5 text-[11px] font-semibold uppercase tracking-[0.12em] text-violet-700">{vendorLabel(pool.vendor)}</span>
                             </div>
-                            <div className="flex flex-wrap gap-2">
-                              <button
-                                type="button"
-                                onClick={() => void handleTogglePool(pool)}
-                                disabled={poolLoadingTarget !== null}
-                                className={`cursor-pointer rounded-lg border px-3 py-1.5 text-xs font-semibold shadow-sm transition-colors disabled:cursor-not-allowed disabled:opacity-60 ${poolEnabled ? "border-emerald-300 bg-emerald-100 text-emerald-800 hover:bg-emerald-200" : "border-black/15 bg-white text-black/55 hover:bg-black/5"}`}
-                              >
-                                {poolLoadingTarget === `toggle:${pool.id}` ? "Saving..." : poolEnabled ? "Enabled" : "Disabled"}
+                            <p className="mt-1 text-sm text-violet-700/80">{pool.devices.length} member GPU{pool.devices.length === 1 ? "" : "s"}</p>
+                          </div>
+                          <div className="flex flex-wrap gap-2">
+                            <button
+                              type="button"
+                              onClick={() => void handleTogglePool(pool)}
+                              disabled={poolLoadingTarget !== null}
+                              className={`cursor-pointer rounded-lg border px-3 py-1.5 text-xs font-semibold shadow-sm transition-colors disabled:cursor-not-allowed disabled:opacity-60 ${poolEnabled ? "border-emerald-300 bg-emerald-100 text-emerald-800 hover:bg-emerald-200" : "border-black/15 bg-white text-black/55 hover:bg-black/5"}`}
+                            >
+                              {poolLoadingTarget === `toggle:${pool.id}` ? "Saving..." : poolEnabled ? "Enabled" : "Disabled"}
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => startEditingPool(pool)}
+                              className="cursor-pointer rounded-lg border border-violet-300 bg-white px-3 py-1.5 text-xs font-semibold text-violet-800 shadow-sm hover:bg-violet-100"
+                            >
+                              Edit
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => setShowDeletePoolConfirmId(pool.id)}
+                              className="cursor-pointer rounded-lg border border-rose-200 bg-white px-3 py-1.5 text-xs font-semibold text-rose-700 shadow-sm hover:bg-rose-50"
+                            >
+                              Delete
+                            </button>
+                          </div>
+                        </div>
+
+                        {showDeletePoolConfirmId === pool.id ? (
+                          <div className="mt-3 rounded-xl border border-rose-200 bg-rose-50 px-4 py-3">
+                            <p className="text-sm text-rose-800">Delete {pool.name}? Models assigned to it will be unloaded and reverted to Auto. Pool member GPUs will be disabled.</p>
+                            <div className="mt-3 flex gap-2">
+                              <button type="button" onClick={() => void handleDeletePool(pool)} disabled={poolLoadingTarget !== null} className="cursor-pointer rounded-lg border border-rose-300 bg-rose-600 px-3 py-1.5 text-xs font-semibold text-white hover:bg-rose-700 disabled:opacity-60">
+                                {poolLoadingTarget === `delete:${pool.id}` ? "Deleting..." : "Confirm Delete"}
                               </button>
-                              <button
-                                type="button"
-                                onClick={() => startEditingPool(pool)}
-                                className="cursor-pointer rounded-lg border border-violet-300 bg-white px-3 py-1.5 text-xs font-semibold text-violet-800 shadow-sm hover:bg-violet-100"
-                              >
-                                Edit
-                              </button>
-                              <button
-                                type="button"
-                                onClick={() => setShowDeletePoolConfirmId(pool.id)}
-                                className="cursor-pointer rounded-lg border border-rose-200 bg-white px-3 py-1.5 text-xs font-semibold text-rose-700 shadow-sm hover:bg-rose-50"
-                              >
-                                Delete
+                              <button type="button" onClick={() => setShowDeletePoolConfirmId(null)} className="cursor-pointer rounded-lg border border-black/15 bg-white px-3 py-1.5 text-xs font-semibold text-black/70 hover:bg-black/5">
+                                Cancel
                               </button>
                             </div>
                           </div>
+                        ) : null}
 
-                          {showDeletePoolConfirmId === pool.id ? (
-                            <div className="mt-3 rounded-xl border border-rose-200 bg-rose-50 px-4 py-3">
-                              <p className="text-sm text-rose-800">Delete {pool.name}? Models assigned to it will be unloaded and reverted to Auto. Pool member GPUs will be disabled.</p>
-                              <div className="mt-3 flex gap-2">
-                                <button type="button" onClick={() => void handleDeletePool(pool)} disabled={poolLoadingTarget !== null} className="cursor-pointer rounded-lg border border-rose-300 bg-rose-600 px-3 py-1.5 text-xs font-semibold text-white hover:bg-rose-700 disabled:opacity-60">
-                                  {poolLoadingTarget === `delete:${pool.id}` ? "Deleting..." : "Confirm Delete"}
-                                </button>
-                                <button type="button" onClick={() => setShowDeletePoolConfirmId(null)} className="cursor-pointer rounded-lg border border-black/15 bg-white px-3 py-1.5 text-xs font-semibold text-black/70 hover:bg-black/5">
-                                  Cancel
-                                </button>
-                              </div>
-                            </div>
-                          ) : null}
-
-                          <ul className="mt-3 space-y-1">
-                            {pool.devices.map((device) => (
-                              <li key={device.id} className="text-sm text-violet-900">
-                                {device.name} <span className="text-violet-500">· {formatDeviceIdLabel(device)} · {device.memory_mb.toLocaleString()} MB</span>
-                              </li>
-                            ))}
-                          </ul>
-                        </div>
-                      );
-                    })
-                  )}
-                </div>
-
-                <div className="rounded-xl border border-violet-200 bg-white/80 p-4">
-                  <p className="mb-3 text-xs font-semibold uppercase tracking-[0.15em] text-violet-600">
-                    {editingPoolId === null ? "Create Pool" : "Edit Pool"}
-                  </p>
-                  <div className="grid gap-3">
-                    <label className="grid gap-1 text-sm text-black/70">
-                      <span>Pool Name</span>
-                      <span className="text-xs text-black/45">Shown when assigning models.</span>
-                      <input className="rounded-xl border border-black/15 bg-white px-3 py-2 text-sm" value={poolDraftName} onChange={(event) => setPoolDraftName(event.target.value)} />
-                    </label>
-                    <label className="grid gap-1 text-sm text-black/70">
-                      <span>Pool Vendor</span>
-                      <span className="text-xs text-black/45">Keeps the pool on one GPU backend.</span>
-                      <select className="rounded-xl border border-black/15 bg-white px-3 py-2 text-sm" value={poolDraftVendor} onChange={(event) => setPoolDraftVendor(event.target.value as (typeof POOL_VENDORS)[number])}>
-                        {draftVendorOptions.map((vendor) => (
-                          <option key={vendor} value={vendor}>{vendorLabel(vendor)}</option>
-                        ))}
-                      </select>
-                    </label>
-                    <div>
-                      <p className="mb-2 text-xs font-semibold uppercase tracking-[0.15em] text-violet-600">Pool Members</p>
-                      <p className="mb-2 text-xs text-black/45">Pick the GPUs this pool should use together.</p>
-                      <div className="space-y-2">
-                        {filteredDraftDevices.length > 0 ? filteredDraftDevices.map((device) => (
-                          <label key={device.id} className="flex cursor-pointer items-center gap-3 rounded-xl border border-violet-200 bg-white px-3 py-2 text-sm text-black/80 hover:bg-violet-50">
-                            <input
-                              type="checkbox"
-                              checked={selectedPoolDeviceIds.includes(device.id)}
-                              onChange={() => togglePoolDevice(device.id)}
-                            />
-                            <span className="flex-1">{device.name}</span>
-                            <span className="text-xs text-black/45">{formatDeviceIdLabel(device)} · {device.memory_mb.toLocaleString()} MB</span>
-                          </label>
-                        )) : (
-                          <p className="rounded-xl border border-dashed border-violet-200 bg-violet-50/70 px-3 py-3 text-sm text-violet-700/80">No unassigned {vendorLabel(poolDraftVendor)} GPUs are available for this pool.</p>
-                        )}
+                        <ul className="mt-3 space-y-1">
+                          {pool.devices.map((device) => (
+                            <li key={device.id} className="text-sm text-violet-900">
+                              {device.name} <span className="text-violet-500">· {formatDeviceIdLabel(device)} · {device.memory_mb.toLocaleString()} MB</span>
+                            </li>
+                          ))}
+                        </ul>
                       </div>
-                    </div>
-                    <div className="flex gap-2">
-                      <button
-                        type="button"
-                        disabled={selectedPoolDeviceIds.length < 2 || poolLoadingTarget !== null || poolDraftName.trim().length === 0}
-                        onClick={editingPoolId === null ? () => void handleCreatePool() : () => void handleUpdatePool()}
-                        className="cursor-pointer rounded-lg border border-violet-400 bg-violet-600 px-4 py-1.5 text-sm font-semibold text-white hover:bg-violet-700 disabled:cursor-not-allowed disabled:opacity-60"
-                      >
-                        {poolLoadingTarget === "create" || (editingPoolId !== null && poolLoadingTarget === `update:${editingPoolId}`) ? "Saving..." : editingPoolId === null ? "Create Pool" : "Save Pool"}
-                      </button>
-                      {editingPoolId !== null ? (
-                        <button
-                          type="button"
-                          onClick={() => resetPoolDraft()}
-                          className="cursor-pointer rounded-lg border border-black/15 bg-white px-3 py-1.5 text-sm font-semibold text-black/70 hover:bg-black/5"
-                        >
-                          Cancel
-                        </button>
-                      ) : null}
-                    </div>
-                    {selectedPoolDeviceIds.length < 2 ? (
-                      <p className="text-xs text-violet-500">Select at least 2 {vendorLabel(poolDraftVendor)} GPUs.</p>
-                    ) : null}
-                  </div>
-                </div>
+                    );
+                  })
+                )}
               </div>
             </article>
+          ) : null}
+
+          {showPoolSection ? (
+            <Modal
+              open={isPoolModalOpen}
+              onClose={closePoolModal}
+              labelledBy="pool-modal-title"
+              describedBy="pool-modal-description"
+              panelClassName="max-w-2xl"
+            >
+              <div className="border-b border-black/10 px-5 py-4 sm:px-6">
+                <div className="flex items-start justify-between gap-4">
+                  <div>
+                    <p className="text-xs font-semibold uppercase tracking-[0.15em] text-violet-600">
+                      {editingPoolId === null ? "Create Pool" : "Edit Pool"}
+                    </p>
+                    <h3 id="pool-modal-title" className="mt-2 font-display text-xl text-black">
+                      {editingPoolId === null ? "New GPU Pool" : `Edit ${editablePool?.name ?? "GPU Pool"}`}
+                    </h3>
+                    <p id="pool-modal-description" className="mt-2 text-sm text-black/60">
+                      Group same-backend GPUs so larger models can be assigned to them together.
+                    </p>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={closePoolModal}
+                    className="cursor-pointer rounded-lg border border-black/15 bg-white px-3 py-1.5 text-sm font-semibold text-black/70 hover:bg-black/5"
+                  >
+                    Close
+                  </button>
+                </div>
+              </div>
+
+              <div className="grid gap-4 px-5 py-5 sm:px-6">
+                <label className="grid gap-1 text-sm text-black/70">
+                  <span>Pool Name</span>
+                  <span className="text-xs text-black/45">Shown when assigning models.</span>
+                  <input className="rounded-xl border border-black/15 bg-white px-3 py-2 text-sm" value={poolDraftName} onChange={(event) => setPoolDraftName(event.target.value)} />
+                </label>
+                <label className="grid gap-1 text-sm text-black/70">
+                  <span>Pool Vendor</span>
+                  <span className="text-xs text-black/45">Keeps the pool on one GPU backend.</span>
+                  <select className="rounded-xl border border-black/15 bg-white px-3 py-2 text-sm" value={poolDraftVendor} onChange={(event) => setPoolDraftVendor(event.target.value as (typeof POOL_VENDORS)[number])}>
+                    {draftVendorOptions.map((vendor) => (
+                      <option key={vendor} value={vendor}>{vendorLabel(vendor)}</option>
+                    ))}
+                  </select>
+                </label>
+                <div>
+                  <p className="mb-2 text-xs font-semibold uppercase tracking-[0.15em] text-violet-600">Pool Members</p>
+                  <p className="mb-3 text-xs text-black/45">Pick the GPUs this pool should use together.</p>
+                  <div className="space-y-2">
+                    {filteredDraftDevices.length > 0 ? filteredDraftDevices.map((device) => (
+                      <label key={device.id} className="flex cursor-pointer items-center gap-3 rounded-xl border border-violet-200 bg-white px-3 py-2 text-sm text-black/80 hover:bg-violet-50">
+                        <input
+                          type="checkbox"
+                          checked={selectedPoolDeviceIds.includes(device.id)}
+                          onChange={() => togglePoolDevice(device.id)}
+                        />
+                        <span className="flex-1">{device.name}</span>
+                        <span className="text-xs text-black/45">{formatDeviceIdLabel(device)} · {device.memory_mb.toLocaleString()} MB</span>
+                      </label>
+                    )) : (
+                      <p className="rounded-xl border border-dashed border-violet-200 bg-violet-50/70 px-3 py-3 text-sm text-violet-700/80">No unassigned {vendorLabel(poolDraftVendor)} GPUs are available for this pool.</p>
+                    )}
+                  </div>
+                </div>
+                {selectedPoolDeviceIds.length < 2 ? (
+                  <p className="text-xs text-violet-500">Select at least 2 {vendorLabel(poolDraftVendor)} GPUs.</p>
+                ) : null}
+              </div>
+
+              <div className="flex flex-wrap justify-end gap-2 border-t border-black/10 px-5 py-4 sm:px-6">
+                <button
+                  type="button"
+                  onClick={closePoolModal}
+                  className="cursor-pointer rounded-lg border border-black/15 bg-white px-3 py-1.5 text-sm font-semibold text-black/70 hover:bg-black/5"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="button"
+                  disabled={selectedPoolDeviceIds.length < 2 || poolLoadingTarget !== null || poolDraftName.trim().length === 0}
+                  onClick={editingPoolId === null ? () => void handleCreatePool() : () => void handleUpdatePool()}
+                  className="cursor-pointer rounded-lg border border-violet-400 bg-violet-600 px-4 py-1.5 text-sm font-semibold text-white hover:bg-violet-700 disabled:cursor-not-allowed disabled:opacity-60"
+                >
+                  {poolLoadingTarget === "create" || (editingPoolId !== null && poolLoadingTarget === `update:${editingPoolId}`) ? "Saving..." : editingPoolId === null ? "Create Pool" : "Save Pool"}
+                </button>
+              </div>
+            </Modal>
           ) : null}
 
           {isLoading && devices.length === 0 ? <p className="rounded-2xl border border-dashed border-black/15 bg-sand/60 px-4 py-6 text-sm text-black/60">Loading...</p> : null}
