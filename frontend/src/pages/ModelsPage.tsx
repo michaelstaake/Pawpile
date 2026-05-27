@@ -180,6 +180,7 @@ export default function ModelsPage({ setupMode = false, onComplete }: ModelsPage
   const [uploadProgress, setUploadProgress] = useState<UploadProgressState>({ loaded: 0, total: 0 });
   const [isLoading, setIsLoading] = useState(false);
   const [isUploading, setIsUploading] = useState(false);
+  const [isProcessingUpload, setIsProcessingUpload] = useState(false);
   const [isScanning, setIsScanning] = useState(false);
   const [isReordering, setIsReordering] = useState(false);
   const [savingModelIds, setSavingModelIds] = useState<number[]>([]);
@@ -269,15 +270,20 @@ export default function ModelsPage({ setupMode = false, onComplete }: ModelsPage
     setErrorMessage("");
     setSuccessMessage("");
     setIsUploading(true);
+    setIsProcessingUpload(false);
     setIsUploadModalOpen(false);
     setUploadProgress({ loaded: 0, total: selectedFile.size });
 
     try {
       const response = await apiPostFormWithProgress<UploadResponse>("/api/models/upload", formData, token, (progress) => {
+        const total = progress.total || selectedFile.size;
         setUploadProgress({
           loaded: progress.loaded,
-          total: progress.total || selectedFile.size,
+          total,
         });
+        if (progress.loaded >= total) {
+          setIsProcessingUpload(true);
+        }
       });
       savedConfigRef.current[response.model.id] = serializeModelConfig(response.model);
       savedActivationRef.current[response.model.id] = response.model.activated;
@@ -292,6 +298,7 @@ export default function ModelsPage({ setupMode = false, onComplete }: ModelsPage
       setErrorMessage(error instanceof Error ? error.message : "Upload failed");
     } finally {
       setIsUploading(false);
+      setIsProcessingUpload(false);
     }
   }
 
@@ -648,7 +655,7 @@ export default function ModelsPage({ setupMode = false, onComplete }: ModelsPage
         {isUploading || selectedFile ? (
           <div className="mt-3 grid gap-3 rounded-2xl border border-dashed border-black/15 bg-sand/70 p-4">
             <div className="flex flex-wrap items-center justify-between gap-2">
-              <h3 className="font-display text-base">Model uploading...</h3>
+              <h3 className="font-display text-base">{isProcessingUpload ? "Model processing..." : "Model uploading..."}</h3>
               {selectedFile ? <span className="text-sm text-black/60">{selectedFile.name}</span> : null}
             </div>
             {isUploading && uploadTotal > 0 ? (
