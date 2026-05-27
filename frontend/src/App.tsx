@@ -120,7 +120,7 @@ export default function App() {
 
   useEffect(() => {
     const base = sitename || "Pawpile";
-    document.title = pageTitle ? `${base} ~ ${pageTitle}` : base;
+     document.title = pageTitle ? `${pageTitle} ~ ${base}` : base;
   }, [sitename, pageTitle]);
 
   useEffect(() => {
