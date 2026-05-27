@@ -135,7 +135,7 @@ def _infer_legacy_revision(tables: set[str], columns_by_table: dict[str, set[str
     if "thinking_enabled" not in model_columns:
         return "0007_activity_log"
 
-    if "gpu_pools" not in tables:
+    if "gpu_pools" not in tables or "pinned_pool_id" not in model_columns:
         return "0008_model_thinking_enabled"
 
     if "vendor" not in gpu_pool_columns:
