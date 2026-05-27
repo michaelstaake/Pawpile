@@ -110,7 +110,7 @@ const TEXT_ATTACHMENT_SUFFIXES = new Set([
   ".yml",
 ]);
 
-const DOCUMENT_ATTACHMENT_SUFFIXES = new Set([".docx", ".pdf"]);
+const DOCUMENT_ATTACHMENT_SUFFIXES = new Set([".docx", ".ods", ".odt", ".pdf", ".xlsx"]);
 
 function hasKnownSuffix(name: string, suffixes: Set<string>): boolean {
   const lowerName = name.toLowerCase();
@@ -134,7 +134,10 @@ function isTextAttachment(file: File): boolean {
 function isBackendExtractableAttachment(file: File): boolean {
   return (
     file.type === "application/pdf" ||
+    file.type === "application/vnd.oasis.opendocument.spreadsheet" ||
+    file.type === "application/vnd.oasis.opendocument.text" ||
     file.type === "application/vnd.openxmlformats-officedocument.wordprocessingml.document" ||
+    file.type === "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" ||
     hasKnownSuffix(file.name, DOCUMENT_ATTACHMENT_SUFFIXES)
   );
 }
@@ -877,10 +880,9 @@ export default function ChatPage() {
                   )}
                   <div className="truncate max-w-[150px]">
                     <div className="truncate">{file.name}</div>
-                    <div className="text-[10px] text-black/40">
+                    <div className="text-[10px] text-black/40" title={file.extractionDetail || undefined}>
                       {(file.size / 1024).toFixed(1)} KB • {describeAttachment(file)}
                     </div>
-                    {file.extractionDetail ? <div className="truncate text-[10px] text-black/35">{file.extractionDetail}</div> : null}
                   </div>
                   <button
                     type="button"

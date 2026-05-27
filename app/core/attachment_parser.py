@@ -2,8 +2,11 @@ from __future__ import annotations
 
 from io import BytesIO
 from pathlib import Path
+from zipfile import ZipFile
+import xml.etree.ElementTree as ET
 
 from docx import Document
+from openpyxl import load_workbook
 from pypdf import PdfReader
 
 MAX_ATTACHMENT_BYTES = 10 * 1024 * 1024
@@ -36,7 +39,24 @@ DOCX_MIME_TYPES = {
     "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
 }
 
+XLSX_MIME_TYPES = {
+    "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+}
+
+ODT_MIME_TYPES = {
+    "application/vnd.oasis.opendocument.text",
+}
+
+ODS_MIME_TYPES = {
+    "application/vnd.oasis.opendocument.spreadsheet",
+}
+
 PDF_MIME_TYPES = {"application/pdf"}
+
+ODF_NAMESPACES = {
+    "table": "urn:oasis:names:tc:opendocument:xmlns:table:1.0",
+    "text": "urn:oasis:names:tc:opendocument:xmlns:text:1.0",
+}
 
 
 def extract_attachment_text(filename: str, content_type: str | None, payload: bytes) -> dict:
@@ -76,6 +96,24 @@ def extract_attachment_text(filename: str, content_type: str | None, payload: by
             if not text.strip():
                 return _error_result(filename, normalized_content_type, size, "No extractable text was found in the DOCX file.")
             return _success_result(filename, normalized_content_type, size, text, extractor="docx")
+
+        if suffix == ".xlsx" or normalized_content_type in XLSX_MIME_TYPES:
+            text = _extract_xlsx_text(payload)
+            if not text.strip():
+                return _error_result(filename, normalized_content_type, size, "No extractable text was found in the XLSX file.")
+            return _success_result(filename, normalized_content_type, size, text, extractor="xlsx")
+
+        if suffix == ".odt" or normalized_content_type in ODT_MIME_TYPES:
+            text = _extract_odt_text(payload)
+            if not text.strip():
+                return _error_result(filename, normalized_content_type, size, "No extractable text was found in the ODT file.")
+            return _success_result(filename, normalized_content_type, size, text, extractor="odt")
+
+        if suffix == ".ods" or normalized_content_type in ODS_MIME_TYPES:
+            text = _extract_ods_text(payload)
+            if not text.strip():
+                return _error_result(filename, normalized_content_type, size, "No extractable text was found in the ODS file.")
+            return _success_result(filename, normalized_content_type, size, text, extractor="ods")
     except Exception as exc:
         return _error_result(filename, normalized_content_type, size, str(exc) or "Text extraction failed.")
 
@@ -124,6 +162,88 @@ def _extract_docx_text(payload: bytes) -> str:
                 segments.append(row_text)
 
     return "\n".join(segments)
+
+
+def _extract_xlsx_text(payload: bytes) -> str:
+    workbook = load_workbook(filename=BytesIO(payload), read_only=True, data_only=True)
+    sections: list[str] = []
+
+    for sheet in workbook.worksheets:
+        rows: list[str] = []
+        for row in sheet.iter_rows(values_only=True):
+            values = [str(value).strip() for value in row if value is not None and str(value).strip()]
+            if values:
+                rows.append(" | ".join(values))
+
+        if rows:
+            sections.append(f"[Sheet: {sheet.title}]\n" + "\n".join(rows))
+
+    return "\n\n".join(sections)
+
+
+def _extract_odt_text(payload: bytes) -> str:
+    root = _load_odf_content_xml(payload)
+    paragraphs: list[str] = []
+
+    for element in root.findall(".//text:p", ODF_NAMESPACES):
+        text = _flatten_xml_text(element)
+        if text:
+            paragraphs.append(text)
+
+    for element in root.findall(".//text:h", ODF_NAMESPACES):
+        text = _flatten_xml_text(element)
+        if text:
+            paragraphs.append(text)
+
+    return "\n".join(paragraphs)
+
+
+def _extract_ods_text(payload: bytes) -> str:
+    root = _load_odf_content_xml(payload)
+    sections: list[str] = []
+
+    for table in root.findall(".//table:table", ODF_NAMESPACES):
+        sheet_name = table.attrib.get(f"{{{ODF_NAMESPACES['table']}}}name", "Sheet")
+        rows: list[str] = []
+
+        for row in table.findall("table:table-row", ODF_NAMESPACES):
+            cells: list[str] = []
+            for cell in row.findall("table:table-cell", ODF_NAMESPACES):
+                repeated_columns = _parse_positive_int(cell.attrib.get(f"{{{ODF_NAMESPACES['table']}}}number-columns-repeated"))
+                text = _flatten_xml_text(cell)
+                if text:
+                    cells.extend([text] * repeated_columns)
+
+            if cells:
+                rows.append(" | ".join(cells))
+
+        if rows:
+            sections.append(f"[Sheet: {sheet_name}]\n" + "\n".join(rows))
+
+    return "\n\n".join(sections)
+
+
+def _load_odf_content_xml(payload: bytes) -> ET.Element:
+    with ZipFile(BytesIO(payload)) as archive:
+        content_xml = archive.read("content.xml")
+    return ET.fromstring(content_xml)
+
+
+def _flatten_xml_text(element: ET.Element) -> str:
+    text = "".join(segment.strip() for segment in element.itertext())
+    return " ".join(text.split())
+
+
+def _parse_positive_int(value: str | None) -> int:
+    if not value:
+        return 1
+
+    try:
+        parsed = int(value)
+    except ValueError:
+        return 1
+
+    return parsed if parsed > 0 else 1
 
 
 def _success_result(filename: str, content_type: str | None, size: int, text: str, extractor: str) -> dict:
