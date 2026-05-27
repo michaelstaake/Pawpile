@@ -73,8 +73,6 @@ function formatSlotCapacity(slots: number) {
 }
 
 function DeviceCard({ device, isPooled }: { device: DeviceStatusRecord; isPooled: boolean }) {
-  const usagePercent = clampPercent(device.usage_percent);
-  const hasUsage = device.usage_percent !== null;
   const memoryPercent = getMemoryPercent(device.memory_used_mb, device.memory_total_mb);
   const modelMemoryTotal = device.models.reduce((sum, model) => sum + model.memory_used_mb, 0);
   const assignedMemoryPercent = getMemoryPercent(modelMemoryTotal, device.memory_total_mb);
@@ -100,22 +98,6 @@ function DeviceCard({ device, isPooled }: { device: DeviceStatusRecord; isPooled
 
       <div className="mt-5 grid gap-4 lg:grid-cols-[minmax(0,1.4fr)_minmax(260px,0.9fr)]">
         <div className="grid gap-4">
-          <section className="rounded-2xl border border-black/10 bg-[#f8f5ea] p-4">
-            <div className="flex items-center justify-between gap-3">
-              <div>
-                <p className="text-xs font-semibold uppercase tracking-[0.24em] text-black/45">Usage</p>
-                {!hasUsage && <p className="mt-1 text-sm text-black/65">Usage unavailable for this device.</p>}
-              </div>
-              <p className="font-display text-2xl text-ink">{hasUsage ? `${usagePercent.toFixed(1)}%` : "N/A"}</p>
-            </div>
-            <div className="mt-4 h-4 overflow-hidden rounded-full bg-black/10">
-              <div
-                className={`h-full rounded-full transition-[width] duration-500 ${hasUsage ? "bg-ink" : "bg-black/25"}`}
-                style={{ width: hasUsage ? `${usagePercent}%` : "100%" }}
-              />
-            </div>
-          </section>
-
           <section className="rounded-2xl border border-black/10 bg-[#f3efe2] p-4">
             <div className="flex items-center justify-between gap-3">
               <div>
@@ -234,10 +216,6 @@ export default function StatusPage() {
     const totalMemory = visibleDevices.reduce((sum, device) => sum + device.memory_total_mb, 0);
     const usedMemory = visibleDevices.reduce((sum, device) => sum + device.memory_used_mb, 0);
     const hasKnownTotalMemory = totalMemory > 0;
-    const devicesWithUsage = visibleDevices.filter((device) => device.usage_percent !== null);
-    const averageUsage = devicesWithUsage.length > 0
-      ? devicesWithUsage.reduce((sum, device) => sum + clampPercent(device.usage_percent), 0) / devicesWithUsage.length
-      : 0;
     const memoryUsagePercent = hasKnownTotalMemory ? getMemoryPercent(usedMemory, totalMemory) : null;
 
     return {
@@ -246,8 +224,6 @@ export default function StatusPage() {
       totalMemory,
       usedMemory,
       memoryUsagePercent,
-      averageUsage,
-      devicesWithUsageCount: devicesWithUsage.length,
     };
   }, [visibleDevices]);
 
@@ -257,17 +233,10 @@ export default function StatusPage() {
         <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
           <h2 className="font-display text-3xl text-ink md:text-4xl">Status</h2>
 
-          <div className="flex flex-col gap-3 sm:flex-row">
-            <div className="rounded-2xl border border-black/10 bg-white/75 p-4">
-              <p className="text-xs font-semibold uppercase tracking-[0.24em] text-black/45">Memory Usage</p>
-              <p className="mt-2 font-display text-3xl text-ink">{summary.memoryUsagePercent !== null ? `${summary.memoryUsagePercent.toFixed(1)}%` : "N/A"}</p>
-              <p className="mt-1 text-sm text-black/55">{formatMemorySummary(summary.usedMemory, summary.totalMemory)}</p>
-            </div>
-            <div className="rounded-2xl border border-black/10 bg-white/75 p-4">
-              <p className="text-xs font-semibold uppercase tracking-[0.24em] text-black/45">Average Usage</p>
-              <p className="mt-2 font-display text-3xl text-ink">{summary.devicesWithUsageCount > 0 ? `${summary.averageUsage.toFixed(1)}%` : "N/A"}</p>
-              <p className="mt-2 text-xs text-black/50">{summary.devicesWithUsageCount > 0 ? `From ${summary.devicesWithUsageCount} device${summary.devicesWithUsageCount === 1 ? "" : "s"}` : "N/A"}</p>
-            </div>
+          <div className="rounded-2xl border border-black/10 bg-white/75 p-4">
+            <p className="text-xs font-semibold uppercase tracking-[0.24em] text-black/45">Memory Usage</p>
+            <p className="mt-2 font-display text-3xl text-ink">{summary.memoryUsagePercent !== null ? `${summary.memoryUsagePercent.toFixed(1)}%` : "N/A"}</p>
+            <p className="mt-1 text-sm text-black/55">{formatMemorySummary(summary.usedMemory, summary.totalMemory)}</p>
           </div>
         </div>
       </article>
