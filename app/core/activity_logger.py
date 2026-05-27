@@ -38,10 +38,18 @@ def log_event(
 
 
 def prune_old_logs(db: Session) -> int:
-    cutoff = datetime.now(timezone.utc) - timedelta(days=30)
-    deleted = db.query(ActivityLog).filter(ActivityLog.created_at < cutoff).delete()
-    db.commit()
-    return deleted
+    try:
+        cutoff = datetime.now(timezone.utc) - timedelta(days=30)
+        deleted = db.query(ActivityLog).filter(ActivityLog.created_at < cutoff).delete()
+        db.commit()
+        return deleted
+    except Exception:
+        logger.warning("Log pruning skipped — activity_logs table may not exist yet")
+        try:
+            db.rollback()
+        except Exception:
+            pass
+        return 0
 
 
 async def schedule_daily_pruning() -> None:

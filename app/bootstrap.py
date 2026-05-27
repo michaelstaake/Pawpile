@@ -100,29 +100,31 @@ def _infer_legacy_revision(tables: set[str], columns_by_table: dict[str, set[str
     if not user_tables.intersection(APP_TABLES):
         return None
 
-    if CHAT_METADATA_COLUMNS.issubset(columns_by_table.get("chat_messages", set())):
+    has_activity_logs = "activity_logs" in tables
+
+    if CHAT_METADATA_COLUMNS.issubset(columns_by_table.get("chat_messages", set())) and has_activity_logs:
         return "0013_chat_message_metadata"
 
     device_columns = columns_by_table.get("devices", set())
-    if {"stable_hardware_id", "stable_hardware_id_source"}.issubset(device_columns):
+    if {"stable_hardware_id", "stable_hardware_id_source"}.issubset(device_columns) and has_activity_logs:
         return "0012_device_stable_hardware_id"
 
     app_settings_columns = columns_by_table.get("app_settings", set())
-    if "app_settings" in tables and "auto_load_enabled_models_on_startup" not in app_settings_columns:
+    if "app_settings" in tables and "auto_load_enabled_models_on_startup" not in app_settings_columns and has_activity_logs:
         return "0011_remove_auto_load_models_setting"
 
     gpu_pool_columns = columns_by_table.get("gpu_pools", set())
-    if "vendor" in gpu_pool_columns:
+    if "vendor" in gpu_pool_columns and has_activity_logs:
         return "0010_gpu_pool_vendor"
 
-    if "gpu_pools" in tables:
+    if "gpu_pools" in tables and has_activity_logs:
         return "0009_gpu_pool"
 
     model_columns = columns_by_table.get("model_configs", set())
-    if "thinking_enabled" in model_columns:
+    if "thinking_enabled" in model_columns and has_activity_logs:
         return "0008_model_thinking_enabled"
 
-    if "activity_logs" in tables:
+    if has_activity_logs:
         return "0007_activity_log"
 
     if "tool_calling_enabled" in model_columns:
@@ -213,6 +215,31 @@ def _reconcile_sqlite_database(database_path: Path) -> None:
 
     if inferred_revision is not None:
         _stamp_inferred_revision(database_path, inferred_revision, current_revision)
+
+    # Detect and repair a database where activity_logs is missing but the schema is
+    # otherwise at a post-0006 level.  This can happen when the database was first
+    # populated via Base.metadata.create_all() with ActivityLog absent from Base.metadata,
+    # or when the alembic_version stamp was advanced past 0007 without migration 0007
+    # actually running.  The fix is to stamp back to 0006, apply only migration 0007
+    # (which purely creates the activity_logs table — no conflict risk), then restore
+    # the stamp so that the subsequent upgrade-head call does not re-run the
+    # already-applied later migrations.
+    if "activity_logs" not in tables and APP_TABLES.issubset(tables):
+        schema_ceiling = _infer_legacy_revision(tables | {"activity_logs"}, columns_by_table)
+        effective_revision = current_revision or schema_ceiling
+        if (
+            effective_revision is not None
+            and REVISION_INDEX.get(effective_revision, -1) >= REVISION_INDEX.get("0007_activity_log", -1)
+        ):
+            logger.warning(
+                "activity_logs table is missing from a post-0006 database "
+                "(effective revision: %s); selectively applying migration 0007",
+                effective_revision,
+            )
+            _run_alembic("stamp", "0006_model_tool_calling_enabled")
+            _run_alembic("upgrade", "0007_activity_log")
+            if REVISION_INDEX.get(effective_revision, -1) > REVISION_INDEX.get("0007_activity_log", -1):
+                _run_alembic("stamp", effective_revision)
 
 
 def prepare_database() -> None:
