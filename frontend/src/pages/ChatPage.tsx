@@ -206,7 +206,7 @@ async function resolveDocumentAttachments(attachments: Attachment[], token?: str
 }
 
 function formatAttachmentFallbackText(file: Attachment): string {
-  const sizeLabel = `${(file.size / 1024).toFixed(1)} KB`;
+  const sizeLabel = formatAttachmentSize(file.size);
 
   if (file.extractionStatus === "unsupported") {
     return `[Attached File: ${file.name} (${file.extractionDetail ?? "Unsupported for text extraction"}, ${sizeLabel})]`;
@@ -220,8 +220,16 @@ function formatAttachmentFallbackText(file: Attachment): string {
 }
 
 function formatAttachmentLabel(file: Attachment): string {
-  const sizeLabel = `${(file.size / 1024).toFixed(1)} KB`;
+  const sizeLabel = formatAttachmentSize(file.size);
   return `[Attached File: ${file.name} (${sizeLabel})]`;
+}
+
+function formatAttachmentSize(size: number): string {
+  if (size >= 1024 * 1024) {
+    return `${(size / (1024 * 1024)).toFixed(1)} MB`;
+  }
+
+  return `${(size / 1024).toFixed(1)} KB`;
 }
 
 function describeAttachment(file: Attachment): string {
@@ -1194,7 +1202,7 @@ function buildUserMessageContent(inputText: string, attachments: Attachment[]): 
     }
 
     if (file.type.startsWith("image/") && file.dataUrl) {
-      displaySegments.push(`[Attached Image: ${file.name} (${(file.size / 1024).toFixed(1)} KB)]`);
+      displaySegments.push(`[Attached Image: ${file.name} (${formatAttachmentSize(file.size)})]`);
       contentParts.push({ type: "image_url", image_url: { url: file.dataUrl } });
       continue;
     }
