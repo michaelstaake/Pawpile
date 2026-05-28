@@ -18,6 +18,29 @@ import { BACKEND_UNAVAILABLE_EVENT } from "./lib/api";
 
 const appVersionLabel = `v${__APP_VERSION__}`;
 
+function MainNavLink({
+  iconClassName,
+  label,
+  to,
+  end = false,
+}: {
+  iconClassName: string;
+  label: string;
+  to: string;
+  end?: boolean;
+}) {
+  return (
+    <NavLink
+      to={to}
+      end={end}
+      className={({ isActive }) => `inline-flex items-center gap-2 rounded-lg px-3 py-2 text-sm ${isActive ? "bg-ink text-white" : "bg-black/5"}`}
+    >
+      <i className={`${iconClassName} text-[14px] leading-none`} aria-hidden="true" />
+      <span>{label}</span>
+    </NavLink>
+  );
+}
+
 function RequireAdmin({ children }: { children: ReactNode }) {
   const { isBootstrapping, requiresSetup, user } = useAuth();
 
@@ -142,28 +165,24 @@ export default function App() {
           {showMainNav ? (
             <nav className="flex flex-wrap items-center gap-2">
               {user ? (
-                <NavLink to="/" end className={({ isActive }) => `rounded-lg px-3 py-2 text-sm ${isActive ? "bg-ink text-white" : "bg-black/5"}`}>Chat</NavLink>
+                <MainNavLink to="/" end iconClassName="bi bi-house" label="Chat" />
               ) : null}
               {user ? (
-                <NavLink to="/apikeys" className={({ isActive }) => `rounded-lg px-3 py-2 text-sm ${isActive ? "bg-ink text-white" : "bg-black/5"}`}>API</NavLink>
+                <MainNavLink to="/apikeys" iconClassName="bi bi-key" label="API" />
               ) : null}
               {user ? (
-                <NavLink to="/status" className={({ isActive }) => `rounded-lg px-3 py-2 text-sm ${isActive ? "bg-ink text-white" : "bg-black/5"}`}>Status</NavLink>
+                <MainNavLink to="/status" iconClassName="bi bi-activity" label="Status" />
               ) : null}
               {user?.is_admin ? (
-                <NavLink to="/devices" className={({ isActive }) => `rounded-lg px-3 py-2 text-sm ${isActive ? "bg-ink text-white" : "bg-black/5"}`}>Devices</NavLink>
+                <MainNavLink to="/devices" iconClassName="bi bi-gpu-card" label="Devices" />
               ) : null}
               {user?.is_admin ? (
-                <NavLink to="/models" className={({ isActive }) => `rounded-lg px-3 py-2 text-sm ${isActive ? "bg-ink text-white" : "bg-black/5"}`}>Models</NavLink>
+                <MainNavLink to="/models" iconClassName="bi bi-folder" label="Models" />
               ) : null}
               {user?.is_admin ? (
-                <NavLink to="/settings" className={({ isActive }) => `rounded-lg px-3 py-2 text-sm ${isActive ? "bg-ink text-white" : "bg-black/5"}`}>Settings</NavLink>
+                <MainNavLink to="/settings" iconClassName="bi bi-gear" label="Settings" />
               ) : null}
-              {user ? (
-                <NavLink to="/profile" className={({ isActive }) => `rounded-lg px-3 py-2 text-sm ${isActive ? "bg-ink text-white" : "bg-black/5"}`}>
-                  {user.username}
-                </NavLink>
-              ) : null}
+              <MainNavLink to={user ? "/profile" : "/login"} iconClassName="bi bi-person" label={user ? user.username : "Login"} />
             </nav>
           ) : null}
         </header>
