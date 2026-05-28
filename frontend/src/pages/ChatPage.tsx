@@ -997,17 +997,19 @@ export default function ChatPage() {
                 </div>
               )}
             </div>
-            {showScrollToBottom ? (
-              <button
-                type="button"
-                onClick={scrollTranscriptToBottom}
-                className="absolute bottom-4 right-4 flex h-11 w-11 items-center justify-center rounded-full border border-black/10 bg-ink text-white shadow-lg shadow-black/15 transition hover:bg-black"
-                aria-label="Scroll to latest message"
-                title="Scroll to latest message"
-              >
-                <i className="bi bi-arrow-down text-[18px] leading-none" aria-hidden="true" />
-              </button>
-            ) : null}
+            <button
+              type="button"
+              onClick={scrollTranscriptToBottom}
+              className={`absolute bottom-4 right-4 flex h-11 w-11 items-center justify-center rounded-full border border-black/10 bg-ink text-white shadow-lg shadow-black/15 transition-all duration-150 ease-out hover:bg-black ${
+                showScrollToBottom
+                  ? "translate-y-0 scale-100 opacity-100"
+                  : "pointer-events-none translate-y-2 scale-95 opacity-0"
+              }`}
+              aria-label="Scroll to latest message"
+              title="Scroll to latest message"
+            >
+              <i className="bi bi-arrow-down text-[18px] leading-none" aria-hidden="true" />
+            </button>
           </div>
         ) : null}
 
