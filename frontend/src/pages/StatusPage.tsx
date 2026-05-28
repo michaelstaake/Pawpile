@@ -108,7 +108,7 @@ function DeviceCard({ device, isPooled, modelColors }: { device: DeviceStatusRec
         </div>
       </div>
 
-      <div className="mt-5 grid gap-4 lg:grid-cols-[minmax(0,1.4fr)_minmax(260px,0.9fr)]">
+      <div className="mt-5 grid gap-4 lg:grid-cols-2">
         <div className="grid gap-4">
           <section className="rounded-2xl border border-black/10 bg-[#f3efe2] p-4">
             <div className="flex items-center justify-between gap-3">
