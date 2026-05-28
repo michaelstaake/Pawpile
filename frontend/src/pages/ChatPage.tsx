@@ -113,7 +113,6 @@ const TEXT_ATTACHMENT_SUFFIXES = new Set([
 const DOCUMENT_ATTACHMENT_SUFFIXES = new Set([".docx", ".ods", ".odt", ".pdf", ".xlsx"]);
 
 const AUTO_SCROLL_BOTTOM_THRESHOLD_PX = 48;
-const MODEL_STATUS_GRADIENT = "linear-gradient(135deg,#770088 0%,#004CFF 20%,#028121 40%,#FFEE00 60%,#FF8D00 80%,#E50000 100%)";
 
 function hasKnownSuffix(name: string, suffixes: Set<string>): boolean {
   const lowerName = name.toLowerCase();
@@ -270,6 +269,7 @@ export default function ChatPage() {
   const [activeChatId, setActiveChatId] = useState<number | null>(null);
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const [isLoadingChats, setIsLoadingChats] = useState(false);
+  const [showScrollToBottom, setShowScrollToBottom] = useState(false);
   const transcriptRef = useRef<HTMLDivElement | null>(null);
   const shouldAutoScrollRef = useRef(true);
   const inputRef = useRef<HTMLInputElement | null>(null);
@@ -295,7 +295,28 @@ export default function ChatPage() {
     if (shouldAutoScrollRef.current && transcriptRef.current) {
       transcriptRef.current.scrollTop = transcriptRef.current.scrollHeight;
     }
+    updateTranscriptScrollState();
   }, [messages]);
+
+  useEffect(() => {
+    updateTranscriptScrollState();
+  }, [shouldShowTranscript]);
+
+  useEffect(() => {
+    if (!shouldShowTranscript) {
+      setShowScrollToBottom(false);
+      return;
+    }
+
+    const handleResize = () => {
+      updateTranscriptScrollState();
+    };
+
+    window.addEventListener("resize", handleResize);
+    return () => {
+      window.removeEventListener("resize", handleResize);
+    };
+  }, [shouldShowTranscript]);
 
   useEffect(() => {
     if (!isLoadingModels && models.length > 0 && !isSending) {
@@ -344,12 +365,31 @@ export default function ChatPage() {
   }
 
   function handleTranscriptScroll() {
+    updateTranscriptScrollState();
+  }
+
+  function updateTranscriptScrollState() {
+    const element = transcriptRef.current;
+    if (!element) {
+      setShowScrollToBottom(false);
+      return;
+    }
+
+    const isNearBottom = isNearTranscriptBottom(element);
+    const isScrollable = element.scrollHeight - element.clientHeight > AUTO_SCROLL_BOTTOM_THRESHOLD_PX;
+    shouldAutoScrollRef.current = isNearBottom;
+    setShowScrollToBottom(isScrollable && !isNearBottom);
+  }
+
+  function scrollTranscriptToBottom() {
     const element = transcriptRef.current;
     if (!element) {
       return;
     }
 
-    shouldAutoScrollRef.current = isNearTranscriptBottom(element);
+    element.scrollTo({ top: element.scrollHeight, behavior: "smooth" });
+    shouldAutoScrollRef.current = true;
+    setShowScrollToBottom(false);
   }
 
   function startNewChat() {
@@ -830,8 +870,7 @@ export default function ChatPage() {
         {shouldShowNoModelsEmptyState ? (
           <div className="mx-auto w-full max-w-2xl rounded-[28px] bg-white/40 px-8 py-10 text-center">
             <i
-              className="bi bi-emoji-frown bg-clip-text text-[72px] leading-none text-transparent"
-              style={{ backgroundImage: MODEL_STATUS_GRADIENT }}
+              className="bi bi-emoji-frown text-[72px] leading-none text-ink"
               aria-hidden="true"
             />
             <div className="mt-6 text-xl font-semibold text-ink md:text-2xl">No active models</div>
@@ -865,97 +904,110 @@ export default function ChatPage() {
             </select>
           </div>
         ) : shouldShowTranscript ? (
-          <div
-            ref={transcriptRef}
-            onScroll={handleTranscriptScroll}
-            className="min-h-[360px] max-h-[55vh] overflow-y-auto rounded-xl border border-dashed border-black/20 bg-sand p-4 text-sm text-black/80"
-          >
-            {messages.length === 0 ? (
-              <div className="text-black/50">Nothing to see here yet.</div>
-            ) : (
-              <div className="space-y-3">
-                {messages.map((message, index) => (
-                message.role === "assistant" && (message.phase === "uploading" || message.phase === "thinking") && !message.content && !message.thinking ? (
-                  <div key={index} className="px-1 py-1 text-sm font-medium text-black/45">
-                    <span className="inline-flex items-center gap-2">
-                      <span className="animate-pulse">{message.phase === "uploading" ? "Uploading..." : "Processing..."}</span>
-                    </span>
-                  </div>
-                ) : (
-                  <div
-                    key={index}
-                    className={
-                      message.role === "user"
-                        ? "rounded-2xl border border-black/5 bg-white/90 p-4 shadow-sm"
-                        : "rounded-2xl border border-black/5 bg-white/55 p-4 shadow-sm shadow-black/5"
-                    }
-                  >
-                    <div className="mb-2 text-xs font-semibold uppercase tracking-[0.2em] text-black/45">
-                      {formatSpeakerLabel(message, user?.username ?? null)}
+          <div className="relative">
+            <div
+              ref={transcriptRef}
+              onScroll={handleTranscriptScroll}
+              className="min-h-[360px] max-h-[55vh] overflow-y-auto rounded-xl border border-dashed border-black/20 bg-sand p-4 text-sm text-black/80"
+            >
+              {messages.length === 0 ? (
+                <div className="text-black/50">Nothing to see here yet.</div>
+              ) : (
+                <div className="space-y-3">
+                  {messages.map((message, index) => (
+                  message.role === "assistant" && (message.phase === "uploading" || message.phase === "thinking") && !message.content && !message.thinking ? (
+                    <div key={index} className="px-1 py-1 text-sm font-medium text-black/45">
+                      <span className="inline-flex items-center gap-2">
+                        <span className="animate-pulse">{message.phase === "uploading" ? "Uploading..." : "Processing..."}</span>
+                      </span>
                     </div>
-                    {message.role === "assistant" && message.thinking ? (
-                      <div className="mb-3">
-                        <button
-                          type="button"
-                          onClick={() => setThinkingExpandedByIndex((current) => ({ ...current, [index]: !current[index] }))}
-                          className="flex w-full items-center gap-2 rounded-lg px-2 py-1 text-left text-xs font-medium text-black/40 hover:bg-black/5"
-                        >
-                          <span className="flex-1">
-                            {message.phase === "streaming" || message.phase === "thinking" ? (
-                              <span className="animate-pulse">Thinking...</span>
-                            ) : (
-                              "Thought"
-                            )}
-                          </span>
-                          <i
-                            className={`bi bi-chevron-down shrink-0 text-[14px] leading-none transition-transform ${thinkingExpandedByIndex[index] ? "rotate-180" : ""}`}
-                            aria-hidden="true"
-                          />
-                        </button>
-                        {thinkingExpandedByIndex[index] ? (
-                          <div className="ml-2 mt-1 border-l-2 border-dashed border-amber-300/60 pl-3">
-                            <div className="whitespace-pre-wrap text-[13px] leading-6 text-black/40 italic">
-                              {message.thinking}
-                              {(message.phase === "streaming" || message.phase === "thinking") && !message.content ? (
-                                <span className="ml-1 inline-block h-4 w-1.5 animate-pulse rounded-full bg-amber/50 align-middle" />
-                              ) : null}
+                  ) : (
+                    <div
+                      key={index}
+                      className={
+                        message.role === "user"
+                          ? "rounded-2xl border border-black/5 bg-white/90 p-4 shadow-sm"
+                          : "rounded-2xl border border-black/5 bg-white/55 p-4 shadow-sm shadow-black/5"
+                      }
+                    >
+                      <div className="mb-2 text-xs font-semibold uppercase tracking-[0.2em] text-black/45">
+                        {formatSpeakerLabel(message, user?.username ?? null)}
+                      </div>
+                      {message.role === "assistant" && message.thinking ? (
+                        <div className="mb-3">
+                          <button
+                            type="button"
+                            onClick={() => setThinkingExpandedByIndex((current) => ({ ...current, [index]: !current[index] }))}
+                            className="flex w-full items-center gap-2 rounded-lg px-2 py-1 text-left text-xs font-medium text-black/40 hover:bg-black/5"
+                          >
+                            <span className="flex-1">
+                              {message.phase === "streaming" || message.phase === "thinking" ? (
+                                <span className="animate-pulse">Thinking...</span>
+                              ) : (
+                                "Thought"
+                              )}
+                            </span>
+                            <i
+                              className={`bi bi-chevron-down shrink-0 text-[14px] leading-none transition-transform ${thinkingExpandedByIndex[index] ? "rotate-180" : ""}`}
+                              aria-hidden="true"
+                            />
+                          </button>
+                          {thinkingExpandedByIndex[index] ? (
+                            <div className="ml-2 mt-1 border-l-2 border-dashed border-amber-300/60 pl-3">
+                              <div className="whitespace-pre-wrap text-[13px] leading-6 text-black/40 italic">
+                                {message.thinking}
+                                {(message.phase === "streaming" || message.phase === "thinking") && !message.content ? (
+                                  <span className="ml-1 inline-block h-4 w-1.5 animate-pulse rounded-full bg-amber/50 align-middle" />
+                                ) : null}
+                              </div>
                             </div>
-                          </div>
-                        ) : null}
+                          ) : null}
+                        </div>
+                      ) : null}
+                      <div className="leading-7 text-[15px] text-black/85">
+                        {message.role === "assistant" ? (
+                          <MessageContent
+                            content={message.content}
+                            showStreamingCursor={message.phase === "streaming" && Boolean(message.content)}
+                          />
+                        ) : (
+                          <span className="whitespace-pre-wrap">{message.content}</span>
+                        )}
                       </div>
-                    ) : null}
-                    <div className="leading-7 text-[15px] text-black/85">
-                      {message.role === "assistant" ? (
-                        <MessageContent
-                          content={message.content}
-                          showStreamingCursor={message.phase === "streaming" && Boolean(message.content)}
-                        />
-                      ) : (
-                        <span className="whitespace-pre-wrap">{message.content}</span>
-                      )}
+                      {message.role === "assistant" && message.phase === "complete" && message.stats ? (
+                        <div className="mt-3 border-t border-black/8 pt-2 text-[11px] text-black/45">
+                          <span
+                            title={
+                              message.stats.completionTokens !== null && message.stats.totalTokens !== null
+                                ? `${formatInteger(message.stats.totalTokens)} total tokens`
+                                : undefined
+                            }
+                          >
+                            {formatInteger(message.stats.completionTokens ?? message.stats.totalTokens)}t
+                          </span>
+                          <span className="mx-2 text-black/20">/</span>
+                          <span>{formatDuration(message.stats.elapsedSeconds)}</span>
+                          <span className="mx-2 text-black/20">/</span>
+                          <span className="font-medium text-black/55">{formatRate(message.stats.tokensPerSecond)}t/s</span>
+                        </div>
+                      ) : null}
                     </div>
-                    {message.role === "assistant" && message.phase === "complete" && message.stats ? (
-                      <div className="mt-3 border-t border-black/8 pt-2 text-[11px] text-black/45">
-                        <span
-                          title={
-                            message.stats.completionTokens !== null && message.stats.totalTokens !== null
-                              ? `${formatInteger(message.stats.totalTokens)} total tokens`
-                              : undefined
-                          }
-                        >
-                          {formatInteger(message.stats.completionTokens ?? message.stats.totalTokens)}t
-                        </span>
-                        <span className="mx-2 text-black/20">/</span>
-                        <span>{formatDuration(message.stats.elapsedSeconds)}</span>
-                        <span className="mx-2 text-black/20">/</span>
-                        <span className="font-medium text-black/55">{formatRate(message.stats.tokensPerSecond)}t/s</span>
-                      </div>
-                    ) : null}
-                  </div>
-                )
-                ))}
-              </div>
-            )}
+                  )
+                  ))}
+                </div>
+              )}
+            </div>
+            {showScrollToBottom ? (
+              <button
+                type="button"
+                onClick={scrollTranscriptToBottom}
+                className="absolute bottom-4 right-4 flex h-11 w-11 items-center justify-center rounded-full border border-black/10 bg-ink text-white shadow-lg shadow-black/15 transition hover:bg-black"
+                aria-label="Scroll to latest message"
+                title="Scroll to latest message"
+              >
+                <i className="bi bi-arrow-down text-[18px] leading-none" aria-hidden="true" />
+              </button>
+            ) : null}
           </div>
         ) : null}
 
