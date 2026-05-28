@@ -318,66 +318,80 @@ class InferenceRuntime:
 
     def _collect_vulkan_metrics(self) -> dict[str, dict]:
         output = self._run_command(["vulkaninfo"])
-        if not output:
-            return {}
-
         metrics: dict[str, dict] = {}
-        blocks = re.split(r"GPU(\d+):", output)
-        # blocks layout: [preamble, idx0, block0, idx1, block1, ...]
-        i = 1
-        while i + 1 < len(blocks):
-            try:
-                idx = int(blocks[i])
-            except ValueError:
-                i += 2
-                continue
-            block = blocks[i + 1]
-            i += 2
-
-            memory_total_mb = 0
-            memory_used_mb = 0
-            heap_blocks = re.split(r"memoryHeaps\[\d+\]:", block)
-            for heap_block in heap_blocks[1:]:
-                if "VK_MEMORY_HEAP_DEVICE_LOCAL_BIT" not in heap_block:
+        if output:
+            blocks = re.split(r"GPU(\d+):", output)
+            # blocks layout: [preamble, idx0, block0, idx1, block1, ...]
+            i = 1
+            while i + 1 < len(blocks):
+                try:
+                    idx = int(blocks[i])
+                except ValueError:
+                    i += 2
                     continue
-                size_match = re.search(r"\bsize\s*=\s*([\d.]+)\s*(MiB|GiB|bytes|B)?", heap_block, re.IGNORECASE)
-                usage_match = re.search(r"\busage\s*=\s*([\d.]+)\s*(MiB|GiB|bytes|B)?", heap_block, re.IGNORECASE)
-                if size_match:
-                    memory_total_mb = max(memory_total_mb, _vulkan_size_to_mb(float(size_match.group(1)), size_match.group(2)))
-                if usage_match:
-                    memory_used_mb = max(memory_used_mb, _vulkan_size_to_mb(float(usage_match.group(1)), usage_match.group(2)))
+                block = blocks[i + 1]
+                i += 2
 
-            if memory_total_mb <= 0:
-                continue
+                memory_total_mb = 0
+                memory_used_mb = 0
+                heap_blocks = re.split(r"memoryHeaps\[\d+\]:", block)
+                for heap_block in heap_blocks[1:]:
+                    if "VK_MEMORY_HEAP_DEVICE_LOCAL_BIT" not in heap_block:
+                        continue
+                    size_match = re.search(r"\bsize\s*=\s*([\d.]+)\s*(MiB|GiB|bytes|B)?", heap_block, re.IGNORECASE)
+                    usage_match = re.search(r"\busage\s*=\s*([\d.]+)\s*(MiB|GiB|bytes|B)?", heap_block, re.IGNORECASE)
+                    if size_match:
+                        memory_total_mb = max(memory_total_mb, _vulkan_size_to_mb(float(size_match.group(1)), size_match.group(2)))
+                    if usage_match:
+                        memory_used_mb = max(memory_used_mb, _vulkan_size_to_mb(float(usage_match.group(1)), usage_match.group(2)))
 
-            hardware_id = f"vulkan:{idx}"
-            metrics[hardware_id] = {
-                "usage_percent": None,
-                "usage_source": "unavailable",
-                "memory_used_mb": memory_used_mb,
-                "memory_total_mb": memory_total_mb,
-                "memory_source": "vulkaninfo",
-                "process_memory_by_pid": {},
-            }
+                if memory_total_mb <= 0:
+                    continue
 
-        # Enrich with AMD sysfs GPU utilisation where available.
-        # /sys/class/drm/card<N>/device/gpu_busy_percent exists for amdgpu-driven cards.
-        # We iterate in sorted DRM-card order, assigning the k-th amdgpu card to vulkan:<k>.
+                hardware_id = f"vulkan:{idx}"
+                metrics[hardware_id] = {
+                    "usage_percent": None,
+                    "usage_source": "unavailable",
+                    "memory_used_mb": memory_used_mb,
+                    "memory_total_mb": memory_total_mb,
+                    "memory_source": "vulkaninfo",
+                    "process_memory_by_pid": {},
+                }
+
+        # Prefer amdgpu sysfs VRAM counters when available. They match tools like nvtop
+        # more closely than vulkaninfo heap usage on AMD cards and also expose total VRAM.
         try:
-            amd_busy_paths = sorted(
-                p for p in Path("/sys/class/drm").glob("card*/device/gpu_busy_percent")
+            amd_card_paths = sorted(
+                p.parent for p in Path("/sys/class/drm").glob("card*/device/gpu_busy_percent")
                 if p.is_file()
             )
-            for vulkan_idx, busy_path in enumerate(amd_busy_paths):
+            for vulkan_idx, device_path in enumerate(amd_card_paths):
                 hardware_id = f"vulkan:{vulkan_idx}"
-                if hardware_id not in metrics:
-                    continue
-                try:
-                    usage = round(float(busy_path.read_text().strip()), 1)
-                    metrics[hardware_id]["usage_percent"] = usage
-                    metrics[hardware_id]["usage_source"] = "sysfs"
-                except Exception:
-                    pass
+                metric = metrics.setdefault(
+                    hardware_id,
+                    {
+                        "usage_percent": None,
+                        "usage_source": "unavailable",
+                        "memory_used_mb": 0,
+                        "memory_total_mb": 0,
+                        "memory_source": "processes",
+                        "process_memory_by_pid": {},
+                    },
+                )
+
+                usage = self._read_sysfs_percentage(device_path / "gpu_busy_percent")
+                if usage is not None:
+                    metric["usage_percent"] = usage
+                    metric["usage_source"] = "sysfs"
+
+                total_bytes = self._read_sysfs_int(device_path / "mem_info_vram_total")
+                used_bytes = self._read_sysfs_int(device_path / "mem_info_vram_used")
+                if total_bytes is not None and total_bytes > 0:
+                    metric["memory_total_mb"] = int(total_bytes / (1024 * 1024))
+                if used_bytes is not None and used_bytes >= 0:
+                    metric["memory_used_mb"] = int(used_bytes / (1024 * 1024))
+                if total_bytes is not None or used_bytes is not None:
+                    metric["memory_source"] = "sysfs"
         except Exception:
             pass
 
@@ -548,6 +562,20 @@ class InferenceRuntime:
             return round(float(text), 1)
         except ValueError:
             return None
+
+    @staticmethod
+    def _read_sysfs_int(path: Path) -> int | None:
+        try:
+            return int(path.read_text().strip())
+        except Exception:
+            return None
+
+    @classmethod
+    def _read_sysfs_percentage(cls, path: Path) -> float | None:
+        value = cls._read_sysfs_int(path)
+        if value is None:
+            return None
+        return round(float(value), 1)
 
 
 def _vulkan_size_to_mb(value: float, unit: str | None) -> int:
