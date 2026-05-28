@@ -277,7 +277,6 @@ export default function App() {
             open={showMainNav && isMobileNavOpen}
             onClose={() => setIsMobileNavOpen(false)}
             sitename={sitename}
-            versionLabel={appVersionLabel}
             navItems={mainNavItems}
             extraSection={mobileNavSection}
           />

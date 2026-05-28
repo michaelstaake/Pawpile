@@ -13,7 +13,6 @@ type MobileNavDrawerProps = {
   open: boolean;
   onClose: () => void;
   sitename: string;
-  versionLabel: string;
   navItems: MobileNavItem[];
   extraSection?: {
     title?: string;
@@ -25,7 +24,6 @@ export default function MobileNavDrawer({
   open,
   onClose,
   sitename,
-  versionLabel,
   navItems,
   extraSection,
 }: MobileNavDrawerProps) {
@@ -35,17 +33,12 @@ export default function MobileNavDrawer({
         open={open}
         onClose={onClose}
         labelledBy="mobile-nav-title"
-        describedBy="mobile-nav-description"
         overlayClassName="p-0 sm:p-0"
-        layoutClassName="items-stretch justify-end py-0 sm:items-stretch sm:justify-end sm:py-0"
-        panelClassName="flex h-dvh max-h-none w-full max-w-[22rem] flex-col rounded-none rounded-l-[28px] border-y-0 border-r-0 border-l border-black/10 bg-[#fffdf7]"
+        layoutClassName="items-stretch justify-stretch py-0 sm:items-stretch sm:justify-stretch sm:py-0"
+        panelClassName="flex h-dvh max-h-none w-full max-w-none flex-col rounded-none border-0 bg-[#fffdf7]"
       >
         <div className="flex items-center justify-between border-b border-black/10 px-5 py-4">
-          <div>
-            <p className="text-xs font-semibold uppercase tracking-[0.24em] text-black/45">{versionLabel}</p>
-            <h2 id="mobile-nav-title" className="font-display text-2xl font-semibold tracking-tight text-ink">{sitename}</h2>
-            <p id="mobile-nav-description" className="mt-1 text-sm text-black/60">Navigation and chat controls</p>
-          </div>
+          <h2 id="mobile-nav-title" className="font-display text-2xl font-semibold tracking-tight text-ink">{sitename}</h2>
           <button
             type="button"
             onClick={onClose}
