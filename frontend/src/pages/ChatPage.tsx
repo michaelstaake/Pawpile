@@ -824,13 +824,11 @@ export default function ChatPage() {
         )}
 
         {shouldShowNoModelsEmptyState ? (
-          <div className="mx-auto w-full max-w-2xl rounded-[28px] border border-amber/35 bg-[linear-gradient(180deg,rgba(255,255,255,0.98),rgba(245,242,232,0.92))] px-8 py-10 text-center shadow-sm">
-            <div className="mx-auto flex h-20 w-20 items-center justify-center rounded-full bg-white shadow-sm">
-              <i
-                className="bi bi-emoji-frown bg-[linear-gradient(135deg,#ff7a59_0%,#ffb347_28%,#54f2c3_56%,#6fb8ff_78%,#ff86b7_100%)] bg-clip-text text-[42px] leading-none text-transparent"
-                aria-hidden="true"
-              />
-            </div>
+          <div className="mx-auto w-full max-w-2xl rounded-[28px] bg-white/40 px-8 py-10 text-center">
+            <i
+              className="bi bi-emoji-frown bg-[linear-gradient(135deg,#ff7a59_0%,#ffb347_28%,#54f2c3_56%,#6fb8ff_78%,#ff86b7_100%)] bg-clip-text text-[72px] leading-none text-transparent"
+              aria-hidden="true"
+            />
             <div className="mt-6 text-xl font-semibold text-ink md:text-2xl">No active models</div>
             <div className="mt-3 text-sm leading-7 text-black/68 md:text-[15px]">
               {user?.is_admin ? (
