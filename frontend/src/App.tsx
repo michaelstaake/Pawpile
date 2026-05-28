@@ -283,13 +283,22 @@ export default function App() {
         </div>
       </MobileNavProvider>
 
-      <Modal open={showBackendUnavailableModal} onClose={() => {}} labelledBy="backend-unavailable-title" describedBy="backend-unavailable-description" panelClassName="max-w-md">
-        <div className="p-6 sm:p-7">
-          <h2 id="backend-unavailable-title" className="font-display text-2xl font-semibold tracking-tight text-ink">Error</h2>
-          <p id="backend-unavailable-description" className="mt-3 text-sm leading-6 text-black/70">
+      <Modal
+        open={showBackendUnavailableModal}
+        onClose={() => {}}
+        labelledBy="backend-unavailable-title"
+        describedBy="backend-unavailable-description"
+        fullScreen
+        overlayClassName="bg-[#fffdf7]"
+        layoutClassName="items-stretch justify-stretch"
+        panelClassName="flex min-h-dvh w-full max-w-none flex-col"
+      >
+        <div className="flex min-h-dvh flex-col justify-center px-6 py-10 sm:px-10">
+          <h2 id="backend-unavailable-title" className="font-display text-3xl font-semibold tracking-tight text-ink sm:text-4xl">Error</h2>
+          <p id="backend-unavailable-description" className="mt-4 max-w-2xl text-base leading-7 text-black/70 sm:text-lg">
             {BACKEND_UNAVAILABLE_MESSAGE}
           </p>
-          <div className="mt-6 flex justify-end">
+          <div className="mt-8 flex justify-start">
             <button
               type="button"
               onClick={() => window.location.reload()}
