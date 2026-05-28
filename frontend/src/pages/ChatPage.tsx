@@ -1,7 +1,9 @@
-import { FormEvent, useEffect, useRef, useState } from "react";
+import { type ChangeEvent, type FormEvent, useEffect, useRef, useState } from "react";
 import { apiDelete, apiGet, apiPost, apiPostForm, handleBackendUnavailableError, isBackendUnavailableResponse } from "../lib/api";
 import { useAuth } from "../context/AuthContext";
+import { useMobileNav } from "../context/MobileNavContext";
 import { getStoredToken } from "../lib/session";
+import ChatSidebarContent from "../components/ui/ChatSidebarContent";
 import MessageContent from "../components/ui/MessageContent";
 
 type ChatRole = "system" | "user" | "assistant";
@@ -264,6 +266,7 @@ function describeAttachment(file: Attachment): string {
 
 export default function ChatPage() {
   const { token, user } = useAuth();
+  const { closeMobileNav, setMobileNavSection } = useMobileNav();
   const [models, setModels] = useState<string[]>([]);
   const [modelVisionDefaults, setModelVisionDefaults] = useState<Record<string, boolean>>({});
   const [modelSearchAvailability, setModelSearchAvailability] = useState<Record<string, boolean>>({});
@@ -371,6 +374,33 @@ export default function ChatPage() {
       document.removeEventListener("keydown", handleEscape);
     };
   }, [isInputSettingsOpen]);
+
+  useEffect(() => {
+    setMobileNavSection({
+      title: "Chats",
+      content: (
+        <ChatSidebarContent
+          token={token}
+          isLoadingChats={isLoadingChats}
+          savedChats={savedChats}
+          activeChatId={activeChatId}
+          onNewChat={() => {
+            startNewChat();
+            closeMobileNav();
+          }}
+          onOpenChat={openChat}
+          onDeleteChat={deleteChat}
+          onAfterSelectChat={closeMobileNav}
+          className="space-y-2 text-sm text-black/70"
+          listClassName="max-h-[42vh] space-y-1 overflow-y-auto"
+        />
+      ),
+    });
+
+    return () => {
+      setMobileNavSection(null);
+    };
+  }, [activeChatId, closeMobileNav, isLoadingChats, savedChats, setMobileNavSection, token]);
 
   async function loadModels() {
     setIsLoadingModels(true);
@@ -483,7 +513,7 @@ export default function ChatPage() {
     }
     try {
       await apiDelete<{ status: string }>(`/api/chat/${chatId}`, token);
-      setSavedChats((current) => current.filter((c) => c.id !== chatId));
+      setSavedChats((current: ChatSummary[]) => current.filter((chat: ChatSummary) => chat.id !== chatId));
       if (activeChatId === chatId) {
         startNewChat();
       }
@@ -532,16 +562,16 @@ export default function ChatPage() {
         token
       );
       setActiveChatId(response.chat.id);
-      setSavedChats((current) => [response.chat, ...current]);
+      setSavedChats((current: ChatSummary[]) => [response.chat, ...current]);
       return response.chat.id;
     } catch {
       return null;
     }
   }
 
-  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleFileChange = (e: ChangeEvent<HTMLInputElement>) => {
     if (!e.target.files) return;
-    const filesArray = Array.from(e.target.files);
+    const filesArray = Array.from<File>(e.target.files);
 
     filesArray.forEach((file) => {
       const attachmentKind = classifyAttachment(file);
@@ -549,7 +579,7 @@ export default function ChatPage() {
       if (attachmentKind === "text") {
         const reader = new FileReader();
         reader.onload = (event) => {
-          setAttachments((prev) => [
+          setAttachments((prev: Attachment[]) => [
             ...prev,
             {
               name: file.name,
@@ -566,7 +596,7 @@ export default function ChatPage() {
       } else if (attachmentKind === "image") {
         const reader = new FileReader();
         reader.onload = (event) => {
-          setAttachments((prev) => [
+          setAttachments((prev: Attachment[]) => [
             ...prev,
             {
               name: file.name,
@@ -580,7 +610,7 @@ export default function ChatPage() {
         };
         reader.readAsDataURL(file);
       } else {
-        setAttachments((prev) => [
+        setAttachments((prev: Attachment[]) => [
           ...prev,
           {
             name: file.name,
@@ -602,7 +632,7 @@ export default function ChatPage() {
   };
 
   const removeAttachment = (index: number) => {
-    setAttachments((prev) => prev.filter((_, i) => i !== index));
+    setAttachments((prev: Attachment[]) => prev.filter((_: Attachment, itemIndex: number) => itemIndex !== index));
   };
 
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
@@ -616,7 +646,7 @@ export default function ChatPage() {
       return;
     }
 
-    if (attachments.some((file) => file.type.startsWith("image/") && file.dataUrl) && !selectedModelSupportsVision) {
+    if (attachments.some((file: Attachment) => file.type.startsWith("image/") && file.dataUrl) && !selectedModelSupportsVision) {
       setErrorMessage("Vision is disabled for the selected model. Enable vision in the model settings or switch to a vision-enabled model before sending images.");
       return;
     }
@@ -665,7 +695,7 @@ export default function ChatPage() {
         useWebSearch && selectedModelSupportsWebSearch,
         abortController.signal,
         (phase) => {
-          setMessages((current) => {
+          setMessages((current: ChatMessage[]) => {
             if (current.length === 0) {
               return current;
             }
@@ -681,17 +711,17 @@ export default function ChatPage() {
         (delta, type) => {
         if (type === "thinking") {
           thinkingBuffer += delta;
-          setMessages((current) => {
+          setMessages((current: ChatMessage[]) => {
             if (current.length === 0) return current;
             const updated = [...current];
             const last = updated[updated.length - 1];
             updated[updated.length - 1] = { ...last, thinking: (last.thinking ?? "") + delta, phase: "streaming" };
             return updated;
           });
-          setThinkingExpandedByIndex((current) => ({ ...current, [nextMessages.length]: true }));
+          setThinkingExpandedByIndex((current: Record<number, boolean>) => ({ ...current, [nextMessages.length]: true }));
         } else {
           assistantBuffer += delta;
-          setMessages((current) => {
+          setMessages((current: ChatMessage[]) => {
             if (current.length === 0) {
               return current;
             }
@@ -707,7 +737,7 @@ export default function ChatPage() {
         }
         }
       );
-      setMessages((current) => {
+      setMessages((current: ChatMessage[]) => {
         if (current.length === 0) {
           return current;
         }
@@ -723,7 +753,7 @@ export default function ChatPage() {
         };
         return updated;
       });
-      setThinkingExpandedByIndex((current) => ({ ...current, [nextMessages.length]: false }));
+      setThinkingExpandedByIndex((current: Record<number, boolean>) => ({ ...current, [nextMessages.length]: false }));
       if (chatId !== null && assistantBuffer) {
         void persistMessage(chatId, "assistant", assistantBuffer, {
           modelName: stats.model,
@@ -732,7 +762,7 @@ export default function ChatPage() {
       }
     } catch (error) {
       if (error instanceof Error && error.name === "AbortError") {
-        setMessages((current) => {
+        setMessages((current: ChatMessage[]) => {
           if (current.length === 0) return current;
           const last = current[current.length - 1];
           if (last.role === "assistant") {
@@ -751,7 +781,7 @@ export default function ChatPage() {
       } else {
         const detail = error instanceof Error ? error.message : "Chat request failed";
         setErrorMessage(detail);
-        setMessages((current) => {
+        setMessages((current: ChatMessage[]) => {
           if (current.length === 0) {
             return current;
           }
@@ -774,79 +804,23 @@ export default function ChatPage() {
   }
 
   return (
-    <section className={`grid gap-4 ${isSidebarOpen ? "md:grid-cols-[280px_minmax(0,1fr)]" : "grid-cols-[72px_minmax(0,1fr)]"}`}>
+    <section className={`grid gap-4 ${isSidebarOpen ? "md:grid-cols-[280px_minmax(0,1fr)]" : "md:grid-cols-[72px_minmax(0,1fr)]"}`}>
       <aside
         className={`rounded-2xl border border-black/10 bg-white/80 shadow-sm transition-all ${
-          isSidebarOpen ? "p-4" : "p-3"
+          isSidebarOpen ? "hidden p-4 md:block" : "hidden p-3 md:block"
         }`}
       >
         {isSidebarOpen ? (
-          <>
-            <div className="flex items-center gap-2">
-              <button
-                type="button"
-                onClick={startNewChat}
-                className="flex-1 rounded-xl bg-ink px-4 py-2 text-left text-sm font-semibold text-white transition hover:bg-black"
-              >
-                <span className="inline-flex items-center gap-2">
-                  <i className="bi bi-pencil-square text-[16px] leading-none" aria-hidden="true" />
-                  <span>New Chat</span>
-                </span>
-              </button>
-              <button
-                type="button"
-                onClick={() => setIsSidebarOpen(false)}
-                className="flex h-10 w-10 items-center justify-center rounded-xl border border-black/10 bg-white text-black/60 transition hover:border-black/20 hover:bg-black/5 hover:text-black"
-                aria-label="Collapse sidebar"
-                title="Collapse sidebar"
-              >
-                <i className="bi bi-layout-sidebar-inset-reverse text-[16px] leading-none" aria-hidden="true" />
-              </button>
-            </div>
-            <div className="mt-4 space-y-2 text-sm text-black/70">
-              {token ? (
-                <div className="space-y-2">
-                  <div className="text-xs font-semibold uppercase tracking-wide text-black/40">
-                    Chats {isLoadingChats ? "(loading...)" : `(${savedChats.length})`}
-                  </div>
-                  {savedChats.length === 0 && !isLoadingChats && (
-                    <div className="rounded-lg bg-black/5 p-2 text-xs text-black/50">
-                      No chats to display.
-                    </div>
-                  )}
-                  <ul className="max-h-[40vh] space-y-1 overflow-y-auto">
-                    {savedChats.map((chat) => (
-                      <li key={chat.id} className="flex items-center gap-1">
-                        <button
-                          type="button"
-                          onClick={() => void openChat(chat.id)}
-                          className={`flex-1 truncate rounded-lg px-2 py-1 text-left text-xs hover:bg-black/5 ${
-                            activeChatId === chat.id ? "bg-amber/30" : ""
-                          }`}
-                          title={chat.title}
-                        >
-                          {chat.title || `Chat ${chat.id}`}
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => void deleteChat(chat.id)}
-                          className="rounded-lg px-2 py-1 text-xs text-black/40 hover:bg-red-50 hover:text-red-700"
-                          aria-label="Delete chat"
-                        >
-                          ×
-                        </button>
-                      </li>
-                    ))}
-                  </ul>
-                </div>
-              ) : (
-                <div className="rounded-lg bg-black/5 p-2 text-xs text-black/60">
-                  Sign in via the <a className="font-semibold underline" href="/login">Login</a>{" "}
-                  page to save your chat history.
-                </div>
-              )}
-            </div>
-          </>
+          <ChatSidebarContent
+            token={token}
+            isLoadingChats={isLoadingChats}
+            savedChats={savedChats}
+            activeChatId={activeChatId}
+            onNewChat={startNewChat}
+            onOpenChat={openChat}
+            onDeleteChat={deleteChat}
+            onCollapse={() => setIsSidebarOpen(false)}
+          />
         ) : (
           <div className="flex h-full flex-col items-center gap-2">
             <button
@@ -989,7 +963,7 @@ export default function ChatPage() {
                         <div className="mb-3">
                           <button
                             type="button"
-                            onClick={() => setThinkingExpandedByIndex((current) => ({ ...current, [index]: !current[index] }))}
+                            onClick={() => setThinkingExpandedByIndex((current: Record<number, boolean>) => ({ ...current, [index]: !current[index] }))}
                             className="flex w-full items-center gap-2 rounded-lg px-2 py-1 text-left text-xs font-medium text-black/40 hover:bg-black/5"
                           >
                             <span className="flex-1">

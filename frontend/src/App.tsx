@@ -13,16 +13,43 @@ import ModelsPage from "./pages/ModelsPage";
 import NotFoundPage from "./pages/NotFoundPage";
 import ForbiddenPage from "./pages/ForbiddenPage";
 import { useAuth } from "./context/AuthContext";
+import { MobileNavProvider, type MobileNavSection } from "./context/MobileNavContext";
 import Modal from "./components/ui/Modal";
+import MobileNavDrawer, { type MobileNavItem } from "./components/ui/MobileNavDrawer";
 import {
   apiGet,
   BACKEND_UNAVAILABLE_EVENT,
   BACKEND_UNAVAILABLE_MESSAGE,
   isBackendUnavailableLocked,
 } from "./lib/api";
+import { type CurrentUser } from "./lib/session";
 
 const appVersionLabel = `v${__APP_VERSION__}`;
 const BACKEND_STATUS_POLL_INTERVAL_MS = 5000;
+
+function getMainNavItems(user: CurrentUser | null): MobileNavItem[] {
+  const items: MobileNavItem[] = [];
+
+  if (user) {
+    items.push({ to: "/", end: true, iconClassName: "bi bi-house", label: "Chat" });
+    items.push({ to: "/apikeys", iconClassName: "bi bi-key", label: "API" });
+    items.push({ to: "/status", iconClassName: "bi bi-activity", label: "Status" });
+  }
+
+  if (user?.is_admin) {
+    items.push({ to: "/devices", iconClassName: "bi bi-gpu-card", label: "Devices" });
+    items.push({ to: "/models", iconClassName: "bi bi-folder", label: "Models" });
+    items.push({ to: "/settings", iconClassName: "bi bi-gear", label: "Settings" });
+  }
+
+  items.push({
+    to: user ? "/profile" : "/login",
+    iconClassName: "bi bi-person",
+    label: user ? user.username : "Login",
+  });
+
+  return items;
+}
 
 function MainNavLink({
   iconClassName,
@@ -126,9 +153,12 @@ export default function App() {
   const { bootstrapError, isBootstrapping, logout, requiresSetup, user, sitename } = useAuth();
   const location = useLocation();
   const [backendUnavailable, setBackendUnavailable] = useState(() => isBackendUnavailableLocked());
+  const [isMobileNavOpen, setIsMobileNavOpen] = useState(false);
+  const [mobileNavSection, setMobileNavSection] = useState<MobileNavSection>(null);
   const showMainNav = !isBootstrapping && !requiresSetup;
   const showBackendUnavailableModal = backendUnavailable || (!isBootstrapping && Boolean(bootstrapError));
   const authRouteActive = location.pathname === "/login" || location.pathname === "/register";
+  const mainNavItems = getMainNavItems(user);
 
   const pageTitle = ((): string => {
     const path = location.pathname;
@@ -189,58 +219,70 @@ export default function App() {
     };
   }, [backendUnavailable]);
 
+  useEffect(() => {
+    setIsMobileNavOpen(false);
+  }, [location.pathname]);
+
   return (
     <div className="min-h-screen bg-[radial-gradient(circle_at_0%_0%,#f8fbf1_0%,#f4f0e0_45%,#efe8d2_100%)] text-ink font-body">
-      <div className="mx-auto max-w-7xl px-4 py-6 md:px-8">
-        <header className="relative z-50 mb-6 flex flex-wrap items-center justify-between gap-4 overflow-visible rounded-2xl border border-black/10 bg-white/80 p-4 shadow-sm backdrop-blur isolate">
-          <NavLink to="/" className="inline-flex items-baseline gap-3 rounded-lg focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ink/30">
-            <h1 className="font-display text-2xl font-semibold tracking-tight">{sitename}</h1>
-          </NavLink>
-          {showMainNav ? (
-            <nav className="flex flex-wrap items-center gap-2">
-              {user ? (
-                <MainNavLink to="/" end iconClassName="bi bi-house" label="Chat" />
-              ) : null}
-              {user ? (
-                <MainNavLink to="/apikeys" iconClassName="bi bi-key" label="API" />
-              ) : null}
-              {user ? (
-                <MainNavLink to="/status" iconClassName="bi bi-activity" label="Status" />
-              ) : null}
-              {user?.is_admin ? (
-                <MainNavLink to="/devices" iconClassName="bi bi-gpu-card" label="Devices" />
-              ) : null}
-              {user?.is_admin ? (
-                <MainNavLink to="/models" iconClassName="bi bi-folder" label="Models" />
-              ) : null}
-              {user?.is_admin ? (
-                <MainNavLink to="/settings" iconClassName="bi bi-gear" label="Settings" />
-              ) : null}
-              <MainNavLink to={user ? "/profile" : "/login"} iconClassName="bi bi-person" label={user ? user.username : "Login"} />
-            </nav>
-          ) : null}
-        </header>
+      <MobileNavProvider value={{ closeMobileNav: () => setIsMobileNavOpen(false), setMobileNavSection }}>
+        <div className="mx-auto max-w-7xl px-4 py-6 md:px-8">
+          <header className="relative z-50 mb-6 flex items-center justify-between gap-4 overflow-visible rounded-2xl border border-black/10 bg-white/80 p-4 shadow-sm backdrop-blur isolate">
+            <NavLink to="/" className="inline-flex items-baseline gap-3 rounded-lg focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ink/30">
+              <h1 className="font-display text-2xl font-semibold tracking-tight">{sitename}</h1>
+            </NavLink>
+            {showMainNav ? (
+              <>
+                <button
+                  type="button"
+                  onClick={() => setIsMobileNavOpen(true)}
+                  className="inline-flex items-center gap-2 rounded-xl border border-black/10 bg-white px-3 py-2 text-sm font-medium text-ink transition hover:border-black/20 hover:bg-black/5 md:hidden"
+                  aria-label="Open navigation menu"
+                  aria-expanded={isMobileNavOpen}
+                  aria-controls="mobile-nav-title"
+                >
+                  <i className="bi bi-list text-[18px] leading-none" aria-hidden="true" />
+                  <span>Menu</span>
+                </button>
+                <nav className="hidden items-center gap-2 md:flex">
+                  {mainNavItems.map((item) => (
+                    <MainNavLink key={`${item.to}-${item.label}`} to={item.to} end={item.end} iconClassName={item.iconClassName} label={item.label} />
+                  ))}
+                </nav>
+              </>
+            ) : null}
+          </header>
 
-        <Routes>
-          <Route path="/" element={<HomeRoute />} />
-          <Route path="/settings" element={<RequireAdmin><SettingsPage /></RequireAdmin>} />
-          <Route path="/configuration" element={<RequireAdmin><Navigate to="/settings" replace /></RequireAdmin>} />
-          <Route path="/devices" element={<RequireAdmin><DevicesPage /></RequireAdmin>} />
-          <Route path="/models" element={<RequireAdmin><ModelsPage /></RequireAdmin>} />
-          <Route path="/users" element={<RequireAdmin><Navigate to="/settings" replace /></RequireAdmin>} />
-          <Route path="/login" element={<AuthPage />} />
-          <Route path="/register" element={<RegisterPage />} />
-          <Route path="/auth" element={<Navigate to="/login" replace />} />
-          <Route path="/status" element={<RequireSetup><StatusPage /></RequireSetup>} />
-          <Route path="/profile" element={<RequireUser><ProfilePage /></RequireUser>} />
-          <Route path="/api" element={<Navigate to="/apikeys" replace />} />
-          <Route path="/apikeys" element={<RequireUser><ApiPage /></RequireUser>} />
-          <Route path="/setup" element={<SetupRoute />} />
-          <Route path="/403" element={<ForbiddenPage />} />
-          <Route path="/404" element={<NotFoundPage />} />
-          <Route path="*" element={requiresSetup ? <Navigate to="/setup" replace /> : <NotFoundPage />} />
-        </Routes>
-      </div>
+          <Routes>
+            <Route path="/" element={<HomeRoute />} />
+            <Route path="/settings" element={<RequireAdmin><SettingsPage /></RequireAdmin>} />
+            <Route path="/configuration" element={<RequireAdmin><Navigate to="/settings" replace /></RequireAdmin>} />
+            <Route path="/devices" element={<RequireAdmin><DevicesPage /></RequireAdmin>} />
+            <Route path="/models" element={<RequireAdmin><ModelsPage /></RequireAdmin>} />
+            <Route path="/users" element={<RequireAdmin><Navigate to="/settings" replace /></RequireAdmin>} />
+            <Route path="/login" element={<AuthPage />} />
+            <Route path="/register" element={<RegisterPage />} />
+            <Route path="/auth" element={<Navigate to="/login" replace />} />
+            <Route path="/status" element={<RequireSetup><StatusPage /></RequireSetup>} />
+            <Route path="/profile" element={<RequireUser><ProfilePage /></RequireUser>} />
+            <Route path="/api" element={<Navigate to="/apikeys" replace />} />
+            <Route path="/apikeys" element={<RequireUser><ApiPage /></RequireUser>} />
+            <Route path="/setup" element={<SetupRoute />} />
+            <Route path="/403" element={<ForbiddenPage />} />
+            <Route path="/404" element={<NotFoundPage />} />
+            <Route path="*" element={requiresSetup ? <Navigate to="/setup" replace /> : <NotFoundPage />} />
+          </Routes>
+
+          <MobileNavDrawer
+            open={showMainNav && isMobileNavOpen}
+            onClose={() => setIsMobileNavOpen(false)}
+            sitename={sitename}
+            versionLabel={appVersionLabel}
+            navItems={mainNavItems}
+            extraSection={mobileNavSection}
+          />
+        </div>
+      </MobileNavProvider>
 
       <Modal open={showBackendUnavailableModal} onClose={() => {}} labelledBy="backend-unavailable-title" describedBy="backend-unavailable-description" panelClassName="max-w-md">
         <div className="p-6 sm:p-7">
