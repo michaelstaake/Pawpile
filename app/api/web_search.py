@@ -18,10 +18,12 @@ router = APIRouter(prefix="/api/admin/web-search", tags=["web-search"])
 
 PROVIDER_DISPLAY_NAMES: dict[str, str] = {
     "brave": "Brave Search",
+    "serper": "Serper",
 }
 
 PROVIDER_DESCRIPTIONS: dict[str, str] = {
     "brave": "Web search powered by the Brave Search API.",
+    "serper": "Web search powered by the Serper.dev Google Search API.",
 }
 
 

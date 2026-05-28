@@ -7,7 +7,7 @@ import httpx
 
 logger = logging.getLogger(__name__)
 
-PROVIDER_TYPES: list[str] = ["brave"]
+PROVIDER_TYPES: list[str] = ["brave", "serper"]
 
 WEB_SEARCH_TOOL_DEFINITION: dict[str, Any] = {
     "type": "function",
@@ -68,9 +68,41 @@ class BraveSearchProvider(WebSearchProvider):
         return results
 
 
+class SerperSearchProvider(WebSearchProvider):
+    _BASE_URL = "https://google.serper.dev/search"
+
+    def __init__(self, api_key: str, result_count: int = 5) -> None:
+        self._api_key = api_key
+        self._result_count = max(1, min(20, result_count))
+
+    async def search(self, query: str) -> list[dict[str, Any]]:
+        async with httpx.AsyncClient(timeout=10.0) as client:
+            response = await client.post(
+                self._BASE_URL,
+                headers={
+                    "Content-Type": "application/json",
+                    "X-API-KEY": self._api_key,
+                },
+                json={"q": query, "num": self._result_count},
+            )
+            response.raise_for_status()
+            data = response.json()
+
+        results: list[dict[str, Any]] = []
+        for item in data.get("organic", []):
+            results.append({
+                "title": item.get("title", ""),
+                "url": item.get("link", ""),
+                "description": item.get("snippet", ""),
+            })
+        return results
+
+
 def get_search_provider(provider_type: str, api_key: str, result_count: int = 5) -> WebSearchProvider | None:
     if provider_type == "brave":
         return BraveSearchProvider(api_key, result_count)
+    if provider_type == "serper":
+        return SerperSearchProvider(api_key, result_count)
     return None
 
 

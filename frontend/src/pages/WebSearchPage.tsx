@@ -148,8 +148,7 @@ export default function WebSearchPage() {
           <div>
             <h2 className="mt-2 font-display text-xl">Web Search</h2>
             <p className="mt-1 max-w-2xl text-sm text-black/60">
-              Configure web search providers. Enable a provider with an API key, then select it as the active provider.
-              Models with web search enabled will use the active provider to answer questions requiring current information.
+              Web search can be used by capable models to research topics, access current events, or read online documentation. Ensure tool calling and web search is enabled in the settings for the model you want to use search capability.
             </p>
           </div>
 
