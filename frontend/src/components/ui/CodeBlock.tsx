@@ -34,22 +34,24 @@ export default function CodeBlock({ code, language }: CodeBlockProps) {
 
   return (
     <div className="my-3 w-full max-w-full overflow-hidden rounded-2xl border border-black/10 bg-ink text-sand shadow-sm first:mt-0 last:mb-0">
-      <div className="flex items-center justify-between gap-3 border-b border-white/10 px-4 py-2 text-[11px] uppercase tracking-[0.18em] text-sand/55">
-        <span>{language || "code"}</span>
-        <button
-          type="button"
-          onClick={() => void handleCopy()}
-          className="inline-flex items-center gap-1 rounded-md px-2 py-1 text-[10px] font-semibold tracking-[0.12em] text-sand/70 transition hover:bg-white/10 hover:text-sand"
-          aria-label="Copy code"
-          title="Copy code"
-        >
-          <i className="bi bi-clipboard text-[14px] leading-none" aria-hidden="true" />
-          <span>{copyState === "copied" ? "Copied" : copyState === "error" ? "Retry" : "Copy"}</span>
-        </button>
+      <div className="max-h-[28rem] overflow-y-auto">
+        <div className="sticky top-0 z-10 flex items-center justify-between gap-3 border-b border-white/10 bg-ink/95 px-4 py-2 text-[11px] uppercase tracking-[0.18em] text-sand/55 backdrop-blur-sm">
+          <span>{language || "code"}</span>
+          <button
+            type="button"
+            onClick={() => void handleCopy()}
+            className="inline-flex items-center gap-1 rounded-md px-2 py-1 text-[10px] font-semibold tracking-[0.12em] text-sand/70 transition hover:bg-white/10 hover:text-sand"
+            aria-label="Copy code"
+            title="Copy code"
+          >
+            <i className="bi bi-clipboard text-[14px] leading-none" aria-hidden="true" />
+            <span>{copyState === "copied" ? "Copied" : copyState === "error" ? "Retry" : "Copy"}</span>
+          </button>
+        </div>
+        <pre className="max-w-full overflow-x-auto px-4 py-4 text-[13px] leading-6 text-sand/95">
+          <code>{code}</code>
+        </pre>
       </div>
-      <pre className="max-w-full overflow-x-auto px-4 py-4 text-[13px] leading-6 text-sand/95">
-        <code>{code}</code>
-      </pre>
     </div>
   );
 }
