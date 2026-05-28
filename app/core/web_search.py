@@ -74,13 +74,15 @@ def get_search_provider(provider_type: str, api_key: str, result_count: int = 5)
     return None
 
 
-def parse_sse_chunks(chunks: list[str]) -> tuple[dict[str, Any], str | None]:
+def parse_sse_chunks(chunks: list) -> tuple[dict[str, Any], str | None]:
     """Parse SSE streaming chunks into an assembled assistant message and finish_reason."""
     content = ""
     tool_calls_by_index: dict[int, dict[str, Any]] = {}
     finish_reason: str | None = None
 
     for chunk in chunks:
+        if isinstance(chunk, bytes):
+            chunk = chunk.decode("utf-8", errors="replace")
         if not chunk.startswith("data: "):
             continue
         payload_str = chunk[6:].strip()
