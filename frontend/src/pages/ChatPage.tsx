@@ -824,9 +824,6 @@ export default function ChatPage() {
 
         {isNewChatEmptyState ? (
           <div className="mx-auto mb-6 w-full max-w-xl">
-            <div className="mb-2 text-center text-[11px] font-semibold uppercase tracking-[0.24em] text-black/40">
-              Model
-            </div>
             <select
               value={selectedModel}
               onChange={(event) => setSelectedModel(event.target.value)}
