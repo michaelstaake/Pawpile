@@ -114,29 +114,6 @@ const DOCUMENT_ATTACHMENT_SUFFIXES = new Set([".docx", ".ods", ".odt", ".pdf", "
 
 const AUTO_SCROLL_BOTTOM_THRESHOLD_PX = 48;
 
-const CHAT_STARTER_PROMPTS = [
-  {
-    title: "Map a problem",
-    prompt: "Help me break down this problem into concrete steps and identify the riskiest part first.",
-    iconClassName: "bi bi-diagram-3",
-  },
-  {
-    title: "Draft from notes",
-    prompt: "Turn these rough notes into a clear draft with a strong structure and concise wording.",
-    iconClassName: "bi bi-journal-text",
-  },
-  {
-    title: "Review code",
-    prompt: "Review this code for bugs, edge cases, and missing tests. Focus on the highest-risk issues first.",
-    iconClassName: "bi bi-code-slash",
-  },
-  {
-    title: "Explain a file",
-    prompt: "Explain what this file does, how the main pieces fit together, and where I should look next.",
-    iconClassName: "bi bi-search",
-  },
-];
-
 function hasKnownSuffix(name: string, suffixes: Set<string>): boolean {
   const lowerName = name.toLowerCase();
   for (const suffix of suffixes) {
@@ -380,11 +357,6 @@ export default function ChatPage() {
     setErrorMessage("");
     setActiveChatId(null);
     setAttachments([]);
-  }
-
-  function applyStarterPrompt(prompt: string) {
-    setInput(prompt);
-    inputRef.current?.focus();
   }
 
   async function openChat(chatId: number) {
@@ -801,30 +773,32 @@ export default function ChatPage() {
           </div>
         )}
       </aside>
-      <main className="rounded-2xl border border-black/10 bg-white/80 p-4 shadow-sm">
-        <div className="mb-4 flex items-center justify-between gap-2">
-          <div>
-            <h2 className="font-display text-lg">Chat</h2>
+      <main className={`rounded-2xl border border-black/10 bg-white/80 p-4 shadow-sm ${isNewChatEmptyState ? "flex min-h-[68vh] flex-col justify-center" : ""}`}>
+        {!isNewChatEmptyState ? (
+          <div className="mb-4 flex items-center justify-between gap-2">
+            <div>
+              <h2 className="font-display text-lg">Chat</h2>
+            </div>
+            <div className="flex items-center gap-2">
+              <select
+                value={selectedModel}
+                onChange={(event) => setSelectedModel(event.target.value)}
+                disabled={isLoadingModels || models.length === 0}
+                className="rounded-lg border border-black/20 bg-white px-3 py-2 text-sm"
+              >
+                {models.length === 0 ? (
+                  <option value="">{isLoadingModels ? "Loading models..." : "No active models"}</option>
+                ) : (
+                  models.map((alias) => (
+                    <option key={alias} value={alias}>
+                      {alias}
+                    </option>
+                  ))
+                )}
+              </select>
+            </div>
           </div>
-          <div className="flex items-center gap-2">
-            <select
-              value={selectedModel}
-              onChange={(event) => setSelectedModel(event.target.value)}
-              disabled={isLoadingModels || models.length === 0}
-              className="rounded-lg border border-black/20 bg-white px-3 py-2 text-sm"
-            >
-            {models.length === 0 ? (
-              <option value="">{isLoadingModels ? "Loading models..." : "No active models"}</option>
-            ) : (
-              models.map((alias) => (
-                <option key={alias} value={alias}>
-                  {alias}
-                </option>
-              ))
-            )}
-          </select>
-          </div>
-        </div>
+        ) : null}
 
         {errorMessage && (
           <div className="mb-3 rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-800">
@@ -849,82 +823,26 @@ export default function ChatPage() {
         )}
 
         {isNewChatEmptyState ? (
-          <div className="relative overflow-hidden rounded-[28px] border border-black/10 bg-[linear-gradient(135deg,rgba(255,255,255,0.88),rgba(245,242,232,0.95))] p-5 shadow-sm">
-            <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_top_left,rgba(84,242,195,0.22),transparent_34%),radial-gradient(circle_at_82%_20%,rgba(255,179,71,0.2),transparent_28%)]" />
-            <div className="relative grid gap-5 lg:grid-cols-[minmax(0,1.6fr)_minmax(320px,1fr)]">
-              <div>
-                <div className="inline-flex items-center gap-2 rounded-full border border-black/10 bg-white/70 px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.24em] text-black/45">
-                  <span className="h-2 w-2 rounded-full bg-mint" aria-hidden="true" />
-                  Fresh chat
-                </div>
-                <h3 className="mt-4 max-w-2xl font-display text-3xl leading-tight text-ink md:text-4xl">
-                  Start with something concrete.
-                </h3>
-                <p className="mt-3 max-w-2xl text-sm leading-7 text-black/65 md:text-[15px]">
-                  Ask for a draft, attach a file, review a code path, or use one of the prompt starters below to get the first turn moving.
-                </p>
-                <div className="mt-5 grid gap-3 sm:grid-cols-2">
-                  {CHAT_STARTER_PROMPTS.map((starter) => (
-                    <button
-                      key={starter.title}
-                      type="button"
-                      onClick={() => applyStarterPrompt(starter.prompt)}
-                      className="group rounded-2xl border border-black/10 bg-white/80 p-4 text-left shadow-sm transition hover:-translate-y-0.5 hover:border-black/20 hover:bg-white"
-                    >
-                      <div className="flex items-start justify-between gap-3">
-                        <div>
-                          <div className="text-sm font-semibold text-ink">{starter.title}</div>
-                          <div className="mt-2 text-sm leading-6 text-black/58">{starter.prompt}</div>
-                        </div>
-                        <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl bg-sand text-black/60 transition group-hover:bg-amber/35 group-hover:text-black">
-                          <i className={`${starter.iconClassName} text-[18px] leading-none`} aria-hidden="true" />
-                        </span>
-                      </div>
-                    </button>
-                  ))}
-                </div>
-              </div>
-
-              <div className="grid gap-3 self-start">
-                <div className="rounded-3xl border border-black/10 bg-ink p-5 text-white shadow-lg shadow-black/10">
-                  <div className="text-[11px] font-semibold uppercase tracking-[0.24em] text-white/55">Active model</div>
-                  <div className="mt-3 flex items-start justify-between gap-3">
-                    <div>
-                      <div className="text-xl font-semibold leading-tight">{selectedModel || (isLoadingModels ? "Loading models..." : "No active model")}</div>
-                      <div className="mt-2 text-sm leading-6 text-white/65">
-                        {models.length === 0
-                          ? user?.is_admin
-                            ? "Activate a model to start chatting."
-                            : "A model needs to be activated before you can chat."
-                          : selectedModelSupportsVision
-                            ? "Vision is enabled, so image attachments are ready to use."
-                            : "Text and document prompts are ready. Switch models if you need vision."}
-                      </div>
-                    </div>
-                    <span className="rounded-full border border-white/15 bg-white/10 px-3 py-1 text-xs font-medium text-white/80">
-                      {models.length === 0 ? "offline" : selectedModelSupportsVision ? "vision" : "text"}
-                    </span>
-                  </div>
-                </div>
-
-                <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-1 xl:grid-cols-2">
-                  <div className="rounded-2xl border border-black/10 bg-white/78 p-4">
-                    <div className="text-[11px] font-semibold uppercase tracking-[0.22em] text-black/40">Attachments</div>
-                    <div className="mt-2 text-sm font-semibold text-ink">Drop in files when you need context.</div>
-                    <div className="mt-2 text-sm leading-6 text-black/58">Text, images, and supported documents can all shape the first response.</div>
-                  </div>
-                  <div className="rounded-2xl border border-black/10 bg-white/78 p-4">
-                    <div className="text-[11px] font-semibold uppercase tracking-[0.22em] text-black/40">History</div>
-                    <div className="mt-2 text-sm font-semibold text-ink">
-                      {token ? `${savedChats.length} saved ${savedChats.length === 1 ? "chat" : "chats"}` : "Sign in to save chats"}
-                    </div>
-                    <div className="mt-2 text-sm leading-6 text-black/58">
-                      {token ? "Pick up an older thread from the sidebar or start something entirely new here." : "Conversation history is available once you sign in."}
-                    </div>
-                  </div>
-                </div>
-              </div>
+          <div className="mx-auto mb-6 w-full max-w-xl">
+            <div className="mb-2 text-center text-[11px] font-semibold uppercase tracking-[0.24em] text-black/40">
+              Model
             </div>
+            <select
+              value={selectedModel}
+              onChange={(event) => setSelectedModel(event.target.value)}
+              disabled={isLoadingModels || models.length === 0}
+              className="h-12 w-full rounded-xl border border-black/15 bg-white px-4 text-sm shadow-sm"
+            >
+              {models.length === 0 ? (
+                <option value="">{isLoadingModels ? "Loading models..." : "No active models"}</option>
+              ) : (
+                models.map((alias) => (
+                  <option key={alias} value={alias}>
+                    {alias}
+                  </option>
+                ))
+              )}
+            </select>
           </div>
         ) : shouldShowTranscript ? (
           <div
@@ -1021,7 +939,7 @@ export default function ChatPage() {
           </div>
         ) : null}
 
-        <form className="mt-4 flex flex-col gap-2" onSubmit={handleSubmit}>
+        <form className={`${isNewChatEmptyState ? "mx-auto w-full max-w-xl" : "mt-4"} flex flex-col gap-2`} onSubmit={handleSubmit}>
           {attachments.length > 0 && (
             <div className="flex flex-wrap gap-2 rounded-xl border border-black/10 bg-black/5 p-2">
               {attachments.map((file, idx) => (
