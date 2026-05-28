@@ -267,6 +267,7 @@ export default function ChatPage() {
   const [isLoadingModels, setIsLoadingModels] = useState(true);
   const [savedChats, setSavedChats] = useState<ChatSummary[]>([]);
   const [activeChatId, setActiveChatId] = useState<number | null>(null);
+  const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const [isLoadingChats, setIsLoadingChats] = useState(false);
   const transcriptRef = useRef<HTMLDivElement | null>(null);
   const shouldAutoScrollRef = useRef(true);
@@ -677,58 +678,98 @@ export default function ChatPage() {
   }
 
   return (
-    <section className="grid gap-4 md:grid-cols-[280px_1fr]">
-      <aside className="rounded-2xl border border-black/10 bg-white/80 p-4 shadow-sm">
-        <button
-          type="button"
-          onClick={startNewChat}
-          className="w-full rounded-xl bg-ink px-4 py-2 text-left text-sm font-semibold text-white transition hover:bg-black"
-        >
-          + New Chat
-        </button>
-        <div className="mt-4 space-y-2 text-sm text-black/70">
-          {token ? (
-            <div className="space-y-2">
-              <div className="text-xs font-semibold uppercase tracking-wide text-black/40">
-                Chats {isLoadingChats ? "(loading...)" : `(${savedChats.length})`}
-              </div>
-              {savedChats.length === 0 && !isLoadingChats && (
-                <div className="rounded-lg bg-black/5 p-2 text-xs text-black/50">
-                  No chats to display.
+    <section className={`grid gap-4 ${isSidebarOpen ? "md:grid-cols-[280px_1fr]" : "grid-cols-[72px_1fr]"}`}>
+      <aside
+        className={`rounded-2xl border border-black/10 bg-white/80 shadow-sm transition-all ${
+          isSidebarOpen ? "p-4" : "p-3"
+        }`}
+      >
+        {isSidebarOpen ? (
+          <>
+            <div className="flex items-center gap-2">
+              <button
+                type="button"
+                onClick={startNewChat}
+                className="flex-1 rounded-xl bg-ink px-4 py-2 text-left text-sm font-semibold text-white transition hover:bg-black"
+              >
+                + New Chat
+              </button>
+              <button
+                type="button"
+                onClick={() => setIsSidebarOpen(false)}
+                className="flex h-10 w-10 items-center justify-center rounded-xl border border-black/10 bg-white text-black/60 transition hover:border-black/20 hover:bg-black/5 hover:text-black"
+                aria-label="Collapse sidebar"
+                title="Collapse sidebar"
+              >
+                <i className="bi bi-layout-sidebar-inset-reverse text-[16px] leading-none" aria-hidden="true" />
+              </button>
+            </div>
+            <div className="mt-4 space-y-2 text-sm text-black/70">
+              {token ? (
+                <div className="space-y-2">
+                  <div className="text-xs font-semibold uppercase tracking-wide text-black/40">
+                    Chats {isLoadingChats ? "(loading...)" : `(${savedChats.length})`}
+                  </div>
+                  {savedChats.length === 0 && !isLoadingChats && (
+                    <div className="rounded-lg bg-black/5 p-2 text-xs text-black/50">
+                      No chats to display.
+                    </div>
+                  )}
+                  <ul className="max-h-[40vh] space-y-1 overflow-y-auto">
+                    {savedChats.map((chat) => (
+                      <li key={chat.id} className="flex items-center gap-1">
+                        <button
+                          type="button"
+                          onClick={() => void openChat(chat.id)}
+                          className={`flex-1 truncate rounded-lg px-2 py-1 text-left text-xs hover:bg-black/5 ${
+                            activeChatId === chat.id ? "bg-amber/30" : ""
+                          }`}
+                          title={chat.title}
+                        >
+                          {chat.title || `Chat ${chat.id}`}
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => void deleteChat(chat.id)}
+                          className="rounded-lg px-2 py-1 text-xs text-black/40 hover:bg-red-50 hover:text-red-700"
+                          aria-label="Delete chat"
+                        >
+                          ×
+                        </button>
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              ) : (
+                <div className="rounded-lg bg-black/5 p-2 text-xs text-black/60">
+                  Sign in via the <a className="font-semibold underline" href="/login">Login</a>{" "}
+                  page to save your chat history.
                 </div>
               )}
-              <ul className="max-h-[40vh] space-y-1 overflow-y-auto">
-                {savedChats.map((chat) => (
-                  <li key={chat.id} className="flex items-center gap-1">
-                    <button
-                      type="button"
-                      onClick={() => void openChat(chat.id)}
-                      className={`flex-1 truncate rounded-lg px-2 py-1 text-left text-xs hover:bg-black/5 ${
-                        activeChatId === chat.id ? "bg-amber/30" : ""
-                      }`}
-                      title={chat.title}
-                    >
-                      {chat.title || `Chat ${chat.id}`}
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => void deleteChat(chat.id)}
-                      className="rounded-lg px-2 py-1 text-xs text-black/40 hover:bg-red-50 hover:text-red-700"
-                      aria-label="Delete chat"
-                    >
-                      ×
-                    </button>
-                  </li>
-                ))}
-              </ul>
             </div>
-          ) : (
-            <div className="rounded-lg bg-black/5 p-2 text-xs text-black/60">
-              Sign in via the <a className="font-semibold underline" href="/login">Login</a>{" "}
-              page to save your chat history.
-            </div>
-          )}
-        </div>
+          </>
+        ) : (
+          <div className="flex h-full flex-col items-center gap-2">
+            <button
+              type="button"
+              onClick={startNewChat}
+              className="flex h-11 w-11 items-center justify-center rounded-xl bg-ink text-white transition hover:bg-black"
+              aria-label="Start a new chat"
+              title="New chat"
+            >
+              <i className="bi bi-pencil-square text-[18px] leading-none" aria-hidden="true" />
+            </button>
+            <button
+              type="button"
+              onClick={() => setIsSidebarOpen(true)}
+              className="flex h-11 w-11 items-center justify-center rounded-xl border border-black/10 bg-white text-black/60 transition hover:border-black/20 hover:bg-black/5 hover:text-black"
+              aria-label="Expand sidebar"
+              title="Expand sidebar"
+            >
+              <i className="bi bi-layout-sidebar-inset text-[18px] leading-none" aria-hidden="true" />
+            </button>
+          </div>
+        )}
       </aside>
       <main className="rounded-2xl border border-black/10 bg-white/80 p-4 shadow-sm">
         <div className="mb-4 flex items-center justify-between gap-2">
