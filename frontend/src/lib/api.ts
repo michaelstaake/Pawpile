@@ -1,6 +1,9 @@
 const BASE_URL = import.meta.env.VITE_API_BASE_URL ?? "";
 
 export const BACKEND_UNAVAILABLE_EVENT = "pawpile:backend-unavailable";
+export const BACKEND_UNAVAILABLE_MESSAGE = "Unable to communicate with backend. Ensure Pawpile containers are running.";
+
+let backendUnavailableLocked = false;
 
 type ApiErrorPayload = {
   detail?: string | { msg?: string } | Array<{ msg?: string }>;
@@ -12,7 +15,22 @@ type UploadProgress = {
 };
 
 function notifyBackendUnavailable() {
+  backendUnavailableLocked = true;
   window.dispatchEvent(new Event(BACKEND_UNAVAILABLE_EVENT));
+}
+
+function buildBackendUnavailableError(): Error {
+  return new Error(BACKEND_UNAVAILABLE_MESSAGE);
+}
+
+export function isBackendUnavailableLocked(): boolean {
+  return backendUnavailableLocked;
+}
+
+function ensureBackendAvailable() {
+  if (backendUnavailableLocked) {
+    throw buildBackendUnavailableError();
+  }
 }
 
 export function isBackendUnavailableResponse(status: number): boolean {
@@ -26,6 +44,7 @@ export function handleBackendUnavailableError(error: unknown): never {
 
   if (error instanceof TypeError) {
     notifyBackendUnavailable();
+    throw buildBackendUnavailableError();
   }
 
   throw error;
@@ -62,6 +81,8 @@ async function parseError(response: Response): Promise<Error> {
 }
 
 export async function apiGet<T>(path: string, token?: string): Promise<T> {
+  ensureBackendAvailable();
+
   let response: Response;
 
   try {
@@ -74,6 +95,7 @@ export async function apiGet<T>(path: string, token?: string): Promise<T> {
 
   if (isBackendUnavailableResponse(response.status)) {
     notifyBackendUnavailable();
+    throw buildBackendUnavailableError();
   }
 
   if (!response.ok) {
@@ -83,6 +105,8 @@ export async function apiGet<T>(path: string, token?: string): Promise<T> {
 }
 
 export async function apiPost<TRequest, TResponse>(path: string, payload: TRequest, token?: string): Promise<TResponse> {
+  ensureBackendAvailable();
+
   const headers: Record<string, string> = {
     "Content-Type": "application/json"
   };
@@ -105,6 +129,7 @@ export async function apiPost<TRequest, TResponse>(path: string, payload: TReque
 
   if (isBackendUnavailableResponse(response.status)) {
     notifyBackendUnavailable();
+    throw buildBackendUnavailableError();
   }
 
   if (!response.ok) {
@@ -115,6 +140,8 @@ export async function apiPost<TRequest, TResponse>(path: string, payload: TReque
 }
 
 export async function apiPatch<TRequest, TResponse>(path: string, payload: TRequest, token?: string): Promise<TResponse> {
+  ensureBackendAvailable();
+
   const headers: Record<string, string> = {
     "Content-Type": "application/json"
   };
@@ -137,6 +164,7 @@ export async function apiPatch<TRequest, TResponse>(path: string, payload: TRequ
 
   if (isBackendUnavailableResponse(response.status)) {
     notifyBackendUnavailable();
+    throw buildBackendUnavailableError();
   }
 
   if (!response.ok) {
@@ -147,6 +175,8 @@ export async function apiPatch<TRequest, TResponse>(path: string, payload: TRequ
 }
 
 export async function apiDelete<TResponse>(path: string, token?: string): Promise<TResponse> {
+  ensureBackendAvailable();
+
   let response: Response;
 
   try {
@@ -160,6 +190,7 @@ export async function apiDelete<TResponse>(path: string, token?: string): Promis
 
   if (isBackendUnavailableResponse(response.status)) {
     notifyBackendUnavailable();
+    throw buildBackendUnavailableError();
   }
 
   if (!response.ok) {
@@ -170,6 +201,8 @@ export async function apiDelete<TResponse>(path: string, token?: string): Promis
 }
 
 export async function apiPostForm<TResponse>(path: string, formData: FormData, token?: string): Promise<TResponse> {
+  ensureBackendAvailable();
+
   let response: Response;
 
   try {
@@ -184,6 +217,7 @@ export async function apiPostForm<TResponse>(path: string, formData: FormData, t
 
   if (isBackendUnavailableResponse(response.status)) {
     notifyBackendUnavailable();
+    throw buildBackendUnavailableError();
   }
 
   if (!response.ok) {
@@ -199,6 +233,8 @@ export async function apiPostFormWithProgress<TResponse>(
   token?: string,
   onProgress?: (progress: UploadProgress) => void,
 ): Promise<TResponse> {
+  ensureBackendAvailable();
+
   return new Promise<TResponse>((resolve, reject) => {
     const request = new XMLHttpRequest();
     request.open("POST", `${BASE_URL}${path}`);
@@ -224,6 +260,8 @@ export async function apiPostFormWithProgress<TResponse>(
 
       if (isBackendUnavailableResponse(request.status)) {
         notifyBackendUnavailable();
+        reject(buildBackendUnavailableError());
+        return;
       }
 
       if (request.status < 200 || request.status >= 300) {
@@ -240,7 +278,7 @@ export async function apiPostFormWithProgress<TResponse>(
 
     request.addEventListener("error", () => {
       notifyBackendUnavailable();
-      reject(new Error("Network error during upload"));
+      reject(buildBackendUnavailableError());
     });
 
     request.addEventListener("abort", () => {

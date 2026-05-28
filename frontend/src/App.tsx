@@ -14,9 +14,15 @@ import NotFoundPage from "./pages/NotFoundPage";
 import ForbiddenPage from "./pages/ForbiddenPage";
 import { useAuth } from "./context/AuthContext";
 import Modal from "./components/ui/Modal";
-import { BACKEND_UNAVAILABLE_EVENT } from "./lib/api";
+import {
+  apiGet,
+  BACKEND_UNAVAILABLE_EVENT,
+  BACKEND_UNAVAILABLE_MESSAGE,
+  isBackendUnavailableLocked,
+} from "./lib/api";
 
 const appVersionLabel = `v${__APP_VERSION__}`;
+const BACKEND_STATUS_POLL_INTERVAL_MS = 5000;
 
 function MainNavLink({
   iconClassName,
@@ -119,7 +125,7 @@ function SetupRoute() {
 export default function App() {
   const { bootstrapError, isBootstrapping, logout, requiresSetup, user, sitename } = useAuth();
   const location = useLocation();
-  const [backendUnavailable, setBackendUnavailable] = useState(false);
+  const [backendUnavailable, setBackendUnavailable] = useState(() => isBackendUnavailableLocked());
   const showMainNav = !isBootstrapping && !requiresSetup;
   const showBackendUnavailableModal = backendUnavailable || (!isBootstrapping && Boolean(bootstrapError));
   const authRouteActive = location.pathname === "/login" || location.pathname === "/register";
@@ -154,6 +160,34 @@ export default function App() {
     window.addEventListener(BACKEND_UNAVAILABLE_EVENT, handleBackendUnavailable);
     return () => window.removeEventListener(BACKEND_UNAVAILABLE_EVENT, handleBackendUnavailable);
   }, []);
+
+  useEffect(() => {
+    if (backendUnavailable) {
+      return;
+    }
+
+    let isMounted = true;
+
+    async function pollBackendAvailability() {
+      try {
+        await apiGet("/api/auth/bootstrap-status");
+      } catch {
+        if (!isMounted) {
+          return;
+        }
+      }
+    }
+
+    void pollBackendAvailability();
+    const intervalId = window.setInterval(() => {
+      void pollBackendAvailability();
+    }, BACKEND_STATUS_POLL_INTERVAL_MS);
+
+    return () => {
+      isMounted = false;
+      window.clearInterval(intervalId);
+    };
+  }, [backendUnavailable]);
 
   return (
     <div className="min-h-screen bg-[radial-gradient(circle_at_0%_0%,#f8fbf1_0%,#f4f0e0_45%,#efe8d2_100%)] text-ink font-body">
@@ -212,7 +246,7 @@ export default function App() {
         <div className="p-6 sm:p-7">
           <h2 id="backend-unavailable-title" className="font-display text-2xl font-semibold tracking-tight text-ink">Error</h2>
           <p id="backend-unavailable-description" className="mt-3 text-sm leading-6 text-black/70">
-            Unable to communicate with backend. Ensure Pawpile containers are running.
+            {BACKEND_UNAVAILABLE_MESSAGE}
           </p>
           <div className="mt-6 flex justify-end">
             <button
