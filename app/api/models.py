@@ -299,6 +299,7 @@ async def update_model(model_id: int, payload: ModelUpdateRequest, _: User = Dep
         "tool_calling_enabled",
         "discourage_thinking",
         "vision_enabled",
+        "web_search_enabled",
     ]:
         value = getattr(payload, field)
         if value is not None:
@@ -643,6 +644,7 @@ def _serialize_model(model: ModelConfig) -> dict:
         "tool_calling_enabled": model.tool_calling_enabled,
         "discourage_thinking": model.discourage_thinking,
         "vision_enabled": model.vision_enabled,
+        "web_search_enabled": model.web_search_enabled,
         "mmproj_file_name": model.mmproj_file_name,
         "assignment_mode": model.assignment_mode,
         "pinned_device_id": model.pinned_device_id,

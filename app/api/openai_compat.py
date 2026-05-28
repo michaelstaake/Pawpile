@@ -1,5 +1,8 @@
+import json
+import logging
 import time
 import uuid
+from typing import Any
 
 from fastapi import APIRouter, Depends, HTTPException
 from fastapi.responses import StreamingResponse
@@ -9,9 +12,16 @@ from app.api.deps import require_api_access
 from app.core.activity_logger import log_event
 from app.core.db import get_db
 from app.core.inference_manager import InferenceManager
+from app.core.web_search import WEB_SEARCH_TOOL_DEFINITION, get_search_provider, parse_sse_chunks
+from app.models.app_settings import AppSettings
 from app.models.model_config import ModelConfig
 from app.models.user import User
+from app.models.web_search_provider import WebSearchProvider as WebSearchProviderModel
 from app.utils.schemas import OpenAIChatRequest
+
+logger = logging.getLogger(__name__)
+
+_WEB_SEARCH_MAX_ITERATIONS = 5
 
 router = APIRouter(prefix="/v1", tags=["openai"])
 
@@ -88,6 +98,140 @@ def _apply_thinking_controls(messages: list[dict], model: ModelConfig, enabled: 
     return [{"role": "system", "content": "\n".join(prefix_lines)}, *messages]
 
 
+def _get_active_web_search_provider(db: Session) -> Any | None:
+    """Return an active, configured WebSearchProvider instance, or None."""
+    settings = db.query(AppSettings).filter(AppSettings.id == 1).first()
+    if not settings or settings.active_web_search_provider_id is None:
+        return None
+    provider_row = (
+        db.query(WebSearchProviderModel)
+        .filter(
+            WebSearchProviderModel.id == settings.active_web_search_provider_id,
+            WebSearchProviderModel.enabled.is_(True),
+        )
+        .first()
+    )
+    if not provider_row or not provider_row.api_key:
+        return None
+    return get_search_provider(provider_row.provider_type, provider_row.api_key, provider_row.result_count)
+
+
+async def _execute_web_searches(
+    tool_calls: list[dict[str, Any]],
+    provider: Any,
+) -> list[dict[str, Any]]:
+    """Execute web_search tool calls and return tool result messages."""
+    result_messages: list[dict[str, Any]] = []
+    for tc in tool_calls:
+        if tc.get("function", {}).get("name") != "web_search":
+            continue
+        try:
+            args = json.loads(tc.get("function", {}).get("arguments", "{}"))
+            query = args.get("query", "")
+            search_results = await provider.search(query)
+            content = json.dumps(search_results, ensure_ascii=False)
+        except Exception:
+            logger.exception("Web search failed for tool call %s", tc.get("id"))
+            content = json.dumps([{"error": "Search failed. Please try a different query."}])
+        result_messages.append({
+            "role": "tool",
+            "tool_call_id": tc.get("id", ""),
+            "content": content,
+        })
+    return result_messages
+
+
+async def _run_web_search_non_streaming(
+    inference: InferenceManager,
+    model_id: int,
+    request_payload: dict[str, Any],
+    provider: Any,
+) -> dict[str, Any]:
+    """Run the agentic web search loop for non-streaming requests.
+
+    Executes up to _WEB_SEARCH_MAX_ITERATIONS tool call turns, then returns
+    the final text response.
+    """
+    messages = list(request_payload["messages"])
+    tools = list(request_payload.get("tools") or [])
+
+    for _ in range(_WEB_SEARCH_MAX_ITERATIONS):
+        result = await inference.chat_completion(model_id, {**request_payload, "messages": messages, "tools": tools})
+        choices = result.get("choices", [])
+        if not choices:
+            return result
+
+        choice = choices[0]
+        if choice.get("finish_reason") != "tool_calls":
+            return result
+
+        message = choice.get("message", {})
+        tool_calls = message.get("tool_calls", [])
+        web_search_calls = [tc for tc in tool_calls if tc.get("function", {}).get("name") == "web_search"]
+        if not web_search_calls:
+            # Non-web-search tool calls — return as-is so the client can handle them
+            return result
+
+        messages = messages + [message]
+        tool_results = await _execute_web_searches(web_search_calls, provider)
+        messages = messages + tool_results
+
+    # Exhausted iterations — request a final text answer without tools
+    return await inference.chat_completion(model_id, {**request_payload, "messages": messages, "tools": []})
+
+
+async def _stream_with_web_search(
+    inference: InferenceManager,
+    model_id: int,
+    request_payload: dict[str, Any],
+    provider: Any,
+):
+    """Async generator for streaming responses with web search support.
+
+    Runs tool call turns as non-streaming internally, then streams the final answer.
+    """
+    messages = list(request_payload["messages"])
+    tools = list(request_payload.get("tools") or [])
+
+    for iteration in range(_WEB_SEARCH_MAX_ITERATIONS):
+        # For the last iteration, strip tools to force a text response
+        current_tools = [] if iteration == _WEB_SEARCH_MAX_ITERATIONS - 1 else tools
+
+        # Buffer the stream to detect tool calls
+        buffered: list[str] = []
+        async for chunk in inference.stream_chat_completion(model_id, {
+            **request_payload,
+            "messages": messages,
+            "tools": current_tools,
+            "stream_options": {"include_usage": True},
+        }):
+            buffered.append(chunk)
+
+        message, finish_reason = parse_sse_chunks(buffered)
+        tool_calls = message.get("tool_calls", [])
+        web_search_calls = [tc for tc in tool_calls if tc.get("function", {}).get("name") == "web_search"]
+
+        if finish_reason != "tool_calls" or not web_search_calls:
+            # Final answer — stream it out
+            for chunk in buffered:
+                yield chunk
+            return
+
+        # Execute searches and continue loop
+        messages = messages + [message]
+        tool_results = await _execute_web_searches(web_search_calls, provider)
+        messages = messages + tool_results
+
+    # Exhausted iterations — stream the final answer without tools
+    async for chunk in inference.stream_chat_completion(model_id, {
+        **request_payload,
+        "messages": messages,
+        "tools": [],
+        "stream_options": {"include_usage": True},
+    }):
+        yield chunk
+
+
 @router.get("/models")
 def v1_models(_: User = Depends(require_api_access), db: Session = Depends(get_db)) -> dict:
     models = (
@@ -129,6 +273,12 @@ async def v1_chat_completions(payload: OpenAIChatRequest, current_user: User = D
                 status_code=400,
                 detail="Tool calling is disabled for this model. Enable tool calling in the model settings before sending tool requests.",
             )
+
+    if model.web_search_enabled and not model.tool_calling_enabled:
+        raise HTTPException(
+            status_code=400,
+            detail="Web search requires tool calling to be enabled for this model. Enable tool calling in the model settings.",
+        )
 
     if payload.requests_vision() and not model.vision_enabled:
         raise HTTPException(
@@ -174,6 +324,40 @@ async def v1_chat_completions(payload: OpenAIChatRequest, current_user: User = D
         model,
         bool(request_payload.get("enable_thinking", True)),
     )
+
+    # Web search: inject the web_search tool and run the agentic loop if enabled
+    active_web_search_provider = _get_active_web_search_provider(db) if model.web_search_enabled else None
+    if active_web_search_provider is not None:
+        existing_tools = list(request_payload.get("tools") or [])
+        already_has_web_search = any(
+            t.get("function", {}).get("name") == "web_search"
+            for t in existing_tools
+            if t.get("type") == "function"
+        )
+        if not already_has_web_search:
+            request_payload["tools"] = existing_tools + [WEB_SEARCH_TOOL_DEFINITION]
+
+        if payload.stream:
+            async def web_search_event_stream():
+                try:
+                    async for chunk in _stream_with_web_search(inference, model.id, request_payload, active_web_search_provider):
+                        yield chunk
+                except RuntimeError as exc:
+                    err_msg = str(exc).replace("\\", "\\\\").replace('"', '\\"')
+                    yield f'data: {{"error": {{"message": "{err_msg}"}}}}\n\n'
+                    yield "data: [DONE]\n\n"
+
+            return StreamingResponse(web_search_event_stream(), media_type="text/event-stream")
+
+        result = await _run_web_search_non_streaming(inference, model.id, request_payload, active_web_search_provider)
+        return {
+            "id": f"chatcmpl-{uuid.uuid4().hex}",
+            "object": "chat.completion",
+            "created": int(time.time()),
+            "model": model.alias,
+            "choices": result.get("choices", []),
+            "usage": result.get("usage", {}),
+        }
 
     if payload.stream:
         async def event_stream():

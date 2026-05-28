@@ -6,7 +6,7 @@ from pathlib import Path
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
-from app.api import admin, auth, chat, devices, logs, models, openai_compat, status
+from app.api import admin, auth, chat, devices, logs, models, openai_compat, status, web_search as web_search_api
 from app.core.activity_logger import prune_old_logs, schedule_daily_pruning
 from app.core.app_settings import get_or_create_app_settings
 from app.core.config import get_settings
@@ -49,6 +49,7 @@ async def lifespan(_: FastAPI):
                 },
             )
         get_or_create_app_settings(db)
+        web_search_api.seed_providers(db)
         models.scan_models_dir(db)
         activated_models = (
             db.query(ModelConfig)
@@ -103,6 +104,7 @@ app.include_router(devices.router)
 app.include_router(models.router)
 app.include_router(chat.router)
 app.include_router(admin.router)
+app.include_router(web_search_api.router)
 app.include_router(logs.router)
 app.include_router(openai_compat.router)
 app.include_router(status.router)

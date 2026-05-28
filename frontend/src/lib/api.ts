@@ -288,3 +288,23 @@ export async function apiPostFormWithProgress<TResponse>(
     request.send(formData);
   });
 }
+
+export async function fetchWebSearchProviders<T>(token?: string): Promise<T> {
+  return apiGet<T>("/api/admin/web-search/providers", token);
+}
+
+export async function updateWebSearchProvider<TRequest, TResponse>(
+  providerType: string,
+  payload: TRequest,
+  token?: string,
+): Promise<TResponse> {
+  return apiPatch<TRequest, TResponse>(`/api/admin/web-search/providers/${providerType}`, payload, token);
+}
+
+export async function fetchActiveWebSearchProvider<T>(token?: string): Promise<T> {
+  return apiGet<T>("/api/admin/web-search/active", token);
+}
+
+export async function setActiveWebSearchProvider<T>(providerType: string | null, token?: string): Promise<T> {
+  return apiPatch<{ provider_type: string | null }, T>("/api/admin/web-search/active", { provider_type: providerType }, token);
+}

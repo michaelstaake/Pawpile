@@ -184,6 +184,30 @@ class AppSettingsUpdateRequest(BaseModel):
     sitename: str | None = None
 
 
+class WebSearchProviderResponse(BaseModel):
+    id: int
+    provider_type: str
+    display_name: str
+    description: str
+    enabled: bool
+    api_key_set: bool
+    result_count: int
+
+
+class WebSearchProviderUpdateRequest(BaseModel):
+    enabled: bool | None = None
+    api_key: str | None = None
+    result_count: int | None = Field(default=None, ge=1, le=20)
+
+
+class ActiveProviderResponse(BaseModel):
+    provider_type: str | None
+
+
+class ActiveProviderUpdateRequest(BaseModel):
+    provider_type: str | None
+
+
 class UserCreateRequest(BaseModel):
     username: str = Field(min_length=3, max_length=64)
     email: str = Field(min_length=3, max_length=255)
@@ -258,6 +282,7 @@ class ModelUpdateRequest(BaseModel):
     tool_calling_enabled: bool | None = None
     discourage_thinking: bool | None = None
     vision_enabled: bool | None = None
+    web_search_enabled: bool | None = None
     assignment_mode: str | None = None
     pinned_device_id: int | None = None
     pinned_pool_id: int | None = None

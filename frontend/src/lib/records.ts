@@ -1,3 +1,17 @@
+export type WebSearchProviderRecord = {
+  id: number;
+  provider_type: string;
+  display_name: string;
+  description: string;
+  enabled: boolean;
+  api_key_set: boolean;
+  result_count: number;
+};
+
+export type ActiveProviderRecord = {
+  provider_type: string | null;
+};
+
 export type UserRecord = {
   id: number;
   username: string;
@@ -39,6 +53,7 @@ export type ModelRecord = {
   tool_calling_enabled: boolean;
   discourage_thinking: boolean;
   vision_enabled: boolean;
+  web_search_enabled: boolean;
   mmproj_file_name: string | null;
   assignment_mode: string;
   pinned_device_id: number | null;
