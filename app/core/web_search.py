@@ -79,41 +79,53 @@ def parse_sse_chunks(chunks: list) -> tuple[dict[str, Any], str | None]:
     content = ""
     tool_calls_by_index: dict[int, dict[str, Any]] = {}
     finish_reason: str | None = None
+    buffer_parts: list[str] = []
 
     for chunk in chunks:
         if isinstance(chunk, bytes):
             chunk = chunk.decode("utf-8", errors="replace")
-        if not chunk.startswith("data: "):
-            continue
-        payload_str = chunk[6:].strip()
-        if payload_str == "[DONE]":
-            continue
-        try:
-            data = json.loads(payload_str)
-        except (json.JSONDecodeError, ValueError):
+        buffer_parts.append(chunk)
+
+    buffer = "".join(buffer_parts).replace("\r\n", "\n")
+
+    for event in buffer.split("\n\n"):
+        if not event.strip():
             continue
 
-        for choice in data.get("choices", []):
-            delta = choice.get("delta", {})
-            if delta.get("content"):
-                content += delta["content"]
-            for tc_delta in delta.get("tool_calls", []):
-                idx = tc_delta.get("index", 0)
-                if idx not in tool_calls_by_index:
-                    tool_calls_by_index[idx] = {
-                        "id": "",
-                        "type": "function",
-                        "function": {"name": "", "arguments": ""},
-                    }
-                if tc_delta.get("id"):
-                    tool_calls_by_index[idx]["id"] = tc_delta["id"]
-                fn = tc_delta.get("function", {})
-                if fn.get("name"):
-                    tool_calls_by_index[idx]["function"]["name"] += fn["name"]
-                if fn.get("arguments"):
-                    tool_calls_by_index[idx]["function"]["arguments"] += fn["arguments"]
-            if choice.get("finish_reason"):
-                finish_reason = choice["finish_reason"]
+        for line in event.split("\n"):
+            if not line.startswith("data:"):
+                continue
+
+            payload_str = line[5:].strip()
+            if not payload_str or payload_str == "[DONE]":
+                continue
+
+            try:
+                data = json.loads(payload_str)
+            except (json.JSONDecodeError, ValueError):
+                continue
+
+            for choice in data.get("choices", []):
+                delta = choice.get("delta", {})
+                if delta.get("content"):
+                    content += delta["content"]
+                for tc_delta in delta.get("tool_calls", []):
+                    idx = tc_delta.get("index", 0)
+                    if idx not in tool_calls_by_index:
+                        tool_calls_by_index[idx] = {
+                            "id": "",
+                            "type": "function",
+                            "function": {"name": "", "arguments": ""},
+                        }
+                    if tc_delta.get("id"):
+                        tool_calls_by_index[idx]["id"] = tc_delta["id"]
+                    fn = tc_delta.get("function", {})
+                    if fn.get("name"):
+                        tool_calls_by_index[idx]["function"]["name"] += fn["name"]
+                    if fn.get("arguments"):
+                        tool_calls_by_index[idx]["function"]["arguments"] += fn["arguments"]
+                if choice.get("finish_reason"):
+                    finish_reason = choice["finish_reason"]
 
     message: dict[str, Any] = {"role": "assistant", "content": content or None}
     if tool_calls_by_index:
