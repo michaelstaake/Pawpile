@@ -33,6 +33,7 @@ export default function MobileNavDrawer({
         open={open}
         onClose={onClose}
         labelledBy="mobile-nav-title"
+        fullScreen
         overlayClassName="bg-[#fffdf7] p-0 backdrop-blur-none sm:p-0"
         layoutClassName="items-stretch justify-stretch py-0 sm:items-stretch sm:justify-stretch sm:py-0"
         panelClassName="flex min-h-full w-full max-w-none flex-col rounded-none border-0 bg-[#fffdf7] shadow-none"

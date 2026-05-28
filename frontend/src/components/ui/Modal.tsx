@@ -6,6 +6,7 @@ type ModalProps = PropsWithChildren<{
   onClose: () => void;
   labelledBy: string;
   describedBy?: string;
+  fullScreen?: boolean;
   overlayClassName?: string;
   layoutClassName?: string;
   panelClassName?: string;
@@ -24,6 +25,7 @@ export default function Modal({
   onClose,
   labelledBy,
   describedBy,
+  fullScreen = false,
   overlayClassName = "",
   layoutClassName = "",
   panelClassName = "",
@@ -106,8 +108,13 @@ export default function Modal({
   }
 
   return createPortal(
-    <div className={`fixed inset-0 z-[100] overflow-y-auto bg-black/45 p-4 backdrop-blur-sm sm:p-6 ${overlayClassName}`.trim()} aria-hidden={false}>
-      <div className={`flex min-h-full items-start justify-center py-4 sm:items-center sm:py-8 ${layoutClassName}`.trim()}>
+    <div
+      className={`fixed inset-0 z-[100] overflow-y-auto bg-black/45 ${fullScreen ? "" : "p-4 backdrop-blur-sm sm:p-6"} ${overlayClassName}`.trim()}
+      aria-hidden={false}
+    >
+      <div
+        className={`flex min-h-full items-start justify-center ${fullScreen ? "" : "py-4 sm:items-center sm:py-8"} ${layoutClassName}`.trim()}
+      >
         <div className="fixed inset-0" aria-hidden="true" onClick={onClose} />
         <div
           ref={panelRef}
