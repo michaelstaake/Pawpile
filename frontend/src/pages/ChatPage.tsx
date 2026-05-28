@@ -278,6 +278,7 @@ export default function ChatPage() {
   const selectedModelSupportsVision = selectedModel ? (modelVisionDefaults[selectedModel] ?? false) : false;
   const shouldShowTranscript = activeChatId !== null || messages.length > 0;
   const isNewChatEmptyState = activeChatId === null && messages.length === 0;
+  const shouldShowNoModelsEmptyState = isNewChatEmptyState && !isLoadingModels && models.length === 0;
 
   useEffect(() => {
     void loadModels();
@@ -806,7 +807,7 @@ export default function ChatPage() {
           </div>
         )}
 
-        {!isLoadingModels && models.length === 0 && (
+        {!shouldShowNoModelsEmptyState && !isLoadingModels && models.length === 0 && (
           <div className="mb-3 rounded-lg border border-amber/40 bg-amber/10 px-3 py-2 text-sm text-black/70">
             {user?.is_admin ? (
               <>
@@ -822,7 +823,26 @@ export default function ChatPage() {
           </div>
         )}
 
-        {isNewChatEmptyState ? (
+        {shouldShowNoModelsEmptyState ? (
+          <div className="mx-auto w-full max-w-2xl rounded-[28px] border border-amber/35 bg-[linear-gradient(180deg,rgba(255,255,255,0.98),rgba(245,242,232,0.92))] px-8 py-10 text-center shadow-sm">
+            <div className="mx-auto flex h-20 w-20 items-center justify-center rounded-full bg-white shadow-sm">
+              <i
+                className="bi bi-emoji-frown bg-[linear-gradient(135deg,#ff7a59_0%,#ffb347_28%,#54f2c3_56%,#6fb8ff_78%,#ff86b7_100%)] bg-clip-text text-[42px] leading-none text-transparent"
+                aria-hidden="true"
+              />
+            </div>
+            <div className="mt-6 text-xl font-semibold text-ink md:text-2xl">No active models</div>
+            <div className="mt-3 text-sm leading-7 text-black/68 md:text-[15px]">
+              {user?.is_admin ? (
+                <>
+                  No models are active yet. Open the <a className="font-semibold underline" href="/models">Models</a> page to get started.
+                </>
+              ) : (
+                "No models are active. Contact your system administrator for assistance."
+              )}
+            </div>
+          </div>
+        ) : isNewChatEmptyState ? (
           <div className="mx-auto mb-6 w-full max-w-xl">
             <select
               value={selectedModel}
@@ -936,7 +956,8 @@ export default function ChatPage() {
           </div>
         ) : null}
 
-        <form className={`${isNewChatEmptyState ? "mx-auto w-full max-w-xl" : "mt-4"} flex flex-col gap-2`} onSubmit={handleSubmit}>
+        {!shouldShowNoModelsEmptyState ? (
+          <form className={`${isNewChatEmptyState ? "mx-auto w-full max-w-xl" : "mt-4"} flex flex-col gap-2`} onSubmit={handleSubmit}>
           {attachments.length > 0 && (
             <div className="flex flex-wrap gap-2 rounded-xl border border-black/10 bg-black/5 p-2">
               {attachments.map((file, idx) => (
@@ -1008,7 +1029,8 @@ export default function ChatPage() {
               </button>
             )}
           </div>
-        </form>
+          </form>
+        ) : null}
       </main>
     </section>
   );
