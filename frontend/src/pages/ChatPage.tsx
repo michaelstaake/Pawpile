@@ -219,6 +219,10 @@ function formatAttachmentFallbackText(file: Attachment): string {
   return `[Attached File: ${file.name} (Binary File, ${sizeLabel})]`;
 }
 
+function formatAttachmentLabel(file: Attachment): string {
+  return `[Attached File: ${file.name}]`;
+}
+
 function describeAttachment(file: Attachment): string {
   if (file.kind === "image") {
     return "Image attachment";
@@ -1181,8 +1185,9 @@ function buildUserMessageContent(inputText: string, attachments: Attachment[]): 
 
   for (const file of attachments) {
     if (file.content) {
-      const attachmentText = `[Attached File: ${file.name}]\n\`\`\`\n${file.content}\n\`\`\``;
-      displaySegments.push(attachmentText);
+      const displayAttachmentText = formatAttachmentLabel(file);
+      const attachmentText = `${displayAttachmentText}\n\`\`\`\n${file.content}\n\`\`\``;
+      displaySegments.push(displayAttachmentText);
       contentParts.push({ type: "text", text: attachmentText });
       continue;
     }
@@ -1199,9 +1204,10 @@ function buildUserMessageContent(inputText: string, attachments: Attachment[]): 
   }
 
   const containsImage = attachments.some((file) => file.kind === "image" && file.dataUrl);
+  const containsHiddenAttachmentContent = attachments.some((file) => Boolean(file.content));
   return {
     displayContent: displaySegments.join("\n\n"),
-    apiContent: containsImage ? contentParts : displaySegments.join("\n\n"),
+    apiContent: containsImage || containsHiddenAttachmentContent ? contentParts : displaySegments.join("\n\n"),
   };
 }
 
