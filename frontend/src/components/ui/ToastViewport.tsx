@@ -4,15 +4,11 @@ import { useToast } from "../../context/ToastContext";
 
 const TOAST_STYLES = {
   success: {
-    iconClassName: "bi bi-check-circle-fill",
     cardClassName: "border-emerald-200 bg-emerald-50/95 text-emerald-900",
-    iconClassNames: "text-emerald-600",
     closeClassName: "text-emerald-700/80 hover:bg-emerald-100 hover:text-emerald-900",
   },
   error: {
-    iconClassName: "bi bi-exclamation-octagon-fill",
     cardClassName: "border-rose-200 bg-rose-50/95 text-rose-900",
-    iconClassNames: "text-rose-600",
     closeClassName: "text-rose-700/80 hover:bg-rose-100 hover:text-rose-900",
   },
 } as const;
@@ -42,7 +38,6 @@ export default function ToastViewport() {
             className={`pointer-events-auto rounded-2xl border p-4 shadow-lg shadow-black/10 backdrop-blur transition duration-200 animate-[toast-in_180ms_ease-out] ${style.cardClassName}`}
           >
             <div className="flex items-start gap-3">
-              <i className={`${style.iconClassName} mt-0.5 text-base leading-none ${style.iconClassNames}`} aria-hidden="true" />
               <p className="min-w-0 flex-1 text-sm leading-6">{toast.message}</p>
               <button
                 type="button"
