@@ -1,10 +1,12 @@
 import { useEffect, useState } from "react";
 import { apiGet, apiPatch } from "../lib/api";
 import { useAuth } from "../context/AuthContext";
+import { useToast } from "../context/ToastContext";
 import { AppSettingsRecord } from "../lib/records";
 
 export default function ConfigurationPage() {
   const { refreshPublicSettings, token } = useAuth();
+  const { showError, showSuccess } = useToast();
   const [settings, setSettings] = useState<AppSettingsRecord>({
     users_can_register: false,
     sitename: "Pawpile",
@@ -12,8 +14,6 @@ export default function ConfigurationPage() {
   const [localSitename, setLocalSitename] = useState("Pawpile");
   const [isLoading, setIsLoading] = useState(true);
   const [isSaving, setIsSaving] = useState<keyof AppSettingsRecord | null>(null);
-  const [errorMessage, setErrorMessage] = useState("");
-  const [successMessage, setSuccessMessage] = useState("");
 
   useEffect(() => {
     if (!token) {
@@ -30,12 +30,11 @@ export default function ConfigurationPage() {
 
   async function loadSettings(activeToken: string) {
     setIsLoading(true);
-    setErrorMessage("");
     try {
       const response = await apiGet<AppSettingsRecord>("/api/admin/settings", activeToken);
       setSettings(response);
     } catch (error) {
-      setErrorMessage(error instanceof Error ? error.message : "Failed to load configuration settings");
+      showError(error instanceof Error ? error.message : "Failed to load configuration settings");
     } finally {
       setIsLoading(false);
     }
@@ -50,17 +49,15 @@ export default function ConfigurationPage() {
     const nextSettings = { ...settings, [settingName]: nextValue };
     setSettings(nextSettings as AppSettingsRecord);
     setIsSaving(settingName);
-    setErrorMessage("");
-    setSuccessMessage("");
 
     try {
       const response = await apiPatch<Partial<AppSettingsRecord>, AppSettingsRecord>("/api/admin/settings", { [settingName]: nextValue }, token);
       setSettings(response);
       await refreshPublicSettings();
-      setSuccessMessage("Configuration updated.");
+      showSuccess("Configuration updated.");
     } catch (error) {
       setSettings(previousSettings);
-      setErrorMessage(error instanceof Error ? error.message : "Failed to update configuration setting");
+      showError(error instanceof Error ? error.message : "Failed to update configuration setting");
     } finally {
       setIsSaving(null);
     }
@@ -68,17 +65,6 @@ export default function ConfigurationPage() {
 
   return (
     <section className="grid gap-4">
-      {errorMessage ? (
-        <div className="rounded-2xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700 shadow-sm">
-          {errorMessage}
-        </div>
-      ) : null}
-      {successMessage ? (
-        <div className="rounded-2xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-700 shadow-sm">
-          {successMessage}
-        </div>
-      ) : null}
-
       <article className="rounded-2xl border border-black/10 bg-white/80 p-5 shadow-sm backdrop-blur">
         <h2 className="font-display text-xl">Configuration</h2>
 

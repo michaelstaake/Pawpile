@@ -2,6 +2,7 @@ import { type ChangeEvent, type FormEvent, useEffect, useRef, useState } from "r
 import { apiDelete, apiGet, apiPost, apiPostForm, handleBackendUnavailableError, isBackendUnavailableResponse } from "../lib/api";
 import { useAuth } from "../context/AuthContext";
 import { useMobileNav } from "../context/MobileNavContext";
+import { useToast } from "../context/ToastContext";
 import { getStoredToken } from "../lib/session";
 import ChatSidebarContent from "../components/ui/ChatSidebarContent";
 import MessageContent from "../components/ui/MessageContent";
@@ -267,6 +268,7 @@ function describeAttachment(file: Attachment): string {
 export default function ChatPage() {
   const { token, user } = useAuth();
   const { closeMobileNav, setMobileNavSection } = useMobileNav();
+  const { showError } = useToast();
   const [models, setModels] = useState<string[]>([]);
   const [modelVisionDefaults, setModelVisionDefaults] = useState<Record<string, boolean>>({});
   const [modelSearchAvailability, setModelSearchAvailability] = useState<Record<string, boolean>>({});
@@ -275,7 +277,6 @@ export default function ChatPage() {
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [input, setInput] = useState("");
   const [isSending, setIsSending] = useState(false);
-  const [errorMessage, setErrorMessage] = useState("");
   const [isLoadingModels, setIsLoadingModels] = useState(true);
   const [savedChats, setSavedChats] = useState<ChatSummary[]>([]);
   const [activeChatId, setActiveChatId] = useState<number | null>(null);
@@ -404,7 +405,6 @@ export default function ChatPage() {
 
   async function loadModels() {
     setIsLoadingModels(true);
-    setErrorMessage("");
     try {
       const response = await apiGet<ModelListResponse>("/v1/models", token || undefined);
       const aliases = response.data.map((entry) => entry.id);
@@ -419,7 +419,7 @@ export default function ChatPage() {
       setModels(aliases);
       setSelectedModel((current: string) => current || aliases[0] || "");
     } catch (error) {
-      setErrorMessage(error instanceof Error ? error.message : "Failed to load models");
+      showError(error instanceof Error ? error.message : "Failed to load models");
     } finally {
       setIsLoadingModels(false);
     }
@@ -477,7 +477,6 @@ export default function ChatPage() {
     enableTranscriptAutoScroll();
     setMessages([]);
     setInput("");
-    setErrorMessage("");
     setActiveChatId(null);
     setAttachments([]);
   }
@@ -486,7 +485,6 @@ export default function ChatPage() {
     if (!token) {
       return;
     }
-    setErrorMessage("");
     try {
       const detail = await apiGet<ChatDetailResponse>(`/api/chat/${chatId}`, token);
       enableTranscriptAutoScroll();
@@ -503,7 +501,7 @@ export default function ChatPage() {
       setInput("");
       setAttachments([]);
     } catch (error) {
-      setErrorMessage(error instanceof Error ? error.message : "Failed to load chat");
+      showError(error instanceof Error ? error.message : "Failed to load chat");
     }
   }
 
@@ -518,7 +516,7 @@ export default function ChatPage() {
         startNewChat();
       }
     } catch (error) {
-      setErrorMessage(error instanceof Error ? error.message : "Failed to delete chat");
+      showError(error instanceof Error ? error.message : "Failed to delete chat");
     }
   }
 
@@ -642,23 +640,22 @@ export default function ChatPage() {
       return;
     }
     if (!selectedModel) {
-      setErrorMessage("Activate a model on the Models page before chatting.");
+      showError("Activate a model on the Models page before chatting.");
       return;
     }
 
     if (attachments.some((file: Attachment) => file.type.startsWith("image/") && file.dataUrl) && !selectedModelSupportsVision) {
-      setErrorMessage("Vision is disabled for the selected model. Enable vision in the model settings or switch to a vision-enabled model before sending images.");
+      showError("Vision is disabled for the selected model. Enable vision in the model settings or switch to a vision-enabled model before sending images.");
       return;
     }
 
     setIsSending(true);
-    setErrorMessage("");
 
     let preparedAttachments: Attachment[];
     try {
       preparedAttachments = await resolveDocumentAttachments(attachments, token ?? undefined);
     } catch (error) {
-      setErrorMessage(error instanceof Error ? error.message : "Failed to extract attachment text");
+      showError(error instanceof Error ? error.message : "Failed to extract attachment text");
       setIsSending(false);
       return;
     }
@@ -780,7 +777,7 @@ export default function ChatPage() {
         }
       } else {
         const detail = error instanceof Error ? error.message : "Chat request failed";
-        setErrorMessage(detail);
+        showError(detail);
         setMessages((current: ChatMessage[]) => {
           if (current.length === 0) {
             return current;
@@ -870,12 +867,6 @@ export default function ChatPage() {
             </div>
           </div>
         ) : null}
-
-        {errorMessage && (
-          <div className="mb-3 rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-800">
-            {errorMessage}
-          </div>
-        )}
 
         {!shouldShowNoModelsEmptyState && !isLoadingModels && models.length === 0 && (
           <div className="mb-3 rounded-lg border border-amber/40 bg-amber/10 px-3 py-2 text-sm text-black/70">

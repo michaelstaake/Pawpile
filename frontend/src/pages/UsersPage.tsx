@@ -3,6 +3,7 @@ import { Link } from "react-router-dom";
 import Modal from "../components/ui/Modal";
 import { apiGet, apiPatch, apiPost } from "../lib/api";
 import { useAuth } from "../context/AuthContext";
+import { useToast } from "../context/ToastContext";
 import { UserRecord, UserUpdateResponse } from "../lib/records";
 
 type CreateUserPayload = {
@@ -15,14 +16,13 @@ type CreateUserPayload = {
 
 export default function UsersPage() {
   const { token, user: currentUser } = useAuth();
+  const { showError, showSuccess } = useToast();
   const [users, setUsers] = useState<UserRecord[]>([]);
   const [newUser, setNewUser] = useState<CreateUserPayload>({ username: "", email: "", password: "", is_admin: false, is_active: true });
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [isCreatingUser, setIsCreatingUser] = useState(false);
   const [savingUserId, setSavingUserId] = useState<number | null>(null);
-  const [errorMessage, setErrorMessage] = useState("");
-  const [successMessage, setSuccessMessage] = useState("");
 
   useEffect(() => {
     if (!token) {
@@ -37,7 +37,7 @@ export default function UsersPage() {
       const response = await apiGet<UserRecord[]>("/api/admin/users", activeToken);
       setUsers(response.map((user) => ({ ...user, password: "" })));
     } catch (error) {
-      setErrorMessage(error instanceof Error ? error.message : "Failed to load users");
+      showError(error instanceof Error ? error.message : "Failed to load users");
     } finally {
       setIsLoading(false);
     }
@@ -54,17 +54,15 @@ export default function UsersPage() {
     }
 
     setIsCreatingUser(true);
-    setErrorMessage("");
-    setSuccessMessage("");
 
     try {
       const response = await apiPost<CreateUserPayload, UserUpdateResponse>("/api/admin/users", newUser, token);
       setUsers((current) => [...current, { ...response.user, password: "" }].sort((left, right) => left.username.localeCompare(right.username)));
       setNewUser({ username: "", email: "", password: "", is_admin: false, is_active: true });
       setIsCreateModalOpen(false);
-      setSuccessMessage(`Created user ${response.user.username}.`);
+      showSuccess(`Created user ${response.user.username}.`);
     } catch (error) {
-      setErrorMessage(error instanceof Error ? error.message : "User creation failed");
+      showError(error instanceof Error ? error.message : "User creation failed");
     } finally {
       setIsCreatingUser(false);
     }
@@ -76,8 +74,6 @@ export default function UsersPage() {
     }
 
     setSavingUserId(user.id);
-    setErrorMessage("");
-    setSuccessMessage("");
 
     try {
       const payload: Record<string, string | boolean> = {
@@ -92,9 +88,9 @@ export default function UsersPage() {
 
       const response = await apiPatch<Record<string, string | boolean>, UserUpdateResponse>(`/api/admin/users/${user.id}`, payload, token);
       setUsers((current) => current.map((item) => (item.id === user.id ? { ...response.user, password: "" } : item)));
-      setSuccessMessage(`Saved ${response.user.username}.`);
+      showSuccess(`Saved ${response.user.username}.`);
     } catch (error) {
-      setErrorMessage(error instanceof Error ? error.message : "User update failed");
+      showError(error instanceof Error ? error.message : "User update failed");
     } finally {
       setSavingUserId(null);
     }
@@ -104,9 +100,6 @@ export default function UsersPage() {
 
   return (
     <section className="grid gap-4">
-      {errorMessage ? <p className="rounded-xl border border-rose-200 bg-rose-50 px-3 py-2 text-sm text-rose-700">{errorMessage}</p> : null}
-      {successMessage ? <p className="rounded-xl border border-emerald-200 bg-emerald-50 px-3 py-2 text-sm text-emerald-700">{successMessage}</p> : null}
-
       <article className="rounded-3xl border border-black/10 bg-white/85 p-5 shadow-sm backdrop-blur">
         <div className="flex flex-wrap items-start justify-between gap-4">
           <div>

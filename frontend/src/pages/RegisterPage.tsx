@@ -1,23 +1,21 @@
 import { FormEvent, useState } from "react";
 import { Navigate, Link } from "react-router-dom";
 import { useAuth } from "../context/AuthContext";
+import { useToast } from "../context/ToastContext";
 
 export default function RegisterPage() {
   const { user, requiresSetup, isBootstrapping, isAuthenticating, register, usersCanRegister } = useAuth();
+  const { showError, showSuccess } = useToast();
   const [registerUsername, setRegisterUsername] = useState("");
   const [registerEmail, setRegisterEmail] = useState("");
   const [registerPassword, setRegisterPassword] = useState("");
   const [registerConfirmPassword, setRegisterConfirmPassword] = useState("");
-  const [errorMessage, setErrorMessage] = useState("");
-  const [successMessage, setSuccessMessage] = useState("");
 
   async function handleRegister(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    setErrorMessage("");
-    setSuccessMessage("");
 
     if (registerPassword !== registerConfirmPassword) {
-      setErrorMessage("Passwords do not match.");
+      showError("Passwords do not match.");
       return;
     }
 
@@ -25,9 +23,9 @@ export default function RegisterPage() {
       await register(registerUsername, registerEmail, registerPassword);
       setRegisterPassword("");
       setRegisterConfirmPassword("");
-      setSuccessMessage("Account created.");
+      showSuccess("Account created.");
     } catch (error) {
-      setErrorMessage(error instanceof Error ? error.message : "Registration failed");
+      showError(error instanceof Error ? error.message : "Registration failed");
     }
   }
 
@@ -47,9 +45,6 @@ export default function RegisterPage() {
     <section className="mx-auto max-w-xl">
       <article className="rounded-[2rem] border border-black/10 bg-white/90 p-6 shadow-sm backdrop-blur">
         <h2 className="font-display text-2xl">Create an account</h2>
-
-        {errorMessage ? <p className="mt-5 rounded-2xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700">{errorMessage}</p> : null}
-        {successMessage ? <p className="mt-5 rounded-2xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-700">{successMessage}</p> : null}
 
         <form className="mt-6 grid gap-4" onSubmit={handleRegister}>
           <label className="grid gap-2 text-sm text-black/70">

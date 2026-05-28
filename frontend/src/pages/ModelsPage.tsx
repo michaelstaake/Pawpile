@@ -1,6 +1,7 @@
 import { type DragEvent, type FormEvent, useEffect, useRef, useState } from "react";
 import { apiDelete, apiGet, apiPatch, apiPost, apiPostFormWithProgress } from "../lib/api";
 import { useAuth } from "../context/AuthContext";
+import { useToast } from "../context/ToastContext";
 import { formatDeviceIdLabel } from "../lib/deviceIds";
 import { AssetUploadResponse, DeviceRecord, GpuPoolRecord, ModelRecord, ModelUpdateResponse, ScanResponse, UploadResponse } from "../lib/records";
 import Modal from "../components/ui/Modal";
@@ -179,6 +180,7 @@ function formatUploadEta(seconds: number | null): string {
 
 export default function ModelsPage({ setupMode = false, onComplete }: ModelsPageProps) {
   const { token } = useAuth();
+  const { showError, showSuccess } = useToast();
   const [models, setModels] = useState<ModelRecord[]>([]);
   const [hasLoadedModels, setHasLoadedModels] = useState(false);
   const [devices, setDevices] = useState<DeviceRecord[]>([]);
@@ -189,7 +191,6 @@ export default function ModelsPage({ setupMode = false, onComplete }: ModelsPage
   const [modalNumericDrafts, setModalNumericDraftsState] = useState<Record<string, string>>({});
   const [isSavingModal, setIsSavingModal] = useState(false);
   const [isDeletingModal, setIsDeletingModal] = useState(false);
-  const [modalError, setModalError] = useState("");
   const [draggedModelId, setDraggedModelId] = useState<number | null>(null);
   const [isUploadModalOpen, setIsUploadModalOpen] = useState(false);
   const [uploadMode, setUploadMode] = useState<UploadModalMode>("model");
@@ -206,8 +207,6 @@ export default function ModelsPage({ setupMode = false, onComplete }: ModelsPage
   const [savingModelIds, setSavingModelIds] = useState<number[]>([]);
   const [pendingModelIds, setPendingModelIds] = useState<number[]>([]);
   const [loadingActivationIds, setLoadingActivationIds] = useState<number[]>([]);
-  const [errorMessage, setErrorMessage] = useState("");
-  const [successMessage, setSuccessMessage] = useState("");
   const latestModelsRef = useRef<ModelRecord[]>([]);
   const uploadInputRef = useRef<HTMLInputElement | null>(null);
   const savedConfigRef = useRef<Record<number, string>>({});
@@ -259,7 +258,7 @@ export default function ModelsPage({ setupMode = false, onComplete }: ModelsPage
       setPendingModelIds([]);
       setLoadingActivationIds([]);
     } catch (error) {
-      setErrorMessage(error instanceof Error ? error.message : "Failed to load model data");
+      showError(error instanceof Error ? error.message : "Failed to load model data", { id: "models-error" });
     } finally {
       setHasLoadedModels(true);
       setIsLoading(false);
@@ -285,8 +284,6 @@ export default function ModelsPage({ setupMode = false, onComplete }: ModelsPage
   }
 
   function updateModelDraft(modelId: number, updates: Partial<ModelRecord>) {
-    setErrorMessage("");
-    setSuccessMessage("");
     setModels((current) => current.map((model) => (model.id === modelId ? { ...model, ...updates } : model)));
     scheduleModelSave(modelId);
   }
@@ -347,12 +344,12 @@ export default function ModelsPage({ setupMode = false, onComplete }: ModelsPage
     }
 
     if (uploadMode === "model" && selectedUploadFiles.length === 0) {
-      setErrorMessage("Choose a .gguf file to upload.");
+      showError("Choose a .gguf file to upload.", { id: "models-error" });
       return;
     }
 
     if (uploadMode === "files" && (selectedUploadFiles.length === 0 || uploadTargetModelId == null)) {
-      setErrorMessage("Choose one or more files to upload.");
+      showError("Choose one or more files to upload.", { id: "models-error" });
       return;
     }
 
@@ -365,8 +362,6 @@ export default function ModelsPage({ setupMode = false, onComplete }: ModelsPage
     }
     const totalBytes = filesToUpload.reduce((total, file) => total + file.size, 0);
 
-    setErrorMessage("");
-    setSuccessMessage("");
     setIsUploading(true);
     setIsProcessingUpload(false);
     setIsUploadModalOpen(false);
@@ -389,7 +384,7 @@ export default function ModelsPage({ setupMode = false, onComplete }: ModelsPage
         applyUploadedModel(response.model);
         resetUploadSelection();
         setUploadProgress({ loaded: totalBytes, total: totalBytes });
-        setSuccessMessage(`Uploaded ${response.model.file_name}.`);
+        showSuccess(`Uploaded ${response.model.file_name}.`, { id: "models-success" });
       } else {
         const response = await apiPostFormWithProgress<AssetUploadResponse>(`/api/models/${uploadTargetModelId}/files`, formData, token, (progress) => {
           const total = progress.total || totalBytes;
@@ -404,10 +399,10 @@ export default function ModelsPage({ setupMode = false, onComplete }: ModelsPage
         applyUploadedModel(response.model);
         resetUploadSelection();
         setUploadProgress({ loaded: totalBytes, total: totalBytes });
-        setSuccessMessage(`Uploaded ${response.uploaded.length} file${response.uploaded.length === 1 ? "" : "s"} to ${response.model.alias}.`);
+        showSuccess(`Uploaded ${response.uploaded.length} file${response.uploaded.length === 1 ? "" : "s"} to ${response.model.alias}.`, { id: "models-success" });
       }
     } catch (error) {
-      setErrorMessage(error instanceof Error ? error.message : uploadMode === "model" ? "Upload failed" : "File upload failed");
+      showError(error instanceof Error ? error.message : uploadMode === "model" ? "Upload failed" : "File upload failed", { id: "models-error" });
     } finally {
       setIsUploading(false);
       setIsProcessingUpload(false);
@@ -420,16 +415,14 @@ export default function ModelsPage({ setupMode = false, onComplete }: ModelsPage
       return;
     }
 
-    setErrorMessage("");
-    setSuccessMessage("");
     setIsScanning(true);
 
     try {
       const response = await apiPost<Record<string, never>, ScanResponse>("/api/models/scan", {}, token);
       await refreshData(token);
-      setSuccessMessage(`Scan finished. Found ${response.discovered} files and added ${response.added} new models.`);
+      showSuccess(`Scan finished. Found ${response.discovered} files and added ${response.added} new models.`, { id: "models-success" });
     } catch (error) {
-      setErrorMessage(error instanceof Error ? error.message : "Scan failed");
+      showError(error instanceof Error ? error.message : "Scan failed", { id: "models-error" });
     } finally {
       setIsScanning(false);
     }
@@ -461,8 +454,6 @@ export default function ModelsPage({ setupMode = false, onComplete }: ModelsPage
     savingIdsRef.current.add(modelId);
     setSavingModelIds((current) => (current.includes(modelId) ? current : [...current, modelId]));
     setPendingModelIds((current) => current.filter((id) => id !== modelId));
-    setErrorMessage("");
-    setSuccessMessage("");
 
     let savedSuccessfully = false;
 
@@ -493,14 +484,14 @@ export default function ModelsPage({ setupMode = false, onComplete }: ModelsPage
         setModels((current) => current.map((item) => (item.id === model.id ? { ...item, activated: model.activated } : item)));
       }
 
-      setSuccessMessage(`Saved settings for ${model.alias}.`);
+      showSuccess(`Saved settings for ${model.alias}.`, { id: "models-success" });
       savedSuccessfully = true;
     } catch (error) {
       if (activationChanged) {
         const previousActivation = savedActivationRef.current[model.id];
         setModels((current) => current.map((item) => (item.id === model.id ? { ...item, activated: previousActivation } : item)));
       }
-      setErrorMessage(error instanceof Error ? error.message : "Model update failed");
+      showError(error instanceof Error ? error.message : "Model update failed", { id: "models-error" });
     } finally {
       savingIdsRef.current.delete(modelId);
       setSavingModelIds((current) => current.filter((id) => id !== modelId));
@@ -523,8 +514,6 @@ export default function ModelsPage({ setupMode = false, onComplete }: ModelsPage
     }
 
     setIsReordering(true);
-    setErrorMessage("");
-    setSuccessMessage("");
 
     try {
       await apiPost<{ models: { id: number; priority: number }[] }, { status: string }>(
@@ -534,10 +523,10 @@ export default function ModelsPage({ setupMode = false, onComplete }: ModelsPage
         },
         token,
       );
-      setSuccessMessage("Saved model order.");
+      showSuccess("Saved model order.", { id: "models-success" });
     } catch (error) {
       setModels(previousModels);
-      setErrorMessage(error instanceof Error ? error.message : "Failed to save model order");
+      showError(error instanceof Error ? error.message : "Failed to save model order", { id: "models-error" });
     } finally {
       setIsReordering(false);
     }
@@ -549,15 +538,13 @@ export default function ModelsPage({ setupMode = false, onComplete }: ModelsPage
     }
     const nextActivated = !model.activated;
     setLoadingActivationIds((current) => (current.includes(model.id) ? current : [...current, model.id]));
-    setErrorMessage("");
-    setSuccessMessage("");
     try {
       await apiPost<Record<string, never>, { status: string }>(`/api/models/${model.id}/${nextActivated ? "activate" : "deactivate"}`, {}, token);
       setModels((current) => current.map((item) => (item.id === model.id ? { ...item, activated: nextActivated } : item)));
       savedActivationRef.current[model.id] = nextActivated;
-      setSuccessMessage(`${model.alias} ${nextActivated ? "enabled" : "disabled"}.`);
+      showSuccess(`${model.alias} ${nextActivated ? "enabled" : "disabled"}.`, { id: "models-success" });
     } catch (error) {
-      setErrorMessage(error instanceof Error ? error.message : "Failed to update model activation");
+      showError(error instanceof Error ? error.message : "Failed to update model activation", { id: "models-error" });
     } finally {
       setLoadingActivationIds((current) => current.filter((itemId) => itemId !== model.id));
     }
@@ -568,7 +555,6 @@ export default function ModelsPage({ setupMode = false, onComplete }: ModelsPage
     setModalDraft({ ...model });
     setModalContextLengthMode(model.max_context_length != null && model.context_length === model.max_context_length ? "auto" : "custom");
     setModalNumericDraftsState({});
-    setModalError("");
   }
 
   function closeSettingsModal() {
@@ -576,7 +562,6 @@ export default function ModelsPage({ setupMode = false, onComplete }: ModelsPage
     setModalDraft(null);
     setModalContextLengthMode("custom");
     setModalNumericDraftsState({});
-    setModalError("");
   }
 
   function updateModalDraft(updates: Partial<ModelRecord>) {
@@ -620,7 +605,6 @@ export default function ModelsPage({ setupMode = false, onComplete }: ModelsPage
       return;
     }
     setIsSavingModal(true);
-    setModalError("");
     try {
       const response = await apiPatch<Record<string, string | number | boolean | null>, ModelUpdateResponse>(`/api/models/${modalDraft.id}`, buildModelPayload(modalDraft), token);
       savedConfigRef.current[modalDraft.id] = serializeModelConfig(response.model);
@@ -632,10 +616,10 @@ export default function ModelsPage({ setupMode = false, onComplete }: ModelsPage
           return { ...response.model, activated: item.activated };
         })
       );
-      setSuccessMessage(`Saved settings for ${response.model.alias}.`);
+      showSuccess(`Saved settings for ${response.model.alias}.`, { id: "models-success" });
       closeSettingsModal();
     } catch (error) {
-      setModalError(error instanceof Error ? error.message : "Failed to save model settings");
+      showError(error instanceof Error ? error.message : "Failed to save model settings", { id: "models-error" });
     } finally {
       setIsSavingModal(false);
     }
@@ -647,7 +631,7 @@ export default function ModelsPage({ setupMode = false, onComplete }: ModelsPage
     }
 
     if (modalDraft.activated) {
-      setModalError("Disable this model before deleting it.");
+      showError("Disable this model before deleting it.", { id: "models-error" });
       return;
     }
 
@@ -657,7 +641,6 @@ export default function ModelsPage({ setupMode = false, onComplete }: ModelsPage
     }
 
     setIsDeletingModal(true);
-    setModalError("");
 
     try {
       await apiDelete<{ status: string }>(`/api/models/${modalDraft.id}`, token);
@@ -674,10 +657,10 @@ export default function ModelsPage({ setupMode = false, onComplete }: ModelsPage
       setPendingModelIds((current) => current.filter((id) => id !== modalDraft.id));
       setSavingModelIds((current) => current.filter((id) => id !== modalDraft.id));
       setLoadingActivationIds((current) => current.filter((id) => id !== modalDraft.id));
-      setSuccessMessage(`Deleted ${modalDraft.alias}.`);
+      showSuccess(`Deleted ${modalDraft.alias}.`, { id: "models-success" });
       closeSettingsModal();
     } catch (error) {
-      setModalError(error instanceof Error ? error.message : "Failed to delete model");
+      showError(error instanceof Error ? error.message : "Failed to delete model", { id: "models-error" });
     } finally {
       setIsDeletingModal(false);
     }
@@ -789,9 +772,6 @@ export default function ModelsPage({ setupMode = false, onComplete }: ModelsPage
 
         {setupMode ? <p className="mt-2 max-w-3xl text-sm text-black/70">Register and activate at least one model to complete setup.</p> : null}
 
-        {errorMessage ? <p className="mt-4 rounded-xl border border-rose-200 bg-rose-50 px-3 py-2 text-sm text-rose-700">{errorMessage}</p> : null}
-        {successMessage ? <p className="mt-4 rounded-xl border border-emerald-200 bg-emerald-50 px-3 py-2 text-sm text-emerald-700">{successMessage}</p> : null}
-
         {isUploading || selectedUploadFiles.length > 0 ? (
           <div className="mt-3 grid gap-3 rounded-2xl border border-dashed border-black/15 bg-sand/70 p-4">
             <div className="flex flex-wrap items-center justify-between gap-2">
@@ -898,10 +878,6 @@ export default function ModelsPage({ setupMode = false, onComplete }: ModelsPage
               {modalDraft.file_name}
               {modalDraft.file_size != null ? <span className="ml-2">({formatFileSize(modalDraft.file_size)})</span> : null}
             </p>
-
-            {modalError ? (
-              <p className="mt-4 rounded-xl border border-rose-200 bg-rose-50 px-3 py-2 text-sm text-rose-700">{modalError}</p>
-            ) : null}
 
             <div className="mt-5 grid gap-5">
               <section>

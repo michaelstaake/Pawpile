@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { useAuth } from "../context/AuthContext";
+import { useToast } from "../context/ToastContext";
 import {
   fetchActiveWebSearchProvider,
   fetchWebSearchProviders,
@@ -26,14 +27,13 @@ function buildDraft(provider: WebSearchProviderRecord): ProviderDraft {
 
 export default function WebSearchPage() {
   const { token } = useAuth();
+  const { showError, showSuccess } = useToast();
   const [providers, setProviders] = useState<WebSearchProviderRecord[]>([]);
   const [drafts, setDrafts] = useState<Record<string, ProviderDraft>>({});
   const [activeProviderType, setActiveProviderType] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const [savingType, setSavingType] = useState<string | null>(null);
   const [settingActive, setSettingActive] = useState(false);
-  const [errorMessage, setErrorMessage] = useState("");
-  const [successMessage, setSuccessMessage] = useState("");
   const hasLoaded = useRef(false);
 
   useEffect(() => {
@@ -44,7 +44,6 @@ export default function WebSearchPage() {
 
   async function load(activeToken: string) {
     setIsLoading(true);
-    setErrorMessage("");
     try {
       const [providerList, activeRecord] = await Promise.all([
         fetchWebSearchProviders<WebSearchProviderRecord[]>(activeToken),
@@ -54,7 +53,7 @@ export default function WebSearchPage() {
       setDrafts(Object.fromEntries(providerList.map((p) => [p.provider_type, buildDraft(p)])));
       setActiveProviderType(activeRecord.provider_type);
     } catch (error) {
-      setErrorMessage(error instanceof Error ? error.message : "Failed to load web search settings");
+      showError(error instanceof Error ? error.message : "Failed to load web search settings");
     } finally {
       setIsLoading(false);
     }
@@ -76,8 +75,6 @@ export default function WebSearchPage() {
     const finalResultCount = !isNaN(resultCountParsed) ? Math.max(1, Math.min(20, resultCountParsed)) : draft.result_count;
 
     setSavingType(providerType);
-    setErrorMessage("");
-    setSuccessMessage("");
 
     try {
       const updated = await updateWebSearchProvider<
@@ -104,9 +101,9 @@ export default function WebSearchPage() {
         setActiveProviderType(null);
       }
 
-      setSuccessMessage(`Saved ${updated.display_name} settings.`);
+      showSuccess(`Saved ${updated.display_name} settings.`);
     } catch (error) {
-      setErrorMessage(error instanceof Error ? error.message : "Failed to save provider settings");
+      showError(error instanceof Error ? error.message : "Failed to save provider settings");
     } finally {
       setSavingType(null);
     }
@@ -115,19 +112,17 @@ export default function WebSearchPage() {
   async function handleSetActive(providerType: string | null) {
     if (!token || settingActive) return;
     setSettingActive(true);
-    setErrorMessage("");
-    setSuccessMessage("");
     try {
       await setActiveWebSearchProvider(providerType, token);
       setActiveProviderType(providerType);
       if (providerType) {
         const provider = providers.find((p) => p.provider_type === providerType);
-        setSuccessMessage(`${provider?.display_name ?? providerType} set as the active provider.`);
+        showSuccess(`${provider?.display_name ?? providerType} set as the active provider.`);
       } else {
-        setSuccessMessage("Active provider cleared.");
+        showSuccess("Active provider cleared.");
       }
     } catch (error) {
-      setErrorMessage(error instanceof Error ? error.message : "Failed to set active provider");
+      showError(error instanceof Error ? error.message : "Failed to set active provider");
     } finally {
       setSettingActive(false);
     }
@@ -180,13 +175,6 @@ export default function WebSearchPage() {
             </select>
           </div>
         </div>
-
-        {errorMessage ? (
-          <p className="mt-4 rounded-xl border border-rose-200 bg-rose-50 px-3 py-2 text-sm text-rose-700">{errorMessage}</p>
-        ) : null}
-        {successMessage ? (
-          <p className="mt-4 rounded-xl border border-emerald-200 bg-emerald-50 px-3 py-2 text-sm text-emerald-700">{successMessage}</p>
-        ) : null}
 
         {isLoading ? (
           <p className="mt-6 text-sm text-black/50">Loading...</p>

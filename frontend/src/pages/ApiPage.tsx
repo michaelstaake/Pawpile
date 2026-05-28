@@ -2,6 +2,7 @@ import { FormEvent, useEffect, useState } from "react";
 import Modal from "../components/ui/Modal";
 import { apiDelete, apiGet, apiPost } from "../lib/api";
 import { useAuth } from "../context/AuthContext";
+import { useToast } from "../context/ToastContext";
 import { ApiKeyCreateResponse, ApiKeyRecord } from "../lib/records";
 
 const MINUTE_IN_MS = 60 * 1000;
@@ -33,16 +34,14 @@ function formatLastUsed(value: string | null): string {
 
 export default function ApiPage() {
   const { token, user } = useAuth();
+  const { showError, showSuccess } = useToast();
   const [apiKeys, setApiKeys] = useState<ApiKeyRecord[]>([]);
   const [newKeyName, setNewKeyName] = useState("");
   const [latestApiKey, setLatestApiKey] = useState("");
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
-  const [copyState, setCopyState] = useState<"idle" | "copied" | "failed">("idle");
   const [isLoadingKeys, setIsLoadingKeys] = useState(false);
   const [isCreatingKey, setIsCreatingKey] = useState(false);
   const [revokingKeyId, setRevokingKeyId] = useState<number | null>(null);
-  const [errorMessage, setErrorMessage] = useState("");
-  const [successMessage, setSuccessMessage] = useState("");
 
   useEffect(() => {
     if (!token || !user) {
@@ -58,7 +57,7 @@ export default function ApiPage() {
       const response = await apiGet<ApiKeyRecord[]>("/api/auth/api-keys", activeToken);
       setApiKeys(response);
     } catch (error) {
-      setErrorMessage(error instanceof Error ? error.message : "Failed to load API keys");
+      showError(error instanceof Error ? error.message : "Failed to load API keys");
     } finally {
       setIsLoadingKeys(false);
     }
@@ -71,19 +70,16 @@ export default function ApiPage() {
     }
 
     setIsCreatingKey(true);
-    setErrorMessage("");
-    setSuccessMessage("");
 
     try {
       const response = await apiPost<{ name: string }, ApiKeyCreateResponse>("/api/auth/api-keys", { name: newKeyName }, token);
       setApiKeys((current) => [response.api_key, ...current]);
       setLatestApiKey(response.plain_text_key);
-      setCopyState("idle");
       setNewKeyName("");
       setIsCreateModalOpen(true);
-      setSuccessMessage(`Created API key ${response.api_key.name}.`);
+      showSuccess(`Created API key ${response.api_key.name}.`);
     } catch (error) {
-      setErrorMessage(error instanceof Error ? error.message : "API key creation failed");
+      showError(error instanceof Error ? error.message : "API key creation failed");
     } finally {
       setIsCreatingKey(false);
     }
@@ -95,15 +91,13 @@ export default function ApiPage() {
     }
 
     setRevokingKeyId(keyId);
-    setErrorMessage("");
-    setSuccessMessage("");
 
     try {
       await apiDelete<{ status: string }>(`/api/auth/api-keys/${keyId}`, token);
       setApiKeys((current) => current.filter((key) => key.id !== keyId));
-      setSuccessMessage("API key revoked.");
+      showSuccess("API key revoked.");
     } catch (error) {
-      setErrorMessage(error instanceof Error ? error.message : "API key revoke failed");
+      showError(error instanceof Error ? error.message : "API key revoke failed");
     } finally {
       setRevokingKeyId(null);
     }
@@ -116,7 +110,7 @@ export default function ApiPage() {
 
     try {
       await navigator.clipboard.writeText(latestApiKey);
-      setCopyState("copied");
+      showSuccess("Copied API key to clipboard.");
     } catch {
       // Fallback for non-secure (HTTP) contexts
       const textarea = document.createElement("textarea");
@@ -128,9 +122,9 @@ export default function ApiPage() {
       textarea.select();
       try {
         document.execCommand("copy");
-        setCopyState("copied");
+        showSuccess("Copied API key to clipboard.");
       } catch {
-        setCopyState("failed");
+        showError("Copy failed. Select and copy the key manually.");
       } finally {
         document.body.removeChild(textarea);
       }
@@ -140,14 +134,10 @@ export default function ApiPage() {
   function closeCreateModal() {
     setIsCreateModalOpen(false);
     setLatestApiKey("");
-    setCopyState("idle");
   }
 
   return (
     <section className="grid gap-4">
-      {errorMessage ? <p className="rounded-xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700">{errorMessage}</p> : null}
-      {successMessage ? <p className="rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-700">{successMessage}</p> : null}
-
       <article className="rounded-3xl border border-black/10 bg-white/85 p-5 shadow-sm backdrop-blur">
         <div className="flex flex-wrap items-start justify-between gap-4">
           <div className="max-w-2xl">
@@ -228,8 +218,6 @@ export default function ApiPage() {
                 <button className="rounded-xl bg-ink px-4 py-2 text-sm font-semibold text-white" type="button" onClick={() => void handleCopyLatestApiKey()}>
                   Copy key
                 </button>
-                {copyState === "copied" ? <p className="text-sm text-emerald-700">Copied to clipboard.</p> : null}
-                {copyState === "failed" ? <p className="text-sm text-rose-700">Copy failed — select and copy manually.</p> : null}
               </div>
             </div>
           )}

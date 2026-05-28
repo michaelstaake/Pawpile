@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { apiDelete, apiGet, apiPatch, apiPost } from "../lib/api";
 import { useAuth } from "../context/AuthContext";
+import { useToast } from "../context/ToastContext";
 import Modal from "../components/ui/Modal";
 import { formatDeviceIdLabel } from "../lib/deviceIds";
 import { DeviceRecord, DeviceUpdateResponse, GpuPoolRecord } from "../lib/records";
@@ -46,12 +47,11 @@ type DevicesPageProps = {
 
 export default function DevicesPage({ setupMode = false, onContinue }: DevicesPageProps) {
   const { token } = useAuth();
+  const { showError, showSuccess } = useToast();
   const [devices, setDevices] = useState<DeviceRecord[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [savingDeviceIds, setSavingDeviceIds] = useState<number[]>([]);
   const [pendingDeviceIds, setPendingDeviceIds] = useState<number[]>([]);
-  const [errorMessage, setErrorMessage] = useState("");
-  const [successMessage, setSuccessMessage] = useState("");
   const latestDevicesRef = useRef<DeviceRecord[]>([]);
   const savedSnapshotsRef = useRef<Record<number, string>>({});
   const saveTimeoutsRef = useRef<Record<number, number>>({});
@@ -87,7 +87,7 @@ export default function DevicesPage({ setupMode = false, onContinue }: DevicesPa
       setDevices(response);
       setPendingDeviceIds([]);
     } catch (error) {
-      setErrorMessage(error instanceof Error ? error.message : "Failed to load devices");
+      showError(error instanceof Error ? error.message : "Failed to load devices", { id: "devices-error" });
     } finally {
       setIsLoading(false);
     }
@@ -121,8 +121,6 @@ export default function DevicesPage({ setupMode = false, onContinue }: DevicesPa
   }
 
   function updateDeviceDraft(deviceId: number, updates: Partial<DeviceRecord>) {
-    setErrorMessage("");
-    setSuccessMessage("");
     setDevices((current) => current.map((device) => (device.id === deviceId ? { ...device, ...updates } : device)));
     scheduleDeviceSave(deviceId);
   }
@@ -150,8 +148,6 @@ export default function DevicesPage({ setupMode = false, onContinue }: DevicesPa
     savingIdsRef.current.add(deviceId);
     setSavingDeviceIds((current) => (current.includes(deviceId) ? current : [...current, deviceId]));
     setPendingDeviceIds((current) => current.filter((id) => id !== deviceId));
-    setErrorMessage("");
-    setSuccessMessage("");
 
     let savedSuccessfully = false;
 
@@ -161,10 +157,10 @@ export default function DevicesPage({ setupMode = false, onContinue }: DevicesPa
       }, token);
       savedSnapshotsRef.current[device.id] = serializeDevice(response.device);
       setDevices((current) => current.map((item) => (item.id === device.id ? response.device : item)));
-      setSuccessMessage(`Saved device settings for ${response.device.name}.`);
+      showSuccess(`Saved device settings for ${response.device.name}.`, { id: "devices-success" });
       savedSuccessfully = true;
     } catch (error) {
-      setErrorMessage(error instanceof Error ? error.message : "Device update failed");
+      showError(error instanceof Error ? error.message : "Device update failed", { id: "devices-error" });
     } finally {
       savingIdsRef.current.delete(deviceId);
       setSavingDeviceIds((current) => current.filter((id) => id !== deviceId));
@@ -265,7 +261,6 @@ export default function DevicesPage({ setupMode = false, onContinue }: DevicesPa
     if (!token) return;
     const nextEnabled = !isPoolEnabled(pool);
     setPoolLoadingTarget(`toggle:${pool.id}`);
-    setErrorMessage("");
     try {
       await Promise.all(
         pool.devices.map((poolDevice) =>
@@ -277,9 +272,9 @@ export default function DevicesPage({ setupMode = false, onContinue }: DevicesPa
         ),
       );
       await refreshDevices(token);
-      setSuccessMessage(`${pool.name} ${nextEnabled ? "enabled" : "disabled"}.`);
+      showSuccess(`${pool.name} ${nextEnabled ? "enabled" : "disabled"}.`, { id: "devices-success" });
     } catch (error) {
-      setErrorMessage(error instanceof Error ? error.message : "Failed to toggle pool");
+      showError(error instanceof Error ? error.message : "Failed to toggle pool", { id: "devices-error" });
       await refreshDevices(token);
     } finally {
       setPoolLoadingTarget(null);
@@ -289,7 +284,6 @@ export default function DevicesPage({ setupMode = false, onContinue }: DevicesPa
   async function handleCreatePool() {
     if (!token || selectedPoolDeviceIds.length < 2) return;
     setPoolLoadingTarget("create");
-    setErrorMessage("");
     try {
       const response = await apiPost<{ name: string; vendor: string; device_ids: number[] }, { pool: GpuPoolRecord }>(
         "/api/devices/pools",
@@ -299,9 +293,9 @@ export default function DevicesPage({ setupMode = false, onContinue }: DevicesPa
       setPools((current) => sortPools([...current, response.pool]));
       setIsPoolModalOpen(false);
       resetPoolDraft();
-      setSuccessMessage(`Created ${response.pool.name}.`);
+      showSuccess(`Created ${response.pool.name}.`, { id: "devices-success" });
     } catch (error) {
-      setErrorMessage(error instanceof Error ? error.message : "Failed to create GPU pool");
+      showError(error instanceof Error ? error.message : "Failed to create GPU pool", { id: "devices-error" });
     } finally {
       setPoolLoadingTarget(null);
     }
@@ -311,7 +305,6 @@ export default function DevicesPage({ setupMode = false, onContinue }: DevicesPa
     if (!token || selectedPoolDeviceIds.length < 2 || !editablePool) return;
     const removedDeviceIds = editablePool.devices.map((device) => device.id).filter((id) => !selectedPoolDeviceIds.includes(id));
     setPoolLoadingTarget(`update:${editablePool.id}`);
-    setErrorMessage("");
     try {
       const response = await apiPatch<{ name: string; vendor: string; device_ids: number[] }, { pool: GpuPoolRecord }>(
         `/api/devices/pools/${editablePool.id}`,
@@ -333,9 +326,9 @@ export default function DevicesPage({ setupMode = false, onContinue }: DevicesPa
       setIsPoolModalOpen(false);
       resetPoolDraft();
       await refreshDevices(token);
-      setSuccessMessage(`Updated ${response.pool.name}.`);
+      showSuccess(`Updated ${response.pool.name}.`, { id: "devices-success" });
     } catch (error) {
-      setErrorMessage(error instanceof Error ? error.message : "Failed to update GPU pool");
+      showError(error instanceof Error ? error.message : "Failed to update GPU pool", { id: "devices-error" });
     } finally {
       setPoolLoadingTarget(null);
     }
@@ -345,7 +338,6 @@ export default function DevicesPage({ setupMode = false, onContinue }: DevicesPa
     if (!token) return;
     const memberDeviceIds = pool.devices.map((device) => device.id);
     setPoolLoadingTarget(`delete:${pool.id}`);
-    setErrorMessage("");
     setShowDeletePoolConfirmId(null);
     try {
       await apiDelete<{ status: string }>(`/api/devices/pools/${pool.id}`, token);
@@ -366,9 +358,9 @@ export default function DevicesPage({ setupMode = false, onContinue }: DevicesPa
         resetPoolDraft();
       }
       await refreshDevices(token);
-      setSuccessMessage(`${pool.name} deleted. Any models assigned to it have been reverted to Auto.`);
+      showSuccess(`${pool.name} deleted. Any models assigned to it have been reverted to Auto.`, { id: "devices-success" });
     } catch (error) {
-      setErrorMessage(error instanceof Error ? error.message : "Failed to delete GPU pool");
+      showError(error instanceof Error ? error.message : "Failed to delete GPU pool", { id: "devices-error" });
     } finally {
       setPoolLoadingTarget(null);
     }
@@ -383,10 +375,6 @@ export default function DevicesPage({ setupMode = false, onContinue }: DevicesPa
             {setupMode ? <p className="mt-2 max-w-3xl text-sm text-black/70">Enable at least one device so models have somewhere to run.</p> : null}
           </div>
         </div>
-
-        {errorMessage ? <p className="mt-4 rounded-xl border border-rose-200 bg-rose-50 px-3 py-2 text-sm text-rose-700">{errorMessage}</p> : null}
-        {successMessage ? <p className="mt-4 rounded-xl border border-emerald-200 bg-emerald-50 px-3 py-2 text-sm text-emerald-700">{successMessage}</p> : null}
-
         <div className="mt-5 space-y-4">
           {showPoolSection ? (
             <article className="rounded-2xl border border-violet-200 bg-violet-50/60 p-4">

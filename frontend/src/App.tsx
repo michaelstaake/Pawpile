@@ -14,8 +14,9 @@ import NotFoundPage from "./pages/NotFoundPage";
 import ForbiddenPage from "./pages/ForbiddenPage";
 import { useAuth } from "./context/AuthContext";
 import { MobileNavProvider, type MobileNavSection } from "./context/MobileNavContext";
-import Modal from "./components/ui/Modal";
+import { useToast } from "./context/ToastContext";
 import MobileNavDrawer, { type MobileNavItem } from "./components/ui/MobileNavDrawer";
+import ToastViewport from "./components/ui/ToastViewport";
 import {
   apiGet,
   BACKEND_UNAVAILABLE_EVENT,
@@ -136,12 +137,19 @@ function HomeRoute() {
 
 function SetupRoute() {
   const { bootstrapError, isBootstrapping, requiresSetup, user } = useAuth();
+  const { showError } = useToast();
+
+  useEffect(() => {
+    if (bootstrapError) {
+      showError("Unable to check installation state. Confirm the backend is running and reload after resolving the API error.", { id: "setup-bootstrap-error" });
+    }
+  }, [bootstrapError, showError]);
 
   if (isBootstrapping) {
     return <section className="rounded-2xl border border-black/10 bg-white/80 p-5 text-sm text-black/60 shadow-sm">Checking installation state...</section>;
   }
   if (bootstrapError) {
-    return <section className="rounded-2xl border border-rose-200 bg-rose-50 p-5 text-sm text-rose-700 shadow-sm">Unable to check installation state. Confirm the backend is running and reload after resolving the API error.</section>;
+    return <section className="rounded-2xl border border-black/10 bg-white/80 p-5 text-sm text-black/60 shadow-sm">Installation state is temporarily unavailable.</section>;
   }
   if (!requiresSetup) {
     return <Navigate to={user ? "/configuration" : "/login"} replace />;
@@ -150,14 +158,13 @@ function SetupRoute() {
 }
 
 export default function App() {
-  const { bootstrapError, isBootstrapping, logout, requiresSetup, user, sitename } = useAuth();
+  const { bootstrapError, isBootstrapping, requiresSetup, user, sitename } = useAuth();
+  const { showError } = useToast();
   const location = useLocation();
   const [backendUnavailable, setBackendUnavailable] = useState(() => isBackendUnavailableLocked());
   const [isMobileNavOpen, setIsMobileNavOpen] = useState(false);
   const [mobileNavSection, setMobileNavSection] = useState<MobileNavSection>(null);
   const showMainNav = !isBootstrapping && !requiresSetup;
-  const showBackendUnavailableModal = backendUnavailable || (!isBootstrapping && Boolean(bootstrapError));
-  const authRouteActive = location.pathname === "/login" || location.pathname === "/register";
   const mainNavItems = getMainNavItems(user);
 
   const pageTitle = ((): string => {
@@ -185,11 +192,18 @@ export default function App() {
   useEffect(() => {
     function handleBackendUnavailable() {
       setBackendUnavailable(true);
+      showError(BACKEND_UNAVAILABLE_MESSAGE, { id: "backend-unavailable" });
     }
 
     window.addEventListener(BACKEND_UNAVAILABLE_EVENT, handleBackendUnavailable);
     return () => window.removeEventListener(BACKEND_UNAVAILABLE_EVENT, handleBackendUnavailable);
-  }, []);
+  }, [showError]);
+
+  useEffect(() => {
+    if (backendUnavailable) {
+      showError(BACKEND_UNAVAILABLE_MESSAGE, { id: "backend-unavailable" });
+    }
+  }, [backendUnavailable, showError]);
 
   useEffect(() => {
     if (backendUnavailable) {
@@ -225,6 +239,7 @@ export default function App() {
 
   return (
     <div className="min-h-screen bg-[radial-gradient(circle_at_0%_0%,#f8fbf1_0%,#f4f0e0_45%,#efe8d2_100%)] text-ink font-body">
+      <ToastViewport />
       <MobileNavProvider value={{ closeMobileNav: () => setIsMobileNavOpen(false), setMobileNavSection }}>
         <div className="mx-auto max-w-7xl px-4 py-6 md:px-8">
           <header className="relative z-50 mb-6 flex items-center justify-between gap-4 overflow-visible rounded-2xl border border-black/10 bg-white/80 p-4 shadow-sm backdrop-blur isolate">
@@ -282,33 +297,6 @@ export default function App() {
           />
         </div>
       </MobileNavProvider>
-
-      <Modal
-        open={showBackendUnavailableModal}
-        onClose={() => {}}
-        labelledBy="backend-unavailable-title"
-        describedBy="backend-unavailable-description"
-        fullScreen
-        overlayClassName="bg-[#fffdf7]"
-        layoutClassName="items-stretch justify-stretch"
-        panelClassName="flex min-h-dvh w-full max-w-none flex-col"
-      >
-        <div className="flex min-h-dvh flex-col justify-center px-6 py-10 sm:px-10">
-          <h2 id="backend-unavailable-title" className="font-display text-3xl font-semibold tracking-tight text-ink sm:text-4xl">Error</h2>
-          <p id="backend-unavailable-description" className="mt-4 max-w-2xl text-base leading-7 text-black/70 sm:text-lg">
-            {BACKEND_UNAVAILABLE_MESSAGE}
-          </p>
-          <div className="mt-8 flex justify-start">
-            <button
-              type="button"
-              onClick={() => window.location.reload()}
-              className="rounded-xl bg-ink px-4 py-2 text-sm font-semibold text-white hover:bg-black"
-            >
-              Refresh
-            </button>
-          </div>
-        </div>
-      </Modal>
     </div>
   );
 }

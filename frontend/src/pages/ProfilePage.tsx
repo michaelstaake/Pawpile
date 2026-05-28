@@ -1,15 +1,13 @@
 import { FormEvent, useEffect, useState } from "react";
 import { useAuth } from "../context/AuthContext";
+import { useToast } from "../context/ToastContext";
 
 export default function ProfilePage() {
   const { logout, updateProfile, user } = useAuth();
+  const { showError, showSuccess } = useToast();
   const [email, setEmail] = useState(user?.email ?? "");
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
-  const [emailError, setEmailError] = useState<string | null>(null);
-  const [emailSuccess, setEmailSuccess] = useState<string | null>(null);
-  const [passwordError, setPasswordError] = useState<string | null>(null);
-  const [passwordSuccess, setPasswordSuccess] = useState<string | null>(null);
   const [isSavingEmail, setIsSavingEmail] = useState(false);
   const [isSavingPassword, setIsSavingPassword] = useState(false);
 
@@ -19,27 +17,25 @@ export default function ProfilePage() {
 
   async function handleEmailSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    setEmailError(null);
-    setEmailSuccess(null);
 
     const trimmedEmail = email.trim();
 
     if (!trimmedEmail) {
-      setEmailError("Email is required.");
+      showError("Email is required.");
       return;
     }
 
     if (trimmedEmail === (user?.email ?? "")) {
-      setEmailError("No email changes to save.");
+      showError("No email changes to save.");
       return;
     }
 
     setIsSavingEmail(true);
     try {
       await updateProfile({ email: trimmedEmail });
-      setEmailSuccess("Email updated.");
+      showSuccess("Email updated.");
     } catch (error) {
-      setEmailError(error instanceof Error ? error.message : "Unable to update email.");
+      showError(error instanceof Error ? error.message : "Unable to update email.");
     } finally {
       setIsSavingEmail(false);
     }
@@ -47,24 +43,22 @@ export default function ProfilePage() {
 
   async function handlePasswordSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    setPasswordError(null);
-    setPasswordSuccess(null);
 
     const nextPassword = password.trim();
     const nextConfirmPassword = confirmPassword.trim();
 
     if (!nextPassword) {
-      setPasswordError("New password is required.");
+      showError("New password is required.");
       return;
     }
 
     if (nextPassword.length < 8) {
-      setPasswordError("Password must be at least 8 characters.");
+      showError("Password must be at least 8 characters.");
       return;
     }
 
     if (nextPassword !== nextConfirmPassword) {
-      setPasswordError("Password confirmation does not match.");
+      showError("Password confirmation does not match.");
       return;
     }
 
@@ -73,9 +67,9 @@ export default function ProfilePage() {
       await updateProfile({ password: nextPassword });
       setPassword("");
       setConfirmPassword("");
-      setPasswordSuccess("Password updated.");
+      showSuccess("Password updated.");
     } catch (error) {
-      setPasswordError(error instanceof Error ? error.message : "Unable to update password.");
+      showError(error instanceof Error ? error.message : "Unable to update password.");
     } finally {
       setIsSavingPassword(false);
     }
@@ -117,8 +111,6 @@ export default function ProfilePage() {
                 required
               />
             </label>
-            {emailError ? <p className="rounded-xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700">{emailError}</p> : null}
-            {emailSuccess ? <p className="rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-700">{emailSuccess}</p> : null}
             <button
               className="rounded-xl bg-ink px-4 py-3 font-semibold text-white transition hover:bg-black disabled:cursor-not-allowed disabled:opacity-60"
               type="submit"
@@ -155,8 +147,6 @@ export default function ProfilePage() {
                 placeholder="Repeat the new password"
               />
             </label>
-            {passwordError ? <p className="rounded-xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700">{passwordError}</p> : null}
-            {passwordSuccess ? <p className="rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-700">{passwordSuccess}</p> : null}
             <button
               className="rounded-xl bg-ink px-4 py-3 font-semibold text-white transition hover:bg-black disabled:cursor-not-allowed disabled:opacity-60"
               type="submit"

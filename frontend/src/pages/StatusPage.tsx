@@ -1,8 +1,9 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { apiGet } from "../lib/api";
 import { formatDeviceIdLabel } from "../lib/deviceIds";
 import { DeviceStatusRecord, GpuPoolRecord, StatusModelRecord, StatusResponse } from "../lib/records";
 import { useAuth } from "../context/AuthContext";
+import { useToast } from "../context/ToastContext";
 
 const POLL_INTERVAL_MS = 5000;
 const PRIMARY_MODEL_COLORS = [
@@ -188,11 +189,12 @@ function DeviceCard({ device, isPooled, modelColors }: { device: DeviceStatusRec
 
 export default function StatusPage() {
   const { token } = useAuth();
+  const { showError } = useToast();
   const [devices, setDevices] = useState<DeviceStatusRecord[]>([]);
   const [pools, setPools] = useState<GpuPoolRecord[]>([]);
   const [systemCpuUsagePercent, setSystemCpuUsagePercent] = useState<number | null>(null);
   const [isLoading, setIsLoading] = useState(true);
-  const [errorMessage, setErrorMessage] = useState("");
+  const lastErrorMessageRef = useRef<string | null>(null);
 
   useEffect(() => {
     let isMounted = true;
@@ -209,13 +211,17 @@ export default function StatusPage() {
         }
         setDevices(response.devices);
         setSystemCpuUsagePercent(response.system_cpu_usage_percent);
-        setErrorMessage("");
+        lastErrorMessageRef.current = null;
       } catch (error) {
         if (!isMounted) {
           return;
         }
         setSystemCpuUsagePercent(null);
-        setErrorMessage(error instanceof Error ? error.message : "Failed to load status");
+        const message = error instanceof Error ? error.message : "Failed to load status";
+        if (lastErrorMessageRef.current !== message) {
+          showError(message, { id: "status-error" });
+          lastErrorMessageRef.current = message;
+        }
       } finally {
         if (!isMounted) {
           return;
@@ -286,8 +292,6 @@ export default function StatusPage() {
           </div>
         </div>
       </article>
-
-      {errorMessage ? <p className="rounded-2xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700">{errorMessage}</p> : null}
 
       {isLoading ? (
         <div className="rounded-2xl border border-black/10 bg-white/80 px-4 py-8 text-sm text-black/55 shadow-sm">Loading...</div>

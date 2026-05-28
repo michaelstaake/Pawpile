@@ -1,22 +1,22 @@
 import { FormEvent, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "../context/AuthContext";
+import { useToast } from "../context/ToastContext";
 
 export default function SetupPage() {
   const navigate = useNavigate();
   const { bootstrapAdmin, isAuthenticating } = useAuth();
+  const { showError, showSuccess } = useToast();
   const [username, setUsername] = useState("admin");
   const [email, setEmail] = useState("admin@localhost");
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
-  const [errorMessage, setErrorMessage] = useState("");
 
   async function handleBootstrap(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    setErrorMessage("");
 
     if (password !== confirmPassword) {
-      setErrorMessage("Passwords do not match.");
+      showError("Passwords do not match.");
       return;
     }
 
@@ -24,23 +24,20 @@ export default function SetupPage() {
       await bootstrapAdmin(username, email, password);
       setPassword("");
       setConfirmPassword("");
+      showSuccess("Admin account created.");
       navigate("/configuration", { replace: true });
     } catch (error) {
       const message = error instanceof Error ? error.message : "Initial admin creation failed";
       if (message.includes("Request failed: 500")) {
-        setErrorMessage("Initial admin creation failed with a server error. Check backend logs and ensure the ./data directory is writable before retrying.");
+        showError("Initial admin creation failed with a server error. Check backend logs and ensure the ./data directory is writable before retrying.");
       } else {
-        setErrorMessage(message);
+        showError(message);
       }
     }
   }
 
   return (
     <section className="grid gap-4">
-      {errorMessage ? (
-        <p className="rounded-xl border border-rose-200 bg-rose-50 px-3 py-2 text-sm text-rose-700">{errorMessage}</p>
-      ) : null}
-
       <article className="rounded-2xl border border-black/10 bg-white/80 p-5 shadow-sm backdrop-blur">
         <h3 className="font-display text-lg">Create admin account</h3>
         <form className="mt-5 grid gap-3 md:max-w-xl" onSubmit={handleBootstrap}>
