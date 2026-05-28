@@ -6,11 +6,12 @@ import { useAuth } from "../context/AuthContext";
 
 const POLL_INTERVAL_MS = 5000;
 const PRIMARY_MODEL_COLORS = [
-  "#9333ea",
-  "#2563eb",
-  "#16a34a",
-  "#ca8a04",
-  "#dc2626",
+  "#770088",
+  "#004CFF",
+  "#028121",
+  "#FFEE00",
+  "#FF8D00",
+  "#E50000",
 ];
 const FALLBACK_MODEL_COLORS = [
   "#5b5b5b",
