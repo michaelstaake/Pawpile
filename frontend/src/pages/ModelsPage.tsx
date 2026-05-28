@@ -959,7 +959,7 @@ export default function ModelsPage({ setupMode = false, onComplete }: ModelsPage
 
               <section>
                 <p className="mb-3 text-xs font-semibold uppercase tracking-[0.2em] text-black/45">Features</p>
-                <div className="grid gap-3 md:grid-cols-2">
+                <div className="grid gap-3">
                   <label className="flex gap-3 rounded-xl border border-black/10 bg-white px-3 py-2 text-sm text-black/70">
                     <input className="mt-1" type="checkbox" checked={modalDraft.tool_calling_enabled} onChange={(event) => updateModalDraft({ tool_calling_enabled: event.target.checked })} />
                     <span className="grid gap-0.5">
@@ -974,7 +974,7 @@ export default function ModelsPage({ setupMode = false, onComplete }: ModelsPage
                       <span className="text-xs text-black/45">Some models may think regardless of this setting.</span>
                     </span>
                   </label>
-                  <label className="flex gap-3 rounded-xl border border-black/10 bg-white px-3 py-2 text-sm text-black/70 md:col-span-2">
+                  <label className="flex gap-3 rounded-xl border border-black/10 bg-white px-3 py-2 text-sm text-black/70">
                     <input className="mt-1" type="checkbox" checked={modalDraft.vision_enabled} onChange={(event) => updateModalDraft({ vision_enabled: event.target.checked })} />
                     <span className="grid gap-0.5">
                       <span className="text-sm text-black/70">Vision Enabled</span>
