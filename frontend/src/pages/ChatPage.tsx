@@ -752,12 +752,10 @@ export default function ChatPage() {
                 type="button"
                 onClick={() => setThinkingEnabled((v) => !v)}
                 disabled={isLoadingModels || models.length === 0}
-                title={thinkingEnabled ? "Thinking on — click to disable" : "Thinking off — click to enable"}
+                title={thinkingEnabled ? "Thinking on - click to disable" : "Thinking off - click to enable"}
                 className={`flex items-center gap-1.5 rounded-lg border px-3 py-2 text-sm font-medium transition-colors disabled:opacity-40 ${thinkingEnabled ? "border-amber/60 bg-amber/10 text-amber-700" : "border-black/20 bg-white text-black/50 hover:bg-black/5"}`}
               >
-                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="h-4 w-4">
-                  <path d="M11.983 1.907a.75.75 0 0 0-1.292-.657l-8.5 9.5A.75.75 0 0 0 2.75 12h6.572l-1.305 6.093a.75.75 0 0 0 1.292.657l8.5-9.5A.75.75 0 0 0 17.25 8h-6.572l1.305-6.093Z" />
-                </svg>
+                <i className="bi bi-lightning-charge-fill text-base leading-none" aria-hidden="true" />
                 Think
               </button>
             ) : null}
@@ -840,9 +838,7 @@ export default function ChatPage() {
                           onClick={() => setThinkingExpandedByIndex((current) => ({ ...current, [index]: !current[index] }))}
                           className="flex w-full items-center gap-2 rounded-lg px-2 py-1 text-left text-xs font-medium text-black/40 hover:bg-black/5"
                         >
-                          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="h-3.5 w-3.5 shrink-0 text-amber-500/70">
-                            <path d="M11.983 1.907a.75.75 0 0 0-1.292-.657l-8.5 9.5A.75.75 0 0 0 2.75 12h6.572l-1.305 6.093a.75.75 0 0 0 1.292.657l8.5-9.5A.75.75 0 0 0 17.25 8h-6.572l1.305-6.093Z" />
-                          </svg>
+                          <i className="bi bi-lightning-charge-fill shrink-0 text-[14px] leading-none text-amber-500/70" aria-hidden="true" />
                           <span className="flex-1">
                             {message.phase === "streaming" || message.phase === "thinking" ? (
                               <span className="animate-pulse">Thinking…</span>
@@ -850,14 +846,10 @@ export default function ChatPage() {
                               "Thought"
                             )}
                           </span>
-                          <svg
-                            xmlns="http://www.w3.org/2000/svg"
-                            viewBox="0 0 20 20"
-                            fill="currentColor"
-                            className={`h-3.5 w-3.5 shrink-0 transition-transform ${thinkingExpandedByIndex[index] ? "rotate-180" : ""}`}
-                          >
-                            <path fillRule="evenodd" d="M5.22 8.22a.75.75 0 0 1 1.06 0L10 11.94l3.72-3.72a.75.75 0 1 1 1.06 1.06l-4.25 4.25a.75.75 0 0 1-1.06 0L5.22 9.28a.75.75 0 0 1 0-1.06Z" clipRule="evenodd" />
-                          </svg>
+                          <i
+                            className={`bi bi-chevron-down shrink-0 text-[14px] leading-none transition-transform ${thinkingExpandedByIndex[index] ? "rotate-180" : ""}`}
+                            aria-hidden="true"
+                          />
                         </button>
                         {thinkingExpandedByIndex[index] ? (
                           <div className="ml-2 mt-1 border-l-2 border-dashed border-amber-300/60 pl-3">
@@ -942,20 +934,7 @@ export default function ChatPage() {
               className="flex h-12 w-12 items-center justify-center rounded-xl border border-black/20 bg-white hover:bg-black/5 text-black disabled:opacity-50"
               title="Attach files"
             >
-              <svg
-                xmlns="http://www.w3.org/2000/svg"
-                fill="none"
-                viewBox="0 0 24 24"
-                strokeWidth={1.5}
-                stroke="currentColor"
-                className="h-5 w-5"
-              >
-                <path
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  d="M18.375 12.739l-7.693 7.693a4.5 4.5 0 01-6.364-6.364l10.94-10.94A3 3 0 1119.5 7.372L8.552 18.32m.009-.01l-.01.01m5.699-9.941l-7.81 7.81a1.5 1.5 0 002.112 2.13"
-                />
-              </svg>
+              <i className="bi bi-paperclip text-[20px] leading-none" aria-hidden="true" />
             </button>
             <input
               type="file"

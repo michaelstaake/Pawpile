@@ -43,10 +43,7 @@ export default function CodeBlock({ code, language }: CodeBlockProps) {
           aria-label="Copy code"
           title="Copy code"
         >
-          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="h-3.5 w-3.5">
-            <path d="M6 2.75A1.75 1.75 0 0 0 4.25 4.5v8.75c0 .966.784 1.75 1.75 1.75h6.25A1.75 1.75 0 0 0 14 13.25V4.5a1.75 1.75 0 0 0-1.75-1.75H6Z" />
-            <path d="M7.5 16.5c-.63 0-1.223-.163-1.738-.45a.75.75 0 0 0-.762 1.292A5.98 5.98 0 0 0 7.5 18h4A3.5 3.5 0 0 0 15 14.5v-7c0-.294-.036-.58-.104-.854a.75.75 0 1 0-1.456.358c.04.161.06.326.06.496v7A2 2 0 0 1 11.5 16.5h-4Z" />
-          </svg>
+          <i className="bi bi-clipboard text-[14px] leading-none" aria-hidden="true" />
           <span>{copyState === "copied" ? "Copied" : copyState === "error" ? "Retry" : "Copy"}</span>
         </button>
       </div>
