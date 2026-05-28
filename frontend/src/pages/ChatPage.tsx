@@ -755,7 +755,7 @@ export default function ChatPage() {
                 title={thinkingEnabled ? "Thinking on - click to disable" : "Thinking off - click to enable"}
                 className={`flex items-center gap-1.5 rounded-lg border px-3 py-2 text-sm font-medium transition-colors disabled:opacity-40 ${thinkingEnabled ? "border-amber/60 bg-amber/10 text-amber-700" : "border-black/20 bg-white text-black/50 hover:bg-black/5"}`}
               >
-                <i className="bi bi-lightning-charge-fill text-base leading-none" aria-hidden="true" />
+                  <i className="bi bi-lightbulb text-base leading-none" aria-hidden="true" />
                 Think
               </button>
             ) : null}
@@ -838,10 +838,9 @@ export default function ChatPage() {
                           onClick={() => setThinkingExpandedByIndex((current) => ({ ...current, [index]: !current[index] }))}
                           className="flex w-full items-center gap-2 rounded-lg px-2 py-1 text-left text-xs font-medium text-black/40 hover:bg-black/5"
                         >
-                          <i className="bi bi-lightning-charge-fill shrink-0 text-[14px] leading-none text-amber-500/70" aria-hidden="true" />
                           <span className="flex-1">
                             {message.phase === "streaming" || message.phase === "thinking" ? (
-                              <span className="animate-pulse">Thinking…</span>
+                              <span className="animate-pulse">Thinking...</span>
                             ) : (
                               "Thought"
                             )}
