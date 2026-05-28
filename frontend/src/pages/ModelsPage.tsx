@@ -114,7 +114,7 @@ function buildModelPayload(model: ModelRecord) {
     presence_penalty: model.presence_penalty,
     repetition_penalty: model.repetition_penalty,
     tool_calling_enabled: model.tool_calling_enabled,
-    thinking_enabled: model.thinking_enabled,
+    discourage_thinking: model.discourage_thinking,
     vision_enabled: model.vision_enabled,
     assignment_mode: model.assignment_mode,
     pinned_device_id: model.assignment_mode === "pinned" ? model.pinned_device_id : null,
@@ -968,10 +968,10 @@ export default function ModelsPage({ setupMode = false, onComplete }: ModelsPage
                     </span>
                   </label>
                   <label className="flex gap-3 rounded-xl border border-black/10 bg-white px-3 py-2 text-sm text-black/70">
-                    <input className="mt-1" type="checkbox" checked={modalDraft.thinking_enabled} onChange={(event) => updateModalDraft({ thinking_enabled: event.target.checked })} />
+                    <input className="mt-1" type="checkbox" checked={modalDraft.discourage_thinking} onChange={(event) => updateModalDraft({ discourage_thinking: event.target.checked })} />
                     <span className="grid gap-0.5">
-                      <span className="text-sm text-black/70">Thinking Enabled</span>
-                      <span className="text-xs text-black/45">Allows extended reasoning features.</span>
+                      <span className="text-sm text-black/70">Discourage thinking</span>
+                      <span className="text-xs text-black/45">Some models may think regardless of this setting.</span>
                     </span>
                   </label>
                   <label className="flex gap-3 rounded-xl border border-black/10 bg-white px-3 py-2 text-sm text-black/70 md:col-span-2">

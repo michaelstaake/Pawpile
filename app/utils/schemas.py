@@ -256,7 +256,7 @@ class ModelUpdateRequest(BaseModel):
     presence_penalty: float | None = Field(default=None, ge=-2.0, le=2.0)
     repetition_penalty: float | None = Field(default=None, ge=0.0)
     tool_calling_enabled: bool | None = None
-    thinking_enabled: bool | None = None
+    discourage_thinking: bool | None = None
     vision_enabled: bool | None = None
     assignment_mode: str | None = None
     pinned_device_id: int | None = None

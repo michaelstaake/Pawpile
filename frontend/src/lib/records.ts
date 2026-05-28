@@ -37,7 +37,7 @@ export type ModelRecord = {
   presence_penalty: number;
   repetition_penalty: number;
   tool_calling_enabled: boolean;
-  thinking_enabled: boolean;
+  discourage_thinking: boolean;
   vision_enabled: boolean;
   mmproj_file_name: string | null;
   assignment_mode: string;

@@ -81,7 +81,7 @@ def upgrade() -> None:
         sa.Column("presence_penalty", sa.Float(), nullable=False),
         sa.Column("repetition_penalty", sa.Float(), nullable=False),
         sa.Column("tool_calling_enabled", sa.Boolean(), nullable=False),
-        sa.Column("thinking_enabled", sa.Boolean(), nullable=False),
+        sa.Column("discourage_thinking", sa.Boolean(), nullable=False),
         sa.Column("vision_enabled", sa.Boolean(), nullable=False),
         sa.Column("mmproj_file_name", sa.String(length=255), nullable=True),
         sa.Column("assignment_mode", sa.String(length=32), nullable=False),

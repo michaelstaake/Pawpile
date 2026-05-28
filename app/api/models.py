@@ -297,7 +297,7 @@ async def update_model(model_id: int, payload: ModelUpdateRequest, _: User = Dep
         "presence_penalty",
         "repetition_penalty",
         "tool_calling_enabled",
-        "thinking_enabled",
+        "discourage_thinking",
         "vision_enabled",
     ]:
         value = getattr(payload, field)
@@ -641,7 +641,7 @@ def _serialize_model(model: ModelConfig) -> dict:
         "presence_penalty": model.presence_penalty,
         "repetition_penalty": model.repetition_penalty,
         "tool_calling_enabled": model.tool_calling_enabled,
-        "thinking_enabled": model.thinking_enabled,
+        "discourage_thinking": model.discourage_thinking,
         "vision_enabled": model.vision_enabled,
         "mmproj_file_name": model.mmproj_file_name,
         "assignment_mode": model.assignment_mode,

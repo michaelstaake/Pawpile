@@ -104,7 +104,7 @@ def v1_models(_: User = Depends(require_api_access), db: Session = Depends(get_d
                 "object": "model",
                 "created": int(time.time()),
                 "owned_by": "pawpile",
-                "thinking_enabled": m.thinking_enabled,
+                "discourage_thinking": m.discourage_thinking,
                 "vision_enabled": m.vision_enabled,
             }
             for m in models
@@ -156,7 +156,7 @@ async def v1_chat_completions(payload: OpenAIChatRequest, current_user: User = D
     if "repetition_penalty" not in request_payload:
         request_payload["repetition_penalty"] = model.repetition_penalty
     if "enable_thinking" not in request_payload:
-        request_payload["enable_thinking"] = model.thinking_enabled
+        request_payload["enable_thinking"] = not model.discourage_thinking
     request_payload["messages"] = [
         {
             key: value
@@ -167,8 +167,8 @@ async def v1_chat_completions(payload: OpenAIChatRequest, current_user: User = D
     ]
 
     # Some llama-server/model combinations do not reliably honor the generic
-    # enable_thinking flag. Inject a model-aware system directive so the web UI
-    # toggle and API parameter stay effective for affected families.
+    # enable_thinking flag. Inject a model-aware system directive so saved
+    # model defaults and API overrides stay effective for affected families.
     request_payload["messages"] = _apply_thinking_controls(
         request_payload["messages"],
         model,

@@ -107,7 +107,7 @@ docker compose --profile nvidia --profile vulkan down
 
 ### Web Interface Chat
 
-You can chat with your enabled models through the web interface. This is the easiest but least powerful way to interact with Pawpile.
+You can chat with your enabled models through the web interface.
 
 ### OpenAI-Compatible API
 
@@ -121,7 +121,7 @@ Pawpile currently supports `/v1/models` and `/v1/chat/completions`.
 
 ```bash
 curl http://localhost:8000/v1/chat/completions \
-  -H "Authorization: Bearer YOUR_API_KEY" \
+  -H "Authorization: Bearer API_KEY" \
   -H "Content-Type: application/json" \
   -d '{
     "model": "your-model-alias",
@@ -134,7 +134,7 @@ curl http://localhost:8000/v1/chat/completions \
 
 ```bash
 curl http://localhost:8000/v1/chat/completions \
-  -H "Authorization: Bearer YOUR_API_KEY" \
+  -H "Authorization: Bearer API_KEY" \
   -H "Content-Type: application/json" \
   -d '{
     "model": "your-vision-model-alias",
@@ -169,12 +169,12 @@ Use this in your OpenCode config file to connect to Pawpile's OpenAI-compatible 
       "npm": "@ai-sdk/openai-compatible",
       "options": {
         "baseURL": "http://localhost:8000/v1",
-        "apiKey": "YOUR_API_KEY",
+        "apiKey": "API_KEY",
         "timeout": 7200000
       },
       "models": {
-        "your-model-alias": {
-          "name": "My AI Model"
+        "ai-model": {
+          "name": "AI Model"
         }
       }
     }
@@ -198,7 +198,7 @@ Use this in your OpenCode config file to connect to Pawpile's OpenAI-compatible 
 
 - **Backend container is unhealthy after an update**:
   - Inspect `docker logs pawpile-backend` for migration errors
-  - Version 0.4.0 must be a clean install - updates from previous versions are not supported.
+  - Version 0.6.0 must be a clean install - updates from previous versions are not supported.
 
 - **Docker Desktop**:
   - While Ubuntu Server 26.04 is the recommended OS, Pawpile runs great on  Ubuntu Desktop 26.04. However, if you have Docker Desktop installed, and attempt to run Pawpile using the Docker Desktop system context, it will not be able to use all the system resources like RAM and GPUs.

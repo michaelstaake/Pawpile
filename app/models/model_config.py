@@ -27,7 +27,7 @@ class ModelConfig(Base):
     presence_penalty: Mapped[float] = mapped_column(Float, default=0.0, nullable=False)
     repetition_penalty: Mapped[float] = mapped_column(Float, default=1.0, nullable=False)
     tool_calling_enabled: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
-    thinking_enabled: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
+    discourage_thinking: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
     vision_enabled: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
     mmproj_file_name: Mapped[str | None] = mapped_column(String(255), nullable=True)
     assignment_mode: Mapped[str] = mapped_column(String(32), default="auto", nullable=False)

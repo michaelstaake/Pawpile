@@ -33,7 +33,7 @@ type ChatCompletionStats = {
 
 type ModelListResponse = {
   object: string;
-  data: { id: string; object: string; created: number; owned_by: string; thinking_enabled?: boolean; vision_enabled?: boolean }[];
+  data: { id: string; object: string; created: number; owned_by: string; vision_enabled?: boolean }[];
 };
 
 type ChatSummary = {
@@ -257,10 +257,8 @@ function describeAttachment(file: Attachment): string {
 export default function ChatPage() {
   const { token, user } = useAuth();
   const [models, setModels] = useState<string[]>([]);
-  const [modelThinkingDefaults, setModelThinkingDefaults] = useState<Record<string, boolean>>({});
   const [modelVisionDefaults, setModelVisionDefaults] = useState<Record<string, boolean>>({});
   const [selectedModel, setSelectedModel] = useState<string>("");
-  const [thinkingEnabled, setThinkingEnabled] = useState(false);
   const [thinkingExpandedByIndex, setThinkingExpandedByIndex] = useState<Record<number, boolean>>({});
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [input, setInput] = useState("");
@@ -276,7 +274,6 @@ export default function ChatPage() {
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const abortControllerRef = useRef<AbortController | null>(null);
   const [attachments, setAttachments] = useState<Attachment[]>([]);
-  const selectedModelSupportsThinking = selectedModel ? (modelThinkingDefaults[selectedModel] ?? false) : false;
   const selectedModelSupportsVision = selectedModel ? (modelVisionDefaults[selectedModel] ?? false) : false;
 
   useEffect(() => {
@@ -307,20 +304,13 @@ export default function ChatPage() {
     try {
       const response = await apiGet<ModelListResponse>("/v1/models", token || undefined);
       const aliases = response.data.map((entry) => entry.id);
-      const thinkingDefaults: Record<string, boolean> = {};
       const visionDefaults: Record<string, boolean> = {};
       for (const entry of response.data) {
-        thinkingDefaults[entry.id] = entry.thinking_enabled ?? false;
         visionDefaults[entry.id] = entry.vision_enabled ?? false;
       }
-      setModelThinkingDefaults(thinkingDefaults);
       setModelVisionDefaults(visionDefaults);
       setModels(aliases);
-      setSelectedModel((current) => {
-        const next = current || aliases[0] || "";
-        setThinkingEnabled(thinkingDefaults[next] ?? false);
-        return next;
-      });
+      setSelectedModel((current: string) => current || aliases[0] || "");
     } catch (error) {
       setErrorMessage(error instanceof Error ? error.message : "Failed to load models");
     } finally {
@@ -576,7 +566,6 @@ export default function ChatPage() {
       const stats = await streamCompletion(
         selectedModel,
         nextMessages.map((message) => ({ role: message.role, content: message.apiContent ?? message.content })),
-        thinkingEnabled,
         abortController.signal,
         (phase) => {
           setMessages((current) => {
@@ -747,24 +736,9 @@ export default function ChatPage() {
             <h2 className="font-display text-lg">Chat</h2>
           </div>
           <div className="flex items-center gap-2">
-            {selectedModelSupportsThinking ? (
-              <button
-                type="button"
-                onClick={() => setThinkingEnabled((v) => !v)}
-                disabled={isLoadingModels || models.length === 0}
-                title={thinkingEnabled ? "Thinking on - click to disable" : "Thinking off - click to enable"}
-                className={`flex items-center gap-1.5 rounded-lg border px-3 py-2 text-sm font-medium transition-colors disabled:opacity-40 ${thinkingEnabled ? "border-amber/60 bg-amber/10 text-amber-700" : "border-black/20 bg-white text-black/50 hover:bg-black/5"}`}
-              >
-                  <i className="bi bi-lightbulb text-base leading-none" aria-hidden="true" />
-                Think
-              </button>
-            ) : null}
             <select
               value={selectedModel}
-              onChange={(event) => {
-                setSelectedModel(event.target.value);
-                setThinkingEnabled(modelThinkingDefaults[event.target.value] ?? false);
-              }}
+              onChange={(event) => setSelectedModel(event.target.value)}
               disabled={isLoadingModels || models.length === 0}
               className="rounded-lg border border-black/20 bg-white px-3 py-2 text-sm"
             >
@@ -977,7 +951,6 @@ export default function ChatPage() {
 async function streamCompletion(
   model: string,
   messages: { role: ChatRole; content: ChatMessageContent }[],
-  enableThinking: boolean,
   signal: AbortSignal,
   onStageChange: (phase: "thinking") => void,
   onDelta: (delta: string, type: "thinking" | "content") => void
@@ -997,7 +970,7 @@ async function streamCompletion(
       method: "POST",
       headers,
       signal,
-      body: JSON.stringify({ model, messages, stream: true, enable_thinking: enableThinking })
+      body: JSON.stringify({ model, messages, stream: true })
     });
   } catch (error) {
     handleBackendUnavailableError(error);
