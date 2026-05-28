@@ -68,10 +68,6 @@ function colorForModel(index: number) {
   return FALLBACK_MODEL_COLORS[(index - PRIMARY_MODEL_COLORS.length) % FALLBACK_MODEL_COLORS.length];
 }
 
-function formatSlotCapacity(slots: number) {
-  return slots === 0 ? "unlimited" : numberFormatter.format(slots);
-}
-
 function getModelColor(modelColors: Map<number, string>, modelId: number) {
   return modelColors.get(modelId) ?? FALLBACK_MODEL_COLORS[0];
 }
@@ -103,7 +99,7 @@ function DeviceCard({ device, isPooled, modelColors }: { device: DeviceStatusRec
             )}
           </div>
           <p className="mt-2 text-sm text-black/65">
-            {device.vendor} {device.device_type} · {formatDeviceIdLabel(device)} · {device.models.length}/{formatSlotCapacity(device.max_slots)} slots active
+            {device.device_type} · {formatDeviceIdLabel(device)}
           </p>
         </div>
       </div>
