@@ -722,7 +722,7 @@ export default function ChatPage() {
   }
 
   return (
-    <section className={`grid gap-4 ${isSidebarOpen ? "md:grid-cols-[280px_1fr]" : "grid-cols-[72px_1fr]"}`}>
+    <section className={`grid gap-4 ${isSidebarOpen ? "md:grid-cols-[280px_minmax(0,1fr)]" : "grid-cols-[72px_minmax(0,1fr)]"}`}>
       <aside
         className={`rounded-2xl border border-black/10 bg-white/80 shadow-sm transition-all ${
           isSidebarOpen ? "p-4" : "p-3"
@@ -818,7 +818,7 @@ export default function ChatPage() {
           </div>
         )}
       </aside>
-      <main className={`rounded-2xl border border-black/10 bg-white/80 p-4 shadow-sm ${isNewChatEmptyState ? "flex min-h-[68vh] flex-col justify-center" : ""}`}>
+      <main className={`min-w-0 rounded-2xl border border-black/10 bg-white/80 p-4 shadow-sm ${isNewChatEmptyState ? "flex min-h-[68vh] flex-col justify-center" : ""}`}>
         {!isNewChatEmptyState ? (
           <div className="mb-4 flex items-center justify-between gap-2">
             <div>
@@ -904,7 +904,7 @@ export default function ChatPage() {
             </select>
           </div>
         ) : shouldShowTranscript ? (
-          <div className="relative">
+          <div className="relative min-w-0">
             <div
               ref={transcriptRef}
               onScroll={handleTranscriptScroll}
@@ -964,7 +964,7 @@ export default function ChatPage() {
                           ) : null}
                         </div>
                       ) : null}
-                      <div className="leading-7 text-[15px] text-black/85">
+                      <div className="min-w-0 max-w-full leading-7 text-[15px] text-black/85">
                         {message.role === "assistant" ? (
                           <MessageContent
                             content={message.content}

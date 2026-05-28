@@ -33,7 +33,7 @@ export default function CodeBlock({ code, language }: CodeBlockProps) {
   }
 
   return (
-    <div className="my-3 overflow-hidden rounded-2xl border border-black/10 bg-ink text-sand shadow-sm first:mt-0 last:mb-0">
+    <div className="my-3 w-full max-w-full overflow-hidden rounded-2xl border border-black/10 bg-ink text-sand shadow-sm first:mt-0 last:mb-0">
       <div className="flex items-center justify-between gap-3 border-b border-white/10 px-4 py-2 text-[11px] uppercase tracking-[0.18em] text-sand/55">
         <span>{language || "code"}</span>
         <button
@@ -47,7 +47,7 @@ export default function CodeBlock({ code, language }: CodeBlockProps) {
           <span>{copyState === "copied" ? "Copied" : copyState === "error" ? "Retry" : "Copy"}</span>
         </button>
       </div>
-      <pre className="overflow-x-auto px-4 py-4 text-[13px] leading-6 text-sand/95">
+      <pre className="max-w-full overflow-x-auto px-4 py-4 text-[13px] leading-6 text-sand/95">
         <code>{code}</code>
       </pre>
     </div>
