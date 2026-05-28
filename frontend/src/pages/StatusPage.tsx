@@ -99,7 +99,7 @@ function DeviceCard({ device, isPooled, modelColors }: { device: DeviceStatusRec
             )}
           </div>
           <p className="mt-2 text-sm text-black/65">
-            {device.device_type} · {formatDeviceIdLabel(device)}
+            {device.device_type.toUpperCase()} {device.display_suffix}
           </p>
         </div>
       </div>
