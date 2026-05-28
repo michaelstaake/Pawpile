@@ -74,6 +74,8 @@ docker compose --profile nvidia --profile vulkan up -d --build
 
 The initial build process may take a while depending on your environment and host performance, as we are building llama-cpp based on your chosen inference runtime.
 
+Large models can also take several minutes to finish loading the first time they are activated during startup. If Docker marks the backend or inference containers unhealthy too early, increase `LLAMA_STARTUP_TIMEOUT_SECONDS` and the `STARTUP_HEALTHCHECK_*` values in `.env`.
+
 **4. Proceed to web interface**
 
 Once Docker reports the containers are healthy and started, open the Pawpile web interface: https://localhost:5173 or replace localhost with your server's local IP. You will receive an SSL error since Pawpile generates a self-signed SSL certificate. It is safe to bypass this error.
@@ -199,6 +201,10 @@ Use this in your OpenCode config file to connect to Pawpile's OpenAI-compatible 
 - **Backend container is unhealthy after an update**:
   - Inspect `docker logs pawpile-backend` for migration errors
   - Version 0.6.0 must be a clean install - updates from previous versions are not supported.
+
+- **Backend or inference container turns unhealthy while loading a large model**:
+  - Increase `LLAMA_STARTUP_TIMEOUT_SECONDS` in `.env`
+  - Increase one or more `STARTUP_HEALTHCHECK_*` values in `.env` so Docker waits longer before marking the service unhealthy
 
 - **Docker Desktop**:
   - While Ubuntu Server 26.04 is the recommended OS, Pawpile runs great on  Ubuntu Desktop 26.04. However, if you have Docker Desktop installed, and attempt to run Pawpile using the Docker Desktop system context, it will not be able to use all the system resources like RAM and GPUs.

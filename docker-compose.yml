@@ -8,7 +8,7 @@ services:
       INFERENCE_SERVICE_URL: http://inference-cpu:8100
       INFERENCE_RUNTIME_URLS: cpu=http://inference-cpu:8100,nvidia=http://inference-nvidia:8100,vulkan=http://inference-vulkan:8100
       SUPPORTED_DEVICES: ""
-      LLAMA_STARTUP_TIMEOUT_SECONDS: ${LLAMA_STARTUP_TIMEOUT_SECONDS:-120}
+      LLAMA_STARTUP_TIMEOUT_SECONDS: ${LLAMA_STARTUP_TIMEOUT_SECONDS:-300}
       OPENAI_API_AUTH_REQUIRED: ${OPENAI_API_AUTH_REQUIRED:-true}
     volumes:
       - ./models:/app/models
@@ -19,10 +19,10 @@ services:
       - "8000:8000"
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
-      interval: 15s
-      timeout: 5s
-      retries: 5
-      start_period: 20s
+      interval: ${STARTUP_HEALTHCHECK_INTERVAL:-15s}
+      timeout: ${STARTUP_HEALTHCHECK_TIMEOUT:-5s}
+      retries: ${STARTUP_HEALTHCHECK_RETRIES:-16}
+      start_period: ${STARTUP_HEALTHCHECK_START_PERIOD:-60s}
     depends_on:
       inference-cpu:
         condition: service_healthy
@@ -58,7 +58,7 @@ services:
     environment:
       SUPPORTED_DEVICES: cpu
       LLAMA_SERVER_PATH: /opt/llama.cpp/build/bin/llama-server
-      LLAMA_STARTUP_TIMEOUT_SECONDS: ${LLAMA_STARTUP_TIMEOUT_SECONDS:-120}
+      LLAMA_STARTUP_TIMEOUT_SECONDS: ${LLAMA_STARTUP_TIMEOUT_SECONDS:-300}
     volumes:
       - ./models:/app/models
       - ./logs:/app/logs
@@ -66,10 +66,10 @@ services:
       - "8100"
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:8100/health"]
-      interval: 15s
-      timeout: 5s
-      retries: 5
-      start_period: 20s
+      interval: ${STARTUP_HEALTHCHECK_INTERVAL:-15s}
+      timeout: ${STARTUP_HEALTHCHECK_TIMEOUT:-5s}
+      retries: ${STARTUP_HEALTHCHECK_RETRIES:-16}
+      start_period: ${STARTUP_HEALTHCHECK_START_PERIOD:-60s}
     restart: unless-stopped
 
   inference-nvidia:
@@ -83,7 +83,7 @@ services:
     environment:
       SUPPORTED_DEVICES: nvidia
       LLAMA_SERVER_PATH: /opt/llama.cpp/build/bin/llama-server
-      LLAMA_STARTUP_TIMEOUT_SECONDS: ${LLAMA_STARTUP_TIMEOUT_SECONDS:-120}
+      LLAMA_STARTUP_TIMEOUT_SECONDS: ${LLAMA_STARTUP_TIMEOUT_SECONDS:-300}
     volumes:
       - ./models:/app/models
       - ./logs:/app/logs
@@ -91,10 +91,10 @@ services:
       - "8100"
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:8100/health"]
-      interval: 15s
-      timeout: 5s
-      retries: 5
-      start_period: 20s
+      interval: ${STARTUP_HEALTHCHECK_INTERVAL:-15s}
+      timeout: ${STARTUP_HEALTHCHECK_TIMEOUT:-5s}
+      retries: ${STARTUP_HEALTHCHECK_RETRIES:-16}
+      start_period: ${STARTUP_HEALTHCHECK_START_PERIOD:-60s}
     deploy:
       resources:
         reservations:
@@ -113,7 +113,7 @@ services:
     environment:
       SUPPORTED_DEVICES: vulkan
       LLAMA_SERVER_PATH: /opt/llama.cpp/build/bin/llama-server
-      LLAMA_STARTUP_TIMEOUT_SECONDS: ${LLAMA_STARTUP_TIMEOUT_SECONDS:-120}
+      LLAMA_STARTUP_TIMEOUT_SECONDS: ${LLAMA_STARTUP_TIMEOUT_SECONDS:-300}
     volumes:
       - ./models:/app/models
       - ./logs:/app/logs
@@ -127,10 +127,10 @@ services:
       - "8100"
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:8100/health"]
-      interval: 15s
-      timeout: 5s
-      retries: 5
-      start_period: 20s
+      interval: ${STARTUP_HEALTHCHECK_INTERVAL:-15s}
+      timeout: ${STARTUP_HEALTHCHECK_TIMEOUT:-5s}
+      retries: ${STARTUP_HEALTHCHECK_RETRIES:-16}
+      start_period: ${STARTUP_HEALTHCHECK_START_PERIOD:-60s}
     restart: unless-stopped
 
 volumes:
