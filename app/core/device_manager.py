@@ -3,6 +3,7 @@ import re
 import shlex
 import subprocess
 from dataclasses import dataclass
+from pathlib import Path
 
 import httpx
 import psutil
@@ -252,6 +253,7 @@ class DeviceManager:
 
         if devices:
             memory_by_idx = self._parse_vulkan_device_memory()
+            memory_by_idx.update(self._read_amdgpu_vram_totals())
             for device in devices:
                 idx = int(device.hardware_id.split(":")[1])
                 device.memory_mb = memory_by_idx.get(idx, 0)
@@ -273,6 +275,31 @@ class DeviceManager:
             logger.debug("vulkaninfo full output failed: %s", exc)
             return {}
         return _parse_vulkaninfo_device_local_heap_mb(output)
+
+    def _read_amdgpu_vram_totals(self) -> dict[int, int]:
+        memory_by_idx: dict[int, int] = {}
+        try:
+            amd_card_paths = sorted(
+                p.parent for p in Path("/sys/class/drm").glob("card*/device/gpu_busy_percent")
+                if p.is_file()
+            )
+        except Exception:
+            return memory_by_idx
+
+        for vulkan_idx, device_path in enumerate(amd_card_paths):
+            total_bytes = self._read_sysfs_int(device_path / "mem_info_vram_total")
+            if total_bytes is None or total_bytes <= 0:
+                continue
+            memory_by_idx[vulkan_idx] = int(total_bytes / (1024 * 1024))
+
+        return memory_by_idx
+
+    @staticmethod
+    def _read_sysfs_int(path: Path) -> int | None:
+        try:
+            return int(path.read_text().strip())
+        except Exception:
+            return None
 
     def _detect_cpu(self) -> list[DetectedDevice]:
         cores = psutil.cpu_count(logical=False) or 1
