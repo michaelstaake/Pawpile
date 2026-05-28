@@ -800,7 +800,7 @@ export default function ModelsPage({ setupMode = false, onComplete }: ModelsPage
             </div>
             {isUploading && isProcessingUpload ? (
               <p className="rounded-xl border border-black/10 bg-white/70 px-3 py-3 text-sm text-black/70">
-                This could take several minutes. Please do not leave this page. You will be notified with a success or error message upon completion.
+                This could take several minutes, especially with large files. If you aren't using an SSD with fast sustained writes, you may even want to go make some coffee or take a walk if staring at this message isn't your preferred pastime. Do not leave this page or close this tab! You will be notified with a success or error message once this process either completes or fails.
               </p>
             ) : null}
             {isUploading && uploadTotal > 0 && !isProcessingUpload ? (
