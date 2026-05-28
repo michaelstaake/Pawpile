@@ -98,8 +98,6 @@ class DeviceManager:
                 if row.device_type == "cpu":
                     row.max_threads = d.max_threads or row.max_threads
                     row.max_slots = max(0, d.max_slots)
-                if auto_enable_defaults:
-                    row.enabled = enabled
 
         db.commit()
         return db.query(Device).order_by(Device.priority.asc(), Device.id.asc()).all()
