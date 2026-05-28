@@ -384,6 +384,7 @@ class OpenAIChatRequest(BaseModel):
     presence_penalty: float | None = None
     repetition_penalty: float | None = Field(default=None, ge=0.0)
     max_tokens: int | None = None
+    use_web_search: bool | None = None
     tools: list[dict[str, Any]] | None = None
     tool_choice: str | dict[str, Any] | None = None
     parallel_tool_calls: bool | None = None

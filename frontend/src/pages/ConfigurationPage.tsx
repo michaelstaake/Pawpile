@@ -86,9 +86,9 @@ export default function ConfigurationPage() {
           <div className="flex flex-col gap-2 rounded-2xl border border-black/10 bg-[#fffdf7] px-4 py-4">
             <div className="flex items-start justify-between gap-4">
               <div>
-                <div className="text-sm font-semibold text-black">Sitename</div>
+                <div className="text-sm font-semibold text-black">Site name</div>
                 <p className="mt-1 text-sm text-black/65">
-                  Change the name of this self-hosted workspace. This will update the browser title and the header.
+                  This will update the browser title and the header.
                 </p>
               </div>
             </div>

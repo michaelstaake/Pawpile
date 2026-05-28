@@ -33,7 +33,15 @@ type ChatCompletionStats = {
 
 type ModelListResponse = {
   object: string;
-  data: { id: string; object: string; created: number; owned_by: string; vision_enabled?: boolean }[];
+  data: {
+    id: string;
+    object: string;
+    created: number;
+    owned_by: string;
+    vision_enabled?: boolean;
+    web_search_enabled?: boolean;
+    web_search_available?: boolean;
+  }[];
 };
 
 type ChatSummary = {
@@ -258,6 +266,7 @@ export default function ChatPage() {
   const { token, user } = useAuth();
   const [models, setModels] = useState<string[]>([]);
   const [modelVisionDefaults, setModelVisionDefaults] = useState<Record<string, boolean>>({});
+  const [modelSearchAvailability, setModelSearchAvailability] = useState<Record<string, boolean>>({});
   const [selectedModel, setSelectedModel] = useState<string>("");
   const [thinkingExpandedByIndex, setThinkingExpandedByIndex] = useState<Record<number, boolean>>({});
   const [messages, setMessages] = useState<ChatMessage[]>([]);
@@ -274,9 +283,13 @@ export default function ChatPage() {
   const shouldAutoScrollRef = useRef(true);
   const inputRef = useRef<HTMLInputElement | null>(null);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
+  const inputSettingsRef = useRef<HTMLDivElement | null>(null);
   const abortControllerRef = useRef<AbortController | null>(null);
   const [attachments, setAttachments] = useState<Attachment[]>([]);
+  const [isInputSettingsOpen, setIsInputSettingsOpen] = useState(false);
+  const [useWebSearch, setUseWebSearch] = useState(false);
   const selectedModelSupportsVision = selectedModel ? (modelVisionDefaults[selectedModel] ?? false) : false;
+  const selectedModelSupportsWebSearch = selectedModel ? (modelSearchAvailability[selectedModel] ?? false) : false;
   const shouldShowTranscript = activeChatId !== null || messages.length > 0;
   const isNewChatEmptyState = activeChatId === null && messages.length === 0;
   const shouldShowNoModelsEmptyState = isNewChatEmptyState && !isLoadingModels && models.length === 0;
@@ -324,6 +337,41 @@ export default function ChatPage() {
     }
   }, [isLoadingModels, models, isSending]);
 
+  useEffect(() => {
+    if (selectedModelSupportsWebSearch) {
+      return;
+    }
+
+    setUseWebSearch(false);
+    setIsInputSettingsOpen(false);
+  }, [selectedModelSupportsWebSearch]);
+
+  useEffect(() => {
+    if (!isInputSettingsOpen) {
+      return;
+    }
+
+    const handlePointerDown = (event: MouseEvent) => {
+      if (inputSettingsRef.current && !inputSettingsRef.current.contains(event.target as Node)) {
+        setIsInputSettingsOpen(false);
+      }
+    };
+
+    const handleEscape = (event: KeyboardEvent) => {
+      if (event.key === "Escape") {
+        setIsInputSettingsOpen(false);
+      }
+    };
+
+    document.addEventListener("mousedown", handlePointerDown);
+    document.addEventListener("keydown", handleEscape);
+
+    return () => {
+      document.removeEventListener("mousedown", handlePointerDown);
+      document.removeEventListener("keydown", handleEscape);
+    };
+  }, [isInputSettingsOpen]);
+
   async function loadModels() {
     setIsLoadingModels(true);
     setErrorMessage("");
@@ -331,10 +379,13 @@ export default function ChatPage() {
       const response = await apiGet<ModelListResponse>("/v1/models", token || undefined);
       const aliases = response.data.map((entry) => entry.id);
       const visionDefaults: Record<string, boolean> = {};
+      const searchAvailability: Record<string, boolean> = {};
       for (const entry of response.data) {
         visionDefaults[entry.id] = entry.vision_enabled ?? false;
+        searchAvailability[entry.id] = entry.web_search_available ?? false;
       }
       setModelVisionDefaults(visionDefaults);
+      setModelSearchAvailability(searchAvailability);
       setModels(aliases);
       setSelectedModel((current: string) => current || aliases[0] || "");
     } catch (error) {
@@ -611,6 +662,7 @@ export default function ChatPage() {
       const stats = await streamCompletion(
         selectedModel,
         nextMessages.map((message) => ({ role: message.role, content: message.apiContent ?? message.content })),
+        useWebSearch && selectedModelSupportsWebSearch,
         abortController.signal,
         (phase) => {
           setMessages((current) => {
@@ -1069,6 +1121,46 @@ export default function ChatPage() {
               multiple
               className="hidden"
             />
+            <div className="relative" ref={inputSettingsRef}>
+              <button
+                type="button"
+                onClick={() => setIsInputSettingsOpen((current) => !current)}
+                disabled={isSending || models.length === 0}
+                className={`flex h-12 w-12 items-center justify-center rounded-xl border border-black/20 bg-white text-black transition hover:bg-black/5 disabled:opacity-50 ${useWebSearch ? "border-amber/70 bg-amber/15 text-black" : ""}`}
+                title="Message settings"
+                aria-label="Message settings"
+                aria-haspopup="dialog"
+                aria-expanded={isInputSettingsOpen}
+              >
+                <i className="bi bi-sliders text-[18px] leading-none" aria-hidden="true" />
+              </button>
+
+              {isInputSettingsOpen ? (
+                <div className="absolute bottom-[calc(100%+0.5rem)] left-0 z-20 w-72 rounded-2xl border border-black/10 bg-[#fffdf7] p-3 shadow-xl shadow-black/10">
+                  <div className="mb-2 text-xs font-semibold uppercase tracking-[0.18em] text-black/40">Message settings</div>
+                  {selectedModelSupportsWebSearch ? (
+                    <label className="flex cursor-pointer items-start gap-3 rounded-xl border border-black/10 bg-white px-3 py-3 text-sm text-black/75 transition hover:border-black/15 hover:bg-black/[0.02]">
+                      <input
+                        type="checkbox"
+                        checked={useWebSearch}
+                        onChange={(event) => setUseWebSearch(event.target.checked)}
+                        className="mt-0.5"
+                      />
+                      <span className="grid gap-1">
+                        <span className="font-semibold text-black">Search</span>
+                        <span className="text-xs leading-5 text-black/50">
+                          Let this message use the configured web search provider.
+                        </span>
+                      </span>
+                    </label>
+                  ) : (
+                    <div className="rounded-xl border border-dashed border-black/10 bg-black/[0.02] px-3 py-3 text-sm text-black/50">
+                      No message settings are available for the selected model right now.
+                    </div>
+                  )}
+                </div>
+              ) : null}
+            </div>
             <input
               ref={inputRef}
               value={input}
@@ -1105,6 +1197,7 @@ export default function ChatPage() {
 async function streamCompletion(
   model: string,
   messages: { role: ChatRole; content: ChatMessageContent }[],
+  useWebSearch: boolean,
   signal: AbortSignal,
   onStageChange: (phase: "thinking") => void,
   onDelta: (delta: string, type: "thinking" | "content") => void
@@ -1124,7 +1217,7 @@ async function streamCompletion(
       method: "POST",
       headers,
       signal,
-      body: JSON.stringify({ model, messages, stream: true })
+      body: JSON.stringify({ model, messages, stream: true, use_web_search: useWebSearch })
     });
   } catch (error) {
     handleBackendUnavailableError(error);

@@ -237,6 +237,7 @@ async def _stream_with_web_search(
 
 @router.get("/models")
 def v1_models(_: User = Depends(require_api_access), db: Session = Depends(get_db)) -> dict:
+    active_web_search_provider = _get_active_web_search_provider(db)
     models = (
         db.query(ModelConfig)
         .filter(ModelConfig.activated.is_(True))
@@ -253,6 +254,8 @@ def v1_models(_: User = Depends(require_api_access), db: Session = Depends(get_d
                 "owned_by": "pawpile",
                 "discourage_thinking": m.discourage_thinking,
                 "vision_enabled": m.vision_enabled,
+                "web_search_enabled": m.web_search_enabled,
+                "web_search_available": m.web_search_enabled and m.tool_calling_enabled and active_web_search_provider is not None,
             }
             for m in models
         ],
@@ -277,7 +280,15 @@ async def v1_chat_completions(payload: OpenAIChatRequest, current_user: User = D
                 detail="Tool calling is disabled for this model. Enable tool calling in the model settings before sending tool requests.",
             )
 
-    if model.web_search_enabled and not model.tool_calling_enabled:
+    web_search_requested = payload.use_web_search if payload.use_web_search is not None else model.web_search_enabled
+
+    if web_search_requested and not model.web_search_enabled:
+        raise HTTPException(
+            status_code=400,
+            detail="Web search is disabled for this model. Enable it in the model settings before requesting search.",
+        )
+
+    if web_search_requested and not model.tool_calling_enabled:
         raise HTTPException(
             status_code=400,
             detail="Web search requires tool calling to be enabled for this model. Enable tool calling in the model settings.",
@@ -329,7 +340,13 @@ async def v1_chat_completions(payload: OpenAIChatRequest, current_user: User = D
     )
 
     # Web search: inject the web_search tool and run the agentic loop if enabled
-    active_web_search_provider = _get_active_web_search_provider(db) if model.web_search_enabled else None
+    active_web_search_provider = _get_active_web_search_provider(db) if web_search_requested else None
+    if payload.use_web_search and active_web_search_provider is None:
+        raise HTTPException(
+            status_code=400,
+            detail="No active web search provider is configured. Select one in Settings > Web Search before requesting search.",
+        )
+
     if active_web_search_provider is not None:
         existing_tools = list(request_payload.get("tools") or [])
         already_has_web_search = any(
