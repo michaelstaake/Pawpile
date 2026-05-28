@@ -236,7 +236,7 @@ export default function App() {
                 <button
                   type="button"
                   onClick={() => setIsMobileNavOpen(true)}
-                  className="inline-flex items-center gap-2 rounded-xl border border-black/10 bg-white px-3 py-2 text-sm font-medium text-ink transition hover:border-black/20 hover:bg-black/5 md:hidden"
+                  className="inline-flex items-center gap-2 rounded-xl border border-black/10 bg-white px-3 py-2 text-sm font-medium text-ink transition hover:border-black/20 hover:bg-black/5 xl:hidden"
                   aria-label="Open navigation menu"
                   aria-expanded={isMobileNavOpen}
                   aria-controls="mobile-nav-title"
@@ -244,7 +244,7 @@ export default function App() {
                   <i className="bi bi-list text-[18px] leading-none" aria-hidden="true" />
                   <span>Menu</span>
                 </button>
-                <nav className="hidden items-center gap-2 md:flex">
+                <nav className="hidden items-center gap-2 xl:flex">
                   {mainNavItems.map((item) => (
                     <MainNavLink key={`${item.to}-${item.label}`} to={item.to} end={item.end} iconClassName={item.iconClassName} label={item.label} />
                   ))}

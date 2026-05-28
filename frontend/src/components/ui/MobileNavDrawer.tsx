@@ -28,7 +28,7 @@ export default function MobileNavDrawer({
   extraSection,
 }: MobileNavDrawerProps) {
   return (
-    <div className="md:hidden">
+    <div className="xl:hidden">
       <Modal
         open={open}
         onClose={onClose}

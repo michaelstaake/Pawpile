@@ -804,10 +804,10 @@ export default function ChatPage() {
   }
 
   return (
-    <section className={`grid gap-4 ${isSidebarOpen ? "md:grid-cols-[280px_minmax(0,1fr)]" : "md:grid-cols-[72px_minmax(0,1fr)]"}`}>
+    <section className={`grid gap-4 ${isSidebarOpen ? "xl:grid-cols-[280px_minmax(0,1fr)]" : "xl:grid-cols-[72px_minmax(0,1fr)]"}`}>
       <aside
         className={`rounded-2xl border border-black/10 bg-white/80 shadow-sm transition-all ${
-          isSidebarOpen ? "hidden p-4 md:block" : "hidden p-3 md:block"
+          isSidebarOpen ? "hidden p-4 xl:block" : "hidden p-3 xl:block"
         }`}
       >
         {isSidebarOpen ? (
