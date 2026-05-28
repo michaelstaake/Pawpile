@@ -220,7 +220,8 @@ function formatAttachmentFallbackText(file: Attachment): string {
 }
 
 function formatAttachmentLabel(file: Attachment): string {
-  return `[Attached File: ${file.name}]`;
+  const sizeLabel = `${(file.size / 1024).toFixed(1)} KB`;
+  return `[Attached File: ${file.name} (${sizeLabel})]`;
 }
 
 function describeAttachment(file: Attachment): string {
