@@ -192,17 +192,21 @@ async def _stream_with_web_search(
     """
     messages = list(request_payload["messages"])
     tools = list(request_payload.get("tools") or [])
+    stream_options = dict(request_payload.get("stream_options") or {})
+    stream_options.setdefault("include_usage", True)
 
     for iteration in range(_WEB_SEARCH_MAX_ITERATIONS):
         # For the last iteration, strip tools to force a text response
         current_tools = [] if iteration == _WEB_SEARCH_MAX_ITERATIONS - 1 else tools
 
-        # Buffer the stream to detect tool calls
+        # Preserve usage in the buffered stream so the UI can compute token stats
+        # even when web search is enabled but no tool call is actually made.
         buffered: list[bytes] = []
-        intermediate_payload = {k: v for k, v in request_payload.items() if k != "stream_options"}
+        intermediate_payload = dict(request_payload)
         intermediate_payload["stream"] = True
         intermediate_payload["messages"] = messages
         intermediate_payload["tools"] = current_tools
+        intermediate_payload["stream_options"] = stream_options
         async for chunk in inference.stream_chat_completion(model_id, intermediate_payload):
             buffered.append(chunk)
 
@@ -222,10 +226,11 @@ async def _stream_with_web_search(
         messages = messages + tool_results
 
     # Exhausted iterations — stream the final answer without tools
-    final_payload = {k: v for k, v in request_payload.items() if k != "stream_options"}
+    final_payload = dict(request_payload)
     final_payload["stream"] = True
     final_payload["messages"] = messages
     final_payload["tools"] = []
+    final_payload["stream_options"] = stream_options
     async for chunk in inference.stream_chat_completion(model_id, final_payload):
         yield chunk
 

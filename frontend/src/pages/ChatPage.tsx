@@ -976,6 +976,12 @@ export default function ChatPage() {
                       </div>
                       {message.role === "assistant" && message.phase === "complete" && message.stats ? (
                         <div className="mt-3 border-t border-black/8 pt-2 text-[11px] text-black/45">
+                          {(() => {
+                            const tokenCount = formatInteger(message.stats.completionTokens ?? message.stats.totalTokens);
+                            const tokenRate = formatRate(message.stats.tokensPerSecond);
+
+                            return (
+                              <>
                           <span
                             title={
                               message.stats.completionTokens !== null && message.stats.totalTokens !== null
@@ -983,12 +989,15 @@ export default function ChatPage() {
                                 : undefined
                             }
                           >
-                            {formatInteger(message.stats.completionTokens ?? message.stats.totalTokens)}t
+                            {tokenCount === "n/a" ? tokenCount : `${tokenCount}t`}
                           </span>
                           <span className="mx-2 text-black/20">/</span>
                           <span>{formatDuration(message.stats.elapsedSeconds)}</span>
                           <span className="mx-2 text-black/20">/</span>
-                          <span className="font-medium text-black/55">{formatRate(message.stats.tokensPerSecond)}t/s</span>
+                          <span className="font-medium text-black/55">{tokenRate === "n/a" ? tokenRate : `${tokenRate}t/s`}</span>
+                              </>
+                            );
+                          })()}
                         </div>
                       ) : null}
                     </div>
