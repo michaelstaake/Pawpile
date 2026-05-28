@@ -14,6 +14,16 @@ from app.models.user import User
 bearer_scheme = HTTPBearer(auto_error=False)
 
 
+def _build_anonymous_api_user() -> User:
+    return User(
+        username="anonymous",
+        email="anonymous@local",
+        password_hash="",
+        is_admin=False,
+        is_active=True,
+    )
+
+
 def get_current_user(credentials: HTTPAuthorizationCredentials | None = Depends(bearer_scheme), db: Session = Depends(get_db)) -> User:
     settings = get_settings()
     credentials_exception = HTTPException(status_code=401, detail="Invalid credentials")
@@ -53,4 +63,7 @@ def get_admin_user(current_user: User = Depends(get_current_user)) -> User:
 
 
 def require_api_access(credentials: HTTPAuthorizationCredentials | None = Depends(bearer_scheme), db: Session = Depends(get_db)) -> User:
+    if not get_settings().openai_api_auth_required and credentials is None:
+        return _build_anonymous_api_user()
+
     return get_current_user(credentials, db)
