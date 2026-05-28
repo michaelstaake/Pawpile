@@ -276,6 +276,7 @@ export default function ChatPage() {
   const abortControllerRef = useRef<AbortController | null>(null);
   const [attachments, setAttachments] = useState<Attachment[]>([]);
   const selectedModelSupportsVision = selectedModel ? (modelVisionDefaults[selectedModel] ?? false) : false;
+  const shouldShowTranscript = activeChatId !== null || messages.length > 0;
 
   useEffect(() => {
     void loadModels();
@@ -818,16 +819,17 @@ export default function ChatPage() {
           </div>
         )}
 
-        <div
-          ref={transcriptRef}
-          onScroll={handleTranscriptScroll}
-          className="min-h-[360px] max-h-[55vh] overflow-y-auto rounded-xl border border-dashed border-black/20 bg-sand p-4 text-sm text-black/80"
-        >
-          {messages.length === 0 ? (
-            <div className="text-black/50">Nothing to see here yet - send a message to start the conversation!</div>
-          ) : (
-            <div className="space-y-3">
-              {messages.map((message, index) => (
+        {shouldShowTranscript ? (
+          <div
+            ref={transcriptRef}
+            onScroll={handleTranscriptScroll}
+            className="min-h-[360px] max-h-[55vh] overflow-y-auto rounded-xl border border-dashed border-black/20 bg-sand p-4 text-sm text-black/80"
+          >
+            {messages.length === 0 ? (
+              <div className="text-black/50">Nothing to see here yet.</div>
+            ) : (
+              <div className="space-y-3">
+                {messages.map((message, index) => (
                 message.role === "assistant" && (message.phase === "uploading" || message.phase === "thinking") && !message.content && !message.thinking ? (
                   <div key={index} className="px-1 py-1 text-sm font-medium text-black/45">
                     <span className="inline-flex items-center gap-2">
@@ -906,10 +908,11 @@ export default function ChatPage() {
                     ) : null}
                   </div>
                 )
-              ))}
-            </div>
-          )}
-        </div>
+                ))}
+              </div>
+            )}
+          </div>
+        ) : null}
 
         <form className="mt-4 flex flex-col gap-2" onSubmit={handleSubmit}>
           {attachments.length > 0 && (
