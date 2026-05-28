@@ -33,9 +33,9 @@ export default function MobileNavDrawer({
         open={open}
         onClose={onClose}
         labelledBy="mobile-nav-title"
-        overlayClassName="p-0 sm:p-0"
+        overlayClassName="bg-[#fffdf7] p-0 backdrop-blur-none sm:p-0"
         layoutClassName="items-stretch justify-stretch py-0 sm:items-stretch sm:justify-stretch sm:py-0"
-        panelClassName="flex h-dvh max-h-none w-full max-w-none flex-col rounded-none border-0 bg-[#fffdf7]"
+        panelClassName="flex min-h-full w-full max-w-none flex-col rounded-none border-0 bg-[#fffdf7] shadow-none"
       >
         <div className="flex items-center justify-between border-b border-black/10 px-5 py-4">
           <h2 id="mobile-nav-title" className="font-display text-2xl font-semibold tracking-tight text-ink">{sitename}</h2>
