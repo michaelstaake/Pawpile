@@ -1076,8 +1076,8 @@ export default function ChatPage() {
                 onClick={() => setIsInputSettingsOpen((current) => !current)}
                 disabled={isSending || models.length === 0}
                 className={`flex h-12 w-12 items-center justify-center rounded-xl border border-black/20 bg-white text-black transition hover:bg-black/5 disabled:opacity-50 ${useWebSearch ? "border-amber/70 bg-amber/15 text-black" : ""}`}
-                title="Message settings"
-                aria-label="Message settings"
+                title="Preferences"
+                aria-label="Preferences"
                 aria-haspopup="dialog"
                 aria-expanded={isInputSettingsOpen}
               >
@@ -1086,7 +1086,7 @@ export default function ChatPage() {
 
               {isInputSettingsOpen ? (
                 <div className="absolute bottom-[calc(100%+0.5rem)] left-0 z-20 w-72 rounded-2xl border border-black/10 bg-[#fffdf7] p-3 shadow-xl shadow-black/10">
-                  <div className="mb-2 text-xs font-semibold uppercase tracking-[0.18em] text-black/40">Chat settings</div>
+                  <div className="mb-2 text-xs font-semibold uppercase tracking-[0.18em] text-black/40">Preferences</div>
                   {selectedModelSupportsWebSearch ? (
                     <label className="flex cursor-pointer items-start gap-3 rounded-xl border border-black/10 bg-white px-3 py-3 text-sm text-black/75 transition hover:border-black/15 hover:bg-black/[0.02]">
                       <input
