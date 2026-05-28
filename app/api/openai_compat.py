@@ -198,13 +198,12 @@ async def _stream_with_web_search(
         current_tools = [] if iteration == _WEB_SEARCH_MAX_ITERATIONS - 1 else tools
 
         # Buffer the stream to detect tool calls
-        buffered: list[str] = []
-        async for chunk in inference.stream_chat_completion(model_id, {
-            **request_payload,
-            "messages": messages,
-            "tools": current_tools,
-            "stream_options": {"include_usage": True},
-        }):
+        buffered: list[bytes] = []
+        intermediate_payload = {k: v for k, v in request_payload.items() if k != "stream_options"}
+        intermediate_payload["stream"] = True
+        intermediate_payload["messages"] = messages
+        intermediate_payload["tools"] = current_tools
+        async for chunk in inference.stream_chat_completion(model_id, intermediate_payload):
             buffered.append(chunk)
 
         message, finish_reason = parse_sse_chunks(buffered)
@@ -223,12 +222,11 @@ async def _stream_with_web_search(
         messages = messages + tool_results
 
     # Exhausted iterations — stream the final answer without tools
-    async for chunk in inference.stream_chat_completion(model_id, {
-        **request_payload,
-        "messages": messages,
-        "tools": [],
-        "stream_options": {"include_usage": True},
-    }):
+    final_payload = {k: v for k, v in request_payload.items() if k != "stream_options"}
+    final_payload["stream"] = True
+    final_payload["messages"] = messages
+    final_payload["tools"] = []
+    async for chunk in inference.stream_chat_completion(model_id, final_payload):
         yield chunk
 
 
