@@ -113,6 +113,7 @@ const TEXT_ATTACHMENT_SUFFIXES = new Set([
 const DOCUMENT_ATTACHMENT_SUFFIXES = new Set([".docx", ".ods", ".odt", ".pdf", ".xlsx"]);
 
 const AUTO_SCROLL_BOTTOM_THRESHOLD_PX = 48;
+const MODEL_STATUS_GRADIENT = "linear-gradient(135deg,#770088 0%,#004CFF 20%,#028121 40%,#FFEE00 60%,#FF8D00 80%,#E50000 100%)";
 
 function hasKnownSuffix(name: string, suffixes: Set<string>): boolean {
   const lowerName = name.toLowerCase();
@@ -695,7 +696,10 @@ export default function ChatPage() {
                 onClick={startNewChat}
                 className="flex-1 rounded-xl bg-ink px-4 py-2 text-left text-sm font-semibold text-white transition hover:bg-black"
               >
-                + New Chat
+                <span className="inline-flex items-center gap-2">
+                  <i className="bi bi-pencil-square text-[16px] leading-none" aria-hidden="true" />
+                  <span>New Chat</span>
+                </span>
               </button>
               <button
                 type="button"
@@ -826,7 +830,8 @@ export default function ChatPage() {
         {shouldShowNoModelsEmptyState ? (
           <div className="mx-auto w-full max-w-2xl rounded-[28px] bg-white/40 px-8 py-10 text-center">
             <i
-              className="bi bi-emoji-frown bg-[linear-gradient(135deg,#ff7a59_0%,#ffb347_28%,#54f2c3_56%,#6fb8ff_78%,#ff86b7_100%)] bg-clip-text text-[72px] leading-none text-transparent"
+              className="bi bi-emoji-frown bg-clip-text text-[72px] leading-none text-transparent"
+              style={{ backgroundImage: MODEL_STATUS_GRADIENT }}
               aria-hidden="true"
             />
             <div className="mt-6 text-xl font-semibold text-ink md:text-2xl">No active models</div>
