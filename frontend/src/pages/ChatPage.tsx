@@ -112,6 +112,8 @@ const TEXT_ATTACHMENT_SUFFIXES = new Set([
 
 const DOCUMENT_ATTACHMENT_SUFFIXES = new Set([".docx", ".ods", ".odt", ".pdf", ".xlsx"]);
 
+const AUTO_SCROLL_BOTTOM_THRESHOLD_PX = 48;
+
 function hasKnownSuffix(name: string, suffixes: Set<string>): boolean {
   const lowerName = name.toLowerCase();
   for (const suffix of suffixes) {
@@ -256,6 +258,7 @@ export default function ChatPage() {
   const [activeChatId, setActiveChatId] = useState<number | null>(null);
   const [isLoadingChats, setIsLoadingChats] = useState(false);
   const transcriptRef = useRef<HTMLDivElement | null>(null);
+  const shouldAutoScrollRef = useRef(true);
   const inputRef = useRef<HTMLInputElement | null>(null);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const abortControllerRef = useRef<AbortController | null>(null);
@@ -274,7 +277,7 @@ export default function ChatPage() {
   }, [token]);
 
   useEffect(() => {
-    if (transcriptRef.current) {
+    if (shouldAutoScrollRef.current && transcriptRef.current) {
       transcriptRef.current.scrollTop = transcriptRef.current.scrollHeight;
     }
   }, [messages]);
@@ -324,7 +327,25 @@ export default function ChatPage() {
     }
   }
 
+  function isNearTranscriptBottom(element: HTMLDivElement): boolean {
+    return element.scrollHeight - element.scrollTop - element.clientHeight <= AUTO_SCROLL_BOTTOM_THRESHOLD_PX;
+  }
+
+  function enableTranscriptAutoScroll() {
+    shouldAutoScrollRef.current = true;
+  }
+
+  function handleTranscriptScroll() {
+    const element = transcriptRef.current;
+    if (!element) {
+      return;
+    }
+
+    shouldAutoScrollRef.current = isNearTranscriptBottom(element);
+  }
+
   function startNewChat() {
+    enableTranscriptAutoScroll();
     setMessages([]);
     setInput("");
     setErrorMessage("");
@@ -339,6 +360,7 @@ export default function ChatPage() {
     setErrorMessage("");
     try {
       const detail = await apiGet<ChatDetailResponse>(`/api/chat/${chatId}`, token);
+      enableTranscriptAutoScroll();
       setActiveChatId(detail.chat.id);
       setMessages(
         detail.messages.map((message) => ({
@@ -519,6 +541,7 @@ export default function ChatPage() {
       { role: "user", content: displayContent, apiContent, phase: "complete" },
     ];
     const hasUploadStage = preparedAttachments.length > 0;
+    enableTranscriptAutoScroll();
     setMessages([
       ...nextMessages,
       { role: "assistant", content: "", phase: hasUploadStage ? "uploading" : "thinking", modelName: selectedModel, stats: null },
@@ -771,6 +794,7 @@ export default function ChatPage() {
 
         <div
           ref={transcriptRef}
+          onScroll={handleTranscriptScroll}
           className="min-h-[360px] max-h-[55vh] overflow-y-auto rounded-xl border border-dashed border-black/20 bg-sand p-4 text-sm text-black/80"
         >
           {messages.length === 0 ? (
