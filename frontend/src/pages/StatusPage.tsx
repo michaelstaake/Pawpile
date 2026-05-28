@@ -80,13 +80,41 @@ function formatModelMemoryTooltip(model: StatusModelRecord) {
   return `${model.alias}: ${formatMemory(model.display_memory_used_mb)}`;
 }
 
+function formatRawModelMemoryTooltip(model: StatusModelRecord) {
+  return `${model.alias}: ${formatMemory(model.memory_used_mb)}`;
+}
+
 function DeviceCard({ device, isPooled, modelColors }: { device: DeviceStatusRecord; isPooled: boolean; modelColors: Map<number, string> }) {
+  const isCpuDevice = device.device_type.toLowerCase() === "cpu" || device.vendor.toLowerCase() === "cpu";
   const memoryPercent = getMemoryPercent(device.memory_used_mb, device.memory_total_mb);
-  const modelMemoryTotal = device.models.reduce((sum, model) => sum + model.display_memory_used_mb, 0);
+  const modelMemoryTotal = device.models.reduce(
+    (sum, model) => sum + (isCpuDevice ? model.memory_used_mb : model.display_memory_used_mb),
+    0,
+  );
   const assignedMemoryPercent = getMemoryPercent(modelMemoryTotal, device.memory_total_mb);
   const unassignedMemoryPercent = memoryPercent !== null && assignedMemoryPercent !== null
     ? clampPercent(memoryPercent - assignedMemoryPercent)
     : 0;
+  const memoryBarSegments = memoryPercent !== null ? [
+    ...(isCpuDevice && unassignedMemoryPercent > 0 ? [{
+      key: `${device.id}-memory-system`,
+      width: unassignedMemoryPercent,
+      backgroundColor: "#000000",
+      title: "System RAM used outside Pawpile",
+    }] : []),
+    ...device.models.map((model) => ({
+      key: `${device.id}-memory-${model.model_id}`,
+      width: getMemoryPercent(isCpuDevice ? model.memory_used_mb : model.display_memory_used_mb, device.memory_total_mb) ?? 0,
+      backgroundColor: getModelColor(modelColors, model.model_id),
+      title: isCpuDevice ? formatRawModelMemoryTooltip(model) : formatModelMemoryTooltip(model),
+    })).filter((segment) => segment.width > 0),
+    ...(!isCpuDevice && unassignedMemoryPercent > 0 ? [{
+      key: `${device.id}-memory-unassigned`,
+      width: unassignedMemoryPercent,
+      backgroundColor: "rgba(0, 0, 0, 0.2)",
+      title: "Used by runtime or system overhead",
+    }] : []),
+  ] : [];
 
   return (
     <article className="overflow-hidden rounded-[28px] border border-black/10 bg-white/80 p-5 shadow-sm backdrop-blur">
@@ -115,24 +143,17 @@ function DeviceCard({ device, isPooled, modelColors }: { device: DeviceStatusRec
               <p className="font-display text-2xl text-ink">{memoryPercent !== null ? `${memoryPercent.toFixed(1)}%` : "N/A"}</p>
             </div>
             <div className="mt-4 flex h-4 overflow-hidden rounded-full bg-black/10">
-              {memoryPercent !== null ? device.models.map((model, index) => (
+              {memoryPercent !== null ? memoryBarSegments.map((segment, index) => (
                 <div
-                  key={`${device.id}-memory-${model.model_id}`}
-                  className="h-full first:rounded-l-full last:rounded-r-full"
+                  key={segment.key}
+                  className={`h-full ${memoryBarSegments.length === 1 ? "rounded-full" : index === 0 ? "rounded-l-full" : index === memoryBarSegments.length - 1 ? "rounded-r-full" : ""}`}
                   style={{
-                    width: `${getMemoryPercent(model.display_memory_used_mb, device.memory_total_mb) ?? 0}%`,
-                    backgroundColor: getModelColor(modelColors, model.model_id),
+                    width: `${segment.width}%`,
+                    backgroundColor: segment.backgroundColor,
                   }}
-                  title={formatModelMemoryTooltip(model)}
+                  title={segment.title}
                 />
               )) : <div className="h-full w-full rounded-full bg-black/25" title="Memory capacity unavailable" />}
-              {unassignedMemoryPercent > 0 ? (
-                <div
-                  className={`h-full bg-black/20 ${device.models.length > 0 ? "rounded-r-full" : "rounded-full"}`}
-                  style={{ width: `${unassignedMemoryPercent}%` }}
-                  title="Used by runtime or system overhead"
-                />
-              ) : null}
             </div>
           </section>
         </div>
