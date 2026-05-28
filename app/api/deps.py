@@ -1,3 +1,5 @@
+from datetime import UTC, datetime
+
 from fastapi import Depends, HTTPException
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from jose import JWTError, jwt
@@ -32,6 +34,10 @@ def get_current_user(credentials: HTTPAuthorizationCredentials | None = Depends(
         user = db.query(User).filter(User.id == api_key.user_id, User.is_active.is_(True)).first()
         if not user:
             raise credentials_exception
+
+        api_key.last_used_at = datetime.now(UTC)
+        db.add(api_key)
+        db.commit()
         return user
 
     user = db.query(User).filter(User.username == username, User.is_active.is_(True)).first()

@@ -144,6 +144,7 @@ class ApiKeyResponse(BaseModel):
     user_username: str
     name: str
     created_at: str | None = None
+    last_used_at: str | None = None
 
 
 class ApiKeyCreateResponse(BaseModel):

@@ -4,15 +4,30 @@ import { apiDelete, apiGet, apiPost } from "../lib/api";
 import { useAuth } from "../context/AuthContext";
 import { ApiKeyCreateResponse, ApiKeyRecord } from "../lib/records";
 
-function formatCreatedAt(value: string | null): string {
+const MINUTE_IN_MS = 60 * 1000;
+const HOUR_IN_MS = 60 * MINUTE_IN_MS;
+const DAY_IN_MS = 24 * HOUR_IN_MS;
+
+function formatLastUsed(value: string | null): string {
   if (!value) {
-    return "Unknown creation date";
+    return "Never used";
   }
 
-  return new Intl.DateTimeFormat(undefined, {
-    dateStyle: "medium",
-    timeStyle: "short",
-  }).format(new Date(value));
+  const elapsedMs = Date.now() - new Date(value).getTime();
+
+  if (elapsedMs < MINUTE_IN_MS) {
+    return "Last used less than 1 minute ago";
+  }
+
+  if (elapsedMs < HOUR_IN_MS) {
+    return "Last used less than 1 hour ago";
+  }
+
+  if (elapsedMs < DAY_IN_MS) {
+    return "Last used less than 24 hours ago";
+  }
+
+  return "Last used more than 24 hours ago";
 }
 
 
@@ -149,7 +164,7 @@ export default function ApiPage() {
                 <div className="flex flex-wrap items-start justify-between gap-4">
                   <div>
                     <h3 className="font-display text-lg text-black">{apiKey.name}</h3>
-                    <p className="mt-1 text-xs uppercase tracking-[0.18em] text-black/45">Created {formatCreatedAt(apiKey.created_at)}</p>
+                    <p className="mt-1 text-xs uppercase tracking-[0.18em] text-black/45">{formatLastUsed(apiKey.last_used_at)}</p>
                   </div>
                   <button
                     className="rounded-xl border border-rose-200 px-3 py-2 text-sm font-semibold text-rose-700 disabled:cursor-not-allowed disabled:opacity-60"

@@ -222,6 +222,7 @@ def _serialize_api_key(api_key: ApiKey, user: User) -> dict:
         "user_username": user.username,
         "name": api_key.name,
         "created_at": api_key.created_at.isoformat() if api_key.created_at else None,
+        "last_used_at": api_key.last_used_at.isoformat() if api_key.last_used_at else None,
     }
 
 
