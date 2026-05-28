@@ -16,16 +16,76 @@ from app.utils.schemas import OpenAIChatRequest
 router = APIRouter(prefix="/v1", tags=["openai"])
 
 
-def _prepend_system_text(content: str | list[dict], prefix: str) -> str | list[dict]:
-    if isinstance(content, str):
-        return f"{prefix}\n{content}" if content else prefix
+THINKING_DISABLED_PROMPT = "Pawpile thinking mode: off. Do not include reasoning, chain-of-thought, or thought process. Reply with only the final answer."
+THINKING_ENABLED_PROMPT = "Pawpile thinking mode: on. Include your reasoning before the final answer when the model supports it."
+THINKING_CONTROL_RULES = {
+    "qwen": {
+        True: ["/think", THINKING_ENABLED_PROMPT],
+        False: ["/no_think", THINKING_DISABLED_PROMPT],
+    },
+    "gemma": {
+        True: [THINKING_ENABLED_PROMPT],
+        False: [THINKING_DISABLED_PROMPT],
+    },
+}
+KNOWN_THINKING_CONTROL_LINES = {
+    line
+    for controls in THINKING_CONTROL_RULES.values()
+    for lines in controls.values()
+    for line in lines
+}
 
-    if content and isinstance(content[0], dict) and content[0].get("type") == "text":
-        first = content[0]
-        existing_text = first.get("text") or ""
-        return [{**first, "text": f"{prefix}\n{existing_text}" if existing_text else prefix}, *content[1:]]
+
+def _model_family(model: ModelConfig) -> str | None:
+    model_identity = " ".join(
+        part.lower()
+        for part in (model.alias, model.file_name, model.model_dir_name)
+        if part
+    )
+    for family in THINKING_CONTROL_RULES:
+        if family in model_identity:
+            return family
+    return None
+
+
+def _strip_known_thinking_control_lines(text: str) -> str:
+    cleaned_lines = [
+        line
+        for line in text.splitlines()
+        if line.strip() not in KNOWN_THINKING_CONTROL_LINES
+    ]
+    return "\n".join(cleaned_lines).strip()
+
+
+def _prepend_system_lines(content: str | list[dict], prefix_lines: list[str]) -> str | list[dict]:
+    prefix = "\n".join(prefix_lines)
+    if isinstance(content, str):
+        existing = _strip_known_thinking_control_lines(content)
+        return f"{prefix}\n{existing}" if existing else prefix
+
+    for index, part in enumerate(content):
+        if isinstance(part, dict) and part.get("type") == "text":
+            existing = _strip_known_thinking_control_lines(part.get("text") or "")
+            updated = {**part, "text": f"{prefix}\n{existing}" if existing else prefix}
+            return [*content[:index], updated, *content[index + 1:]]
 
     return [{"type": "text", "text": prefix}, *content]
+
+
+def _apply_thinking_controls(messages: list[dict], model: ModelConfig, enabled: bool) -> list[dict]:
+    family = _model_family(model)
+    if family is None:
+        return messages
+
+    prefix_lines = THINKING_CONTROL_RULES[family][enabled]
+    if messages and messages[0].get("role") == "system":
+        existing = messages[0].get("content") or ""
+        return [
+            {**messages[0], "content": _prepend_system_lines(existing, prefix_lines)},
+            *messages[1:],
+        ]
+
+    return [{"role": "system", "content": "\n".join(prefix_lines)}, *messages]
 
 
 @router.get("/models")
@@ -106,26 +166,14 @@ async def v1_chat_completions(payload: OpenAIChatRequest, current_user: User = D
         for message in payload.messages
     ]
 
-    # When thinking is disabled, inject /no_think into the system message so
-    # that models with a built-in thinking template (e.g. Qwen3) reliably skip
-    # the thinking phase.  Some llama-server builds ignore the enable_thinking
-    # API parameter, but all compliant Qwen3 builds respect this control token.
-    if not request_payload.get("enable_thinking", True):
-        msgs = request_payload["messages"]
-        if msgs and msgs[0].get("role") == "system":
-            existing = msgs[0].get("content") or ""
-            existing_text = existing if isinstance(existing, str) else "\n".join(
-                part.get("text", "")
-                for part in existing
-                if isinstance(part, dict) and part.get("type") == "text"
-            )
-            if "/no_think" not in existing_text:
-                request_payload["messages"] = [
-                    {**msgs[0], "content": _prepend_system_text(existing, "/no_think")},
-                    *msgs[1:],
-                ]
-        else:
-            request_payload["messages"] = [{"role": "system", "content": "/no_think"}, *msgs]
+    # Some llama-server/model combinations do not reliably honor the generic
+    # enable_thinking flag. Inject a model-aware system directive so the web UI
+    # toggle and API parameter stay effective for affected families.
+    request_payload["messages"] = _apply_thinking_controls(
+        request_payload["messages"],
+        model,
+        bool(request_payload.get("enable_thinking", True)),
+    )
 
     if payload.stream:
         async def event_stream():
