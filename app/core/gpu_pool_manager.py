@@ -19,6 +19,13 @@ class PoolCleanupResult:
     reverted_model_ids: list[int]
 
 
+@dataclass
+class StalePoolMembershipCleanupResult:
+    removed_rows: int
+    pool_ids: list[int]
+    device_ids: list[int]
+
+
 def get_pooled_device_ids(db: Session, *, excluding_pool_id: int | None = None) -> set[int]:
     query = db.query(GpuPoolDevice)
     if excluding_pool_id is not None:
@@ -82,6 +89,7 @@ def delete_pool_and_revert_models(
 ) -> PoolCleanupResult:
     member_device_ids = _pool_member_device_ids(db, pool.id)
     reverted_models = revert_models_assigned_to_pool(db, pool.id, inference)
+    db.query(GpuPoolDevice).filter(GpuPoolDevice.pool_id == pool.id).delete(synchronize_session=False)
     db.delete(pool)
     return PoolCleanupResult(
         pool_id=pool.id,
@@ -102,6 +110,22 @@ def delete_pools_with_unavailable_devices(
         if any(device.hardware_id not in available_hardware_ids for device in member_devices):
             results.append(delete_pool_and_revert_models(db, pool, inference))
     return results
+
+
+def delete_stale_pool_memberships(db: Session) -> StalePoolMembershipCleanupResult:
+    existing_pool_ids = {pool_id for (pool_id,) in db.query(GpuPool.id).all()}
+    stale_rows = [row for row in db.query(GpuPoolDevice).all() if row.pool_id not in existing_pool_ids]
+    if not stale_rows:
+        return StalePoolMembershipCleanupResult(removed_rows=0, pool_ids=[], device_ids=[])
+
+    for row in stale_rows:
+        db.delete(row)
+
+    return StalePoolMembershipCleanupResult(
+        removed_rows=len(stale_rows),
+        pool_ids=sorted({row.pool_id for row in stale_rows}),
+        device_ids=sorted({row.device_id for row in stale_rows}),
+    )
 
 
 def _pool_member_device_ids(db: Session, pool_id: int) -> list[int]:

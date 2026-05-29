@@ -7,12 +7,12 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from app.api import admin, auth, chat, devices, logs, models, openai_compat, status, web_search as web_search_api
-from app.core.activity_logger import prune_old_logs, schedule_daily_pruning
+from app.core.activity_logger import log_event, prune_old_logs, schedule_daily_pruning
 from app.core.app_settings import get_or_create_app_settings
 from app.core.config import get_settings
 from app.core.db import SessionLocal
 from app.core.device_manager import DeviceManager
-from app.core.gpu_pool_manager import delete_pools_with_unavailable_devices
+from app.core.gpu_pool_manager import delete_pools_with_unavailable_devices, delete_stale_pool_memberships
 from app.core.inference_manager import InferenceManager, PoolActivationTarget
 from app.core.logging import configure_logging
 from app.models.model_config import ModelConfig
@@ -33,6 +33,18 @@ async def lifespan(_: FastAPI):
     try:
         prune_old_logs(db)
         device_manager.sync_detected_devices(db, auto_enable_defaults=True)
+        stale_memberships = delete_stale_pool_memberships(db)
+        if stale_memberships.removed_rows:
+            log_event(
+                db,
+                "pool.memberships_repaired",
+                details={
+                    "removed_rows": stale_memberships.removed_rows,
+                    "pool_ids": stale_memberships.pool_ids,
+                    "device_ids": stale_memberships.device_ids,
+                    "reason": "stale_pool_memberships_on_startup",
+                },
+            )
         detected_hardware_ids = {device.hardware_id for device in device_manager.detect_all()}
         removed_pools = delete_pools_with_unavailable_devices(db, detected_hardware_ids, inference_manager)
         db.commit()
