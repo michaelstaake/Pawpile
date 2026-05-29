@@ -280,15 +280,15 @@ export default function ConfigurationPage() {
               </select>
             </label>
             {settings.background_image_path ? (
-              <div className="grid gap-3 md:grid-cols-[220px_minmax(0,1fr)] md:items-start">
-                <img
-                  src={resolveApiUrl(settings.background_image_path)}
-                  alt="Current background"
-                  className="h-36 w-full rounded-2xl border border-black/10 bg-white object-cover shadow-sm"
-                />
+              <div className="grid gap-3">
                 <p className="text-sm text-black/65">
                   The uploaded image is active on desktop. Mobile continues to use the background color.
                 </p>
+                <img
+                  src={resolveApiUrl(settings.background_image_path)}
+                  alt="Current background"
+                  className="h-36 w-full rounded-2xl border border-black/10 bg-white object-cover shadow-sm md:max-w-[220px]"
+                />
               </div>
             ) : (
               <p className="text-sm text-black/65">No background image uploaded. Desktop will use the background color until you add one.</p>
