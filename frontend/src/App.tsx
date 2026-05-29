@@ -1,4 +1,4 @@
-import { useEffect, useState, type ReactNode } from "react";
+import { useEffect, useState, type CSSProperties, type ReactNode } from "react";
 import { NavLink, Navigate, Route, Routes, useLocation } from "react-router-dom";
 import ChatPage from "./pages/ChatPage";
 import AuthPage from "./pages/AuthPage";
@@ -22,11 +22,13 @@ import {
   BACKEND_UNAVAILABLE_EVENT,
   BACKEND_UNAVAILABLE_MESSAGE,
   isBackendUnavailableLocked,
+  resolveApiUrl,
 } from "./lib/api";
 import { type CurrentUser } from "./lib/session";
 
 const appVersionLabel = `v${__APP_VERSION__}`;
 const BACKEND_STATUS_POLL_INTERVAL_MS = 5000;
+const MOBILE_BREAKPOINT_PX = 768;
 
 function getMainNavItems(user: CurrentUser | null): MobileNavItem[] {
   const items: MobileNavItem[] = [];
@@ -158,7 +160,7 @@ function SetupRoute() {
 }
 
 export default function App() {
-  const { bootstrapError, isBootstrapping, requiresSetup, user, sitename } = useAuth();
+  const { backgroundColor, backgroundImageMode, backgroundImagePath, bootstrapError, isBootstrapping, requiresSetup, user, sitename } = useAuth();
   const { showError } = useToast();
   const location = useLocation();
   const [backendUnavailable, setBackendUnavailable] = useState(() => isBackendUnavailableLocked());
@@ -186,7 +188,7 @@ export default function App() {
 
   useEffect(() => {
     const base = sitename || "Pawpile";
-     document.title = pageTitle ? `${pageTitle} ~ ${base}` : base;
+    document.title = pageTitle ? `${pageTitle} ~ ${base}` : base;
   }, [sitename, pageTitle]);
 
   useEffect(() => {
@@ -237,8 +239,10 @@ export default function App() {
     setIsMobileNavOpen(false);
   }, [location.pathname]);
 
+  const appBackgroundStyle = buildAppBackgroundStyle(backgroundColor, backgroundImagePath, backgroundImageMode);
+
   return (
-    <div className="min-h-screen bg-[radial-gradient(circle_at_0%_0%,#f8fbf1_0%,#f4f0e0_45%,#efe8d2_100%)] text-ink font-body">
+    <div className="app-background min-h-screen text-ink font-body" style={appBackgroundStyle}>
       <ToastViewport />
       <MobileNavProvider value={{ closeMobileNav: () => setIsMobileNavOpen(false), setMobileNavSection }}>
         <div className="mx-auto max-w-7xl px-4 py-6 md:px-8">
@@ -299,4 +303,39 @@ export default function App() {
       </MobileNavProvider>
     </div>
   );
+}
+
+function buildAppBackgroundStyle(
+  backgroundColor: string,
+  backgroundImagePath: string | null,
+  backgroundImageMode: "fill" | "stretch" | "repeat",
+): CSSProperties {
+  const baseStyle: CSSProperties = {
+    ["--app-background-color" as string]: backgroundColor || "#efe8d2",
+    ["--app-background-image" as string]: "none",
+    ["--app-background-position" as string]: "center center",
+    ["--app-background-repeat" as string]: "no-repeat",
+    ["--app-background-size" as string]: "auto",
+  };
+
+  if (!backgroundImagePath) {
+    return baseStyle;
+  }
+
+  baseStyle["--app-background-image" as string] = `url("${resolveApiUrl(backgroundImagePath)}")`;
+
+  if (backgroundImageMode === "stretch") {
+    baseStyle["--app-background-size" as string] = "100% 100%";
+    return baseStyle;
+  }
+
+  if (backgroundImageMode === "repeat") {
+    baseStyle["--app-background-position" as string] = "left top";
+    baseStyle["--app-background-repeat" as string] = "repeat";
+    baseStyle["--app-background-size" as string] = "auto";
+    return baseStyle;
+  }
+
+  baseStyle["--app-background-size" as string] = "cover";
+  return baseStyle;
 }

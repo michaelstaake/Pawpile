@@ -41,6 +41,9 @@ def bootstrap_status(db: Session = Depends(get_db)) -> BootstrapStatusResponse:
         has_active_model=has_active_model,
         users_can_register=app_settings.users_can_register,
         sitename=app_settings.sitename,
+        background_color=app_settings.background_color,
+        background_image_path=app_settings.background_image_path,
+        background_image_mode=app_settings.background_image_mode,
     )
 
 

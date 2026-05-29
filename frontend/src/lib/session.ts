@@ -1,6 +1,8 @@
 export const AUTH_TOKEN_KEY = "pawpile.authToken";
 const LEGACY_ADMIN_TOKEN_KEY = "pawpile.adminToken";
 
+export type BackgroundImageMode = "fill" | "stretch" | "repeat";
+
 export type BootstrapStatus = {
   requires_setup: boolean;
   has_admin_user: boolean;
@@ -8,6 +10,9 @@ export type BootstrapStatus = {
   has_active_model: boolean;
   users_can_register: boolean;
   sitename: string;
+  background_color: string;
+  background_image_path: string | null;
+  background_image_mode: BackgroundImageMode;
 };
 
 export type CurrentUser = {

@@ -1,9 +1,13 @@
-from fastapi import APIRouter, Depends, HTTPException
+from pathlib import Path
+from uuid import uuid4
+
+from fastapi import APIRouter, Depends, File, HTTPException, UploadFile
 from sqlalchemy.orm import Session
 
 from app.api.deps import get_admin_user
 from app.core.activity_logger import log_event
 from app.core.app_settings import get_or_create_app_settings
+from app.core.config import get_settings
 from app.core.db import get_db
 from app.core.security import generate_api_key, hash_api_key, hash_password
 from app.models.api_key import ApiKey
@@ -11,34 +15,81 @@ from app.models.user import User
 from app.utils.schemas import ApiKeyCreateRequest, AppSettingsResponse, AppSettingsUpdateRequest, UserCreateRequest, UserUpdateRequest
 
 router = APIRouter(prefix="/api/admin", tags=["admin"])
+app_config = get_settings()
+BACKGROUND_IMAGE_MAX_BYTES = 10 * 1024 * 1024
+BACKGROUND_IMAGE_EXTENSIONS = {".jpg", ".jpeg", ".png"}
 
 
 @router.get("/settings", response_model=AppSettingsResponse)
 def get_settings(_: User = Depends(get_admin_user), db: Session = Depends(get_db)) -> AppSettingsResponse:
-    settings = get_or_create_app_settings(db)
-    return AppSettingsResponse(
-        users_can_register=settings.users_can_register,
-        sitename=settings.sitename,
-    )
+    app_settings = get_or_create_app_settings(db)
+    return _serialize_app_settings(app_settings)
 
 
 @router.patch("/settings", response_model=AppSettingsResponse)
 def update_settings(payload: AppSettingsUpdateRequest, admin_user: User = Depends(get_admin_user), db: Session = Depends(get_db)) -> AppSettingsResponse:
-    settings = get_or_create_app_settings(db)
+    app_settings = get_or_create_app_settings(db)
 
     if payload.users_can_register is not None:
-        settings.users_can_register = payload.users_can_register
+        app_settings.users_can_register = payload.users_can_register
     if payload.sitename is not None:
-        settings.sitename = payload.sitename
+        app_settings.sitename = payload.sitename
+    if payload.background_color is not None:
+        app_settings.background_color = payload.background_color
+    if payload.background_image_mode is not None:
+        app_settings.background_image_mode = payload.background_image_mode
 
-    db.add(settings)
+    db.add(app_settings)
     db.commit()
-    db.refresh(settings)
+    db.refresh(app_settings)
     log_event(db, "admin.settings_changed", user_id=admin_user.id, username=admin_user.username)
-    return AppSettingsResponse(
-        users_can_register=settings.users_can_register,
-        sitename=settings.sitename,
-    )
+    return _serialize_app_settings(app_settings)
+
+
+@router.post("/settings/background-image", response_model=AppSettingsResponse)
+async def upload_background_image(
+    file: UploadFile = File(...),
+    admin_user: User = Depends(get_admin_user),
+    db: Session = Depends(get_db),
+) -> AppSettingsResponse:
+    extension = Path(file.filename or "").suffix.lower()
+    if extension not in BACKGROUND_IMAGE_EXTENSIONS:
+        raise HTTPException(status_code=400, detail="Background image must be a JPG or PNG file")
+
+    content = await file.read()
+    if not content:
+        raise HTTPException(status_code=400, detail="Background image upload was empty")
+    if len(content) > BACKGROUND_IMAGE_MAX_BYTES:
+        raise HTTPException(status_code=400, detail="Background image must be 10 MB or smaller")
+
+    app_settings = get_or_create_app_settings(db)
+    backgrounds_directory = _backgrounds_directory()
+    backgrounds_directory.mkdir(parents=True, exist_ok=True)
+
+    _delete_background_file(app_settings.background_image_path)
+
+    stored_name = f"background-{uuid4().hex}{extension}"
+    destination = backgrounds_directory / stored_name
+    destination.write_bytes(content)
+
+    app_settings.background_image_path = f"/static/backgrounds/{stored_name}"
+    db.add(app_settings)
+    db.commit()
+    db.refresh(app_settings)
+    log_event(db, "admin.settings_changed", user_id=admin_user.id, username=admin_user.username)
+    return _serialize_app_settings(app_settings)
+
+
+@router.delete("/settings/background-image", response_model=AppSettingsResponse)
+def delete_background_image(admin_user: User = Depends(get_admin_user), db: Session = Depends(get_db)) -> AppSettingsResponse:
+    app_settings = get_or_create_app_settings(db)
+    _delete_background_file(app_settings.background_image_path)
+    app_settings.background_image_path = None
+    db.add(app_settings)
+    db.commit()
+    db.refresh(app_settings)
+    log_event(db, "admin.settings_changed", user_id=admin_user.id, username=admin_user.username)
+    return _serialize_app_settings(app_settings)
 
 
 @router.get("/users")
@@ -165,3 +216,26 @@ def _ensure_user_uniqueness(db: Session, username: str, email: str, excluded_use
         raise HTTPException(status_code=409, detail="A user with that username already exists")
     if email_query.first():
         raise HTTPException(status_code=409, detail="A user with that email already exists")
+
+
+def _serialize_app_settings(app_settings) -> AppSettingsResponse:
+    return AppSettingsResponse(
+        users_can_register=app_settings.users_can_register,
+        sitename=app_settings.sitename,
+        background_color=app_settings.background_color,
+        background_image_path=app_settings.background_image_path,
+        background_image_mode=app_settings.background_image_mode,
+    )
+
+
+def _backgrounds_directory() -> Path:
+    return Path(app_config.data_dir) / "backgrounds"
+
+
+def _delete_background_file(background_image_path: str | None) -> None:
+    if not background_image_path or not background_image_path.startswith("/static/backgrounds/"):
+        return
+
+    file_path = _backgrounds_directory() / Path(background_image_path).name
+    if file_path.exists():
+        file_path.unlink()

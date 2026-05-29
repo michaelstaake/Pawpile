@@ -1,8 +1,13 @@
-import { useEffect, useState } from "react";
-import { apiGet, apiPatch } from "../lib/api";
+import { useEffect, useRef, useState } from "react";
+import { apiDelete, apiGet, apiPatch, apiPostForm, resolveApiUrl } from "../lib/api";
 import { useAuth } from "../context/AuthContext";
 import { useToast } from "../context/ToastContext";
 import { AppSettingsRecord } from "../lib/records";
+
+const DEFAULT_BACKGROUND_COLOR = "#efe8d2";
+const ALLOWED_BACKGROUND_IMAGE_TYPES = new Set(["image/jpeg", "image/png"]);
+const MAX_BACKGROUND_IMAGE_BYTES = 10 * 1024 * 1024;
+const HEX_COLOR_PATTERN = /^#[0-9a-f]{6}$/i;
 
 export default function ConfigurationPage() {
   const { refreshPublicSettings, token } = useAuth();
@@ -10,10 +15,16 @@ export default function ConfigurationPage() {
   const [settings, setSettings] = useState<AppSettingsRecord>({
     users_can_register: false,
     sitename: "Pawpile",
+    background_color: DEFAULT_BACKGROUND_COLOR,
+    background_image_path: null,
+    background_image_mode: "fill",
   });
   const [localSitename, setLocalSitename] = useState("Pawpile");
+  const [localBackgroundColor, setLocalBackgroundColor] = useState(DEFAULT_BACKGROUND_COLOR);
   const [isLoading, setIsLoading] = useState(true);
   const [isSaving, setIsSaving] = useState<keyof AppSettingsRecord | null>(null);
+  const [isUploadingBackgroundImage, setIsUploadingBackgroundImage] = useState(false);
+  const uploadInputRef = useRef<HTMLInputElement | null>(null);
 
   useEffect(() => {
     if (!token) {
@@ -27,6 +38,10 @@ export default function ConfigurationPage() {
       setLocalSitename(settings.sitename);
     }
   }, [settings.sitename]);
+
+  useEffect(() => {
+    setLocalBackgroundColor(settings.background_color || DEFAULT_BACKGROUND_COLOR);
+  }, [settings.background_color]);
 
   async function loadSettings(activeToken: string) {
     setIsLoading(true);
@@ -60,6 +75,75 @@ export default function ConfigurationPage() {
       showError(error instanceof Error ? error.message : "Failed to update configuration setting");
     } finally {
       setIsSaving(null);
+    }
+  }
+
+  async function uploadBackgroundImage(file: File) {
+    if (!token) {
+      return;
+    }
+
+    const extension = file.name.split(".").pop()?.toLowerCase() ?? "";
+    if (!ALLOWED_BACKGROUND_IMAGE_TYPES.has(file.type) && !["jpg", "jpeg", "png"].includes(extension)) {
+      showError("Background image must be a JPG or PNG file.");
+      return;
+    }
+
+    if (file.size > MAX_BACKGROUND_IMAGE_BYTES) {
+      showError("Background image must be 10 MB or smaller.");
+      return;
+    }
+
+    setIsUploadingBackgroundImage(true);
+
+    try {
+      const formData = new FormData();
+      formData.append("file", file);
+      const response = await apiPostForm<AppSettingsRecord>("/api/admin/settings/background-image", formData, token);
+      setSettings(response);
+      await refreshPublicSettings();
+      showSuccess("Background image updated.");
+    } catch (error) {
+      showError(error instanceof Error ? error.message : "Failed to upload background image");
+    } finally {
+      setIsUploadingBackgroundImage(false);
+      if (uploadInputRef.current) {
+        uploadInputRef.current.value = "";
+      }
+    }
+  }
+
+  async function deleteBackgroundImage() {
+    if (!token) {
+      return;
+    }
+
+    setIsUploadingBackgroundImage(true);
+    try {
+      const response = await apiDelete<AppSettingsRecord>("/api/admin/settings/background-image", token);
+      setSettings(response);
+      await refreshPublicSettings();
+      showSuccess("Background image removed.");
+    } catch (error) {
+      showError(error instanceof Error ? error.message : "Failed to remove background image");
+    } finally {
+      setIsUploadingBackgroundImage(false);
+      if (uploadInputRef.current) {
+        uploadInputRef.current.value = "";
+      }
+    }
+  }
+
+  function commitBackgroundColor(rawColor: string) {
+    const normalized = rawColor.trim().toLowerCase();
+    if (!HEX_COLOR_PATTERN.test(normalized)) {
+      setLocalBackgroundColor(settings.background_color || DEFAULT_BACKGROUND_COLOR);
+      showError("Background color must be a hex code like #efe8d2.");
+      return;
+    }
+
+    if (normalized !== settings.background_color) {
+      void updateSetting("background_color", normalized);
     }
   }
 
@@ -98,6 +182,109 @@ export default function ConfigurationPage() {
                 placeholder="Pawpile"
               />
             </div>
+          </div>
+          <div className="flex flex-col gap-3 rounded-2xl border border-black/10 bg-[#fffdf7] px-4 py-4">
+            <div className="flex items-start justify-between gap-4">
+              <div>
+                <div className="text-sm font-semibold text-black">Background color</div>
+                <p className="mt-1 text-sm text-black/65">
+                  Used whenever no background image is set, and always on mobile.
+                </p>
+              </div>
+            </div>
+            <div className="flex flex-col gap-3 md:flex-row md:items-center">
+              <input
+                type="color"
+                value={localBackgroundColor}
+                onChange={(event) => {
+                  const nextColor = event.target.value.toLowerCase();
+                  setLocalBackgroundColor(nextColor);
+                  if (nextColor !== settings.background_color) {
+                    void updateSetting("background_color", nextColor);
+                  }
+                }}
+                disabled={isLoading || isSaving === "background_color"}
+                className="h-11 w-16 cursor-pointer rounded-xl border border-black/15 bg-white p-1 disabled:cursor-not-allowed"
+              />
+              <input
+                type="text"
+                inputMode="text"
+                className="w-full max-w-xs rounded-xl border border-black/15 bg-white px-3 py-2 text-sm text-black focus:outline-none focus:ring-2 focus:ring-ink/20"
+                value={localBackgroundColor}
+                onChange={(event) => setLocalBackgroundColor(event.target.value)}
+                onBlur={() => commitBackgroundColor(localBackgroundColor)}
+                onKeyDown={(event) => {
+                  if (event.key === "Enter") {
+                    commitBackgroundColor(localBackgroundColor);
+                  }
+                }}
+                disabled={isLoading || isSaving === "background_color"}
+                placeholder="#efe8d2"
+              />
+            </div>
+          </div>
+          <div className="flex flex-col gap-3 rounded-2xl border border-black/10 bg-[#fffdf7] px-4 py-4">
+            <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
+              <div>
+                <div className="text-sm font-semibold text-black">Background image</div>
+                <p className="mt-1 text-sm text-black/65">
+                  Applied on desktop only. Upload a JPG or PNG up to 10 MB.
+                </p>
+              </div>
+              <div className="flex flex-wrap items-center gap-2">
+                <label className="inline-flex cursor-pointer items-center rounded-xl border border-black/10 bg-white px-3 py-2 text-sm font-semibold text-black transition hover:border-black/20 hover:bg-black/5">
+                  <span>{isUploadingBackgroundImage ? "Uploading..." : "Upload image"}</span>
+                  <input
+                    ref={uploadInputRef}
+                    type="file"
+                    accept=".jpg,.jpeg,.png,image/jpeg,image/png"
+                    className="hidden"
+                    disabled={isLoading || isUploadingBackgroundImage}
+                    onChange={(event) => {
+                      const file = event.target.files?.[0];
+                      if (file) {
+                        void uploadBackgroundImage(file);
+                      }
+                    }}
+                  />
+                </label>
+                <button
+                  type="button"
+                  className="rounded-xl border border-black/10 bg-white px-3 py-2 text-sm font-semibold text-black transition hover:border-black/20 hover:bg-black/5 disabled:cursor-not-allowed disabled:opacity-60"
+                  onClick={() => void deleteBackgroundImage()}
+                  disabled={isLoading || isUploadingBackgroundImage || !settings.background_image_path}
+                >
+                  Delete image
+                </button>
+              </div>
+            </div>
+            <label className="grid gap-2 text-sm text-black/70 md:max-w-xs">
+              <span className="font-semibold text-black">Desktop image fit</span>
+              <select
+                className="rounded-xl border border-black/15 bg-white px-3 py-2 text-sm text-black focus:outline-none focus:ring-2 focus:ring-ink/20"
+                value={settings.background_image_mode}
+                onChange={(event) => void updateSetting("background_image_mode", event.target.value)}
+                disabled={isLoading || isSaving === "background_image_mode"}
+              >
+                <option value="fill">Fill</option>
+                <option value="stretch">Stretch</option>
+                <option value="repeat">Repeat</option>
+              </select>
+            </label>
+            {settings.background_image_path ? (
+              <div className="grid gap-3 md:grid-cols-[220px_minmax(0,1fr)] md:items-start">
+                <img
+                  src={resolveApiUrl(settings.background_image_path)}
+                  alt="Current background"
+                  className="h-36 w-full rounded-2xl border border-black/10 bg-white object-cover shadow-sm"
+                />
+                <p className="text-sm text-black/65">
+                  The uploaded image is active on desktop. Mobile continues to use the background color.
+                </p>
+              </div>
+            ) : (
+              <p className="text-sm text-black/65">No background image uploaded. Desktop will use the background color until you add one.</p>
+            )}
           </div>
           <label className="flex items-start justify-between gap-4 rounded-2xl border border-black/10 bg-[#fffdf7] px-4 py-4">
             <div>

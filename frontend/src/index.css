@@ -11,3 +11,20 @@
 body {
   margin: 0;
 }
+
+.app-background {
+  background-color: var(--app-background-color, #efe8d2);
+  background-image: var(--app-background-image, none);
+  background-position: var(--app-background-position, center center);
+  background-repeat: var(--app-background-repeat, no-repeat);
+  background-size: var(--app-background-size, auto);
+}
+
+@media (max-width: 767px) {
+  .app-background {
+    background-image: none !important;
+    background-position: center center;
+    background-repeat: no-repeat;
+    background-size: auto;
+  }
+}

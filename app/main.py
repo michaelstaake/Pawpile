@@ -5,6 +5,7 @@ from pathlib import Path
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.staticfiles import StaticFiles
 
 from app.api import admin, auth, chat, devices, logs, models, openai_compat, status, web_search as web_search_api
 from app.core.activity_logger import log_event, prune_old_logs, schedule_daily_pruning
@@ -18,6 +19,8 @@ from app.core.logging import configure_logging
 from app.models.model_config import ModelConfig
 
 settings = get_settings()
+Path(settings.data_dir).mkdir(parents=True, exist_ok=True)
+Path(settings.data_dir, "backgrounds").mkdir(parents=True, exist_ok=True)
 device_manager = DeviceManager()
 inference_manager = InferenceManager()
 logger = logging.getLogger(__name__)
@@ -28,6 +31,7 @@ async def lifespan(_: FastAPI):
     configure_logging(settings.app_log_level)
     Path(settings.models_dir).mkdir(parents=True, exist_ok=True)
     Path(settings.data_dir).mkdir(parents=True, exist_ok=True)
+    Path(settings.data_dir, "backgrounds").mkdir(parents=True, exist_ok=True)
 
     db = SessionLocal()
     try:
@@ -105,6 +109,8 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+app.mount("/static", StaticFiles(directory=Path(settings.data_dir)), name="static")
 
 models.router.inference_manager = inference_manager  # type: ignore[attr-defined]
 openai_compat.router.inference_manager = inference_manager  # type: ignore[attr-defined]

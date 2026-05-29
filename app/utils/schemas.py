@@ -3,6 +3,23 @@ from typing import Any, Literal
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 
+def _normalize_background_color(value: str | None) -> str:
+    if value is None:
+        return "#efe8d2"
+
+    normalized = value.strip().lower()
+    if not normalized:
+        return "#efe8d2"
+
+    if len(normalized) != 7 or not normalized.startswith("#"):
+        raise ValueError("background_color must be a hex color like #efe8d2")
+
+    if any(character not in "0123456789abcdef#" for character in normalized):
+        raise ValueError("background_color must be a hex color like #efe8d2")
+
+    return normalized
+
+
 def normalize_message_content(content: Any) -> str:
     """Normalize OpenAI-style content to plain text for text-only backends.
 
@@ -160,6 +177,14 @@ class BootstrapStatusResponse(BaseModel):
     has_active_model: bool = False
     users_can_register: bool = False
     sitename: str = "Pawpile"
+    background_color: str = "#efe8d2"
+    background_image_path: str | None = None
+    background_image_mode: Literal["fill", "stretch", "repeat"] = "fill"
+
+    @field_validator("background_color", mode="before")
+    @classmethod
+    def validate_background_color(cls, value: str | None) -> str:
+        return _normalize_background_color(value)
 
 
 class BootstrapAdminRequest(BaseModel):
@@ -177,11 +202,28 @@ class UserRegistrationRequest(BaseModel):
 class AppSettingsResponse(BaseModel):
     users_can_register: bool = False
     sitename: str = "Pawpile"
+    background_color: str = "#efe8d2"
+    background_image_path: str | None = None
+    background_image_mode: Literal["fill", "stretch", "repeat"] = "fill"
+
+    @field_validator("background_color", mode="before")
+    @classmethod
+    def validate_background_color(cls, value: str | None) -> str:
+        return _normalize_background_color(value)
 
 
 class AppSettingsUpdateRequest(BaseModel):
     users_can_register: bool | None = None
     sitename: str | None = None
+    background_color: str | None = None
+    background_image_mode: Literal["fill", "stretch", "repeat"] | None = None
+
+    @field_validator("background_color", mode="before")
+    @classmethod
+    def validate_background_color(cls, value: str | None) -> str | None:
+        if value is None:
+            return None
+        return _normalize_background_color(value)
 
 
 class WebSearchProviderResponse(BaseModel):

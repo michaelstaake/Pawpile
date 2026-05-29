@@ -1,6 +1,6 @@
 import { createContext, ReactNode, useContext, useEffect, useState } from "react";
 import { apiGet, apiPatch, apiPost } from "../lib/api";
-import { BootstrapStatus, clearStoredToken, CurrentUser, getStoredToken, LoginResponse, storeToken } from "../lib/session";
+import { BackgroundImageMode, BootstrapStatus, clearStoredToken, CurrentUser, getStoredToken, LoginResponse, storeToken } from "../lib/session";
 
 type AuthContextValue = {
   token: string;
@@ -12,6 +12,9 @@ type AuthContextValue = {
   isAuthenticating: boolean;
   usersCanRegister: boolean;
   sitename: string;
+  backgroundColor: string;
+  backgroundImagePath: string | null;
+  backgroundImageMode: BackgroundImageMode;
   refreshAuthState: () => Promise<void>;
   refreshPublicSettings: () => Promise<void>;
   updateProfile: (payload: { email?: string; password?: string }) => Promise<CurrentUser>;
@@ -23,6 +26,9 @@ type AuthContextValue = {
 
 const AuthContext = createContext<AuthContextValue | null>(null);
 
+const DEFAULT_BACKGROUND_COLOR = "#efe8d2";
+const DEFAULT_BACKGROUND_IMAGE_MODE: BackgroundImageMode = "fill";
+
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [token, setToken] = useState<string>(() => getStoredToken());
   const [user, setUser] = useState<CurrentUser | null>(null);
@@ -33,6 +39,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [isAuthenticating, setIsAuthenticating] = useState(false);
   const [usersCanRegister, setUsersCanRegister] = useState(false);
   const [sitename, setSitename] = useState("Pawpile");
+  const [backgroundColor, setBackgroundColor] = useState(DEFAULT_BACKGROUND_COLOR);
+  const [backgroundImagePath, setBackgroundImagePath] = useState<string | null>(null);
+  const [backgroundImageMode, setBackgroundImageMode] = useState<BackgroundImageMode>(DEFAULT_BACKGROUND_IMAGE_MODE);
 
   useEffect(() => {
     const onStorage = (event: StorageEvent) => {
@@ -53,6 +62,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       const bootstrap = await apiGet<BootstrapStatus>("/api/auth/bootstrap-status");
       setUsersCanRegister(bootstrap.users_can_register);
       setSitename(bootstrap.sitename || "Pawpile");
+      setBackgroundColor(bootstrap.background_color || DEFAULT_BACKGROUND_COLOR);
+      setBackgroundImagePath(bootstrap.background_image_path || null);
+      setBackgroundImageMode(bootstrap.background_image_mode || DEFAULT_BACKGROUND_IMAGE_MODE);
     } catch {
       // silently ignore — UI will retain previous values
     }
@@ -67,6 +79,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       setRequiresSetup(bootstrap.requires_setup);
       setUsersCanRegister(bootstrap.users_can_register);
       setSitename(bootstrap.sitename || "Pawpile");
+      setBackgroundColor(bootstrap.background_color || DEFAULT_BACKGROUND_COLOR);
+      setBackgroundImagePath(bootstrap.background_image_path || null);
+      setBackgroundImageMode(bootstrap.background_image_mode || DEFAULT_BACKGROUND_IMAGE_MODE);
 
       if (!token) {
         setUser(null);
@@ -88,6 +103,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       setRequiresSetup(false);
       setUsersCanRegister(false);
       setSitename("Pawpile");
+      setBackgroundColor(DEFAULT_BACKGROUND_COLOR);
+      setBackgroundImagePath(null);
+      setBackgroundImageMode(DEFAULT_BACKGROUND_IMAGE_MODE);
       setBootstrapError(error instanceof Error ? error.message : "Unable to load installation state");
     } finally {
       setIsBootstrapping(false);
@@ -125,6 +143,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       setRequiresSetup(bootstrap.requires_setup);
       setUsersCanRegister(bootstrap.users_can_register);
       setSitename(bootstrap.sitename || "Pawpile");
+      setBackgroundColor(bootstrap.background_color || DEFAULT_BACKGROUND_COLOR);
+      setBackgroundImagePath(bootstrap.background_image_path || null);
+      setBackgroundImageMode(bootstrap.background_image_mode || DEFAULT_BACKGROUND_IMAGE_MODE);
       setBootstrapError(null);
     } finally {
       setIsAuthenticating(false);
@@ -177,6 +198,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         isAuthenticating,
         usersCanRegister,
         sitename,
+        backgroundColor,
+        backgroundImagePath,
+        backgroundImageMode,
         refreshAuthState,
         refreshPublicSettings,
         updateProfile,

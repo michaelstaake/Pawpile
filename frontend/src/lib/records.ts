@@ -1,3 +1,5 @@
+import type { BackgroundImageMode } from "./session";
+
 export type WebSearchProviderRecord = {
   id: number;
   provider_type: string;
@@ -169,6 +171,9 @@ export type UserUpdateResponse = {
 export type AppSettingsRecord = {
   users_can_register: boolean;
   sitename: string;
+  background_color: string;
+  background_image_path: string | null;
+  background_image_mode: BackgroundImageMode;
 };
 
 export type ApiKeyCreateResponse = {

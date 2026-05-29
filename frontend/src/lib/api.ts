@@ -27,6 +27,10 @@ export function isBackendUnavailableLocked(): boolean {
   return backendUnavailableLocked;
 }
 
+export function resolveApiUrl(path: string): string {
+  return `${BASE_URL}${path}`;
+}
+
 function ensureBackendAvailable() {
   if (backendUnavailableLocked) {
     throw buildBackendUnavailableError();
@@ -86,7 +90,7 @@ export async function apiGet<T>(path: string, token?: string): Promise<T> {
   let response: Response;
 
   try {
-    response = await fetch(`${BASE_URL}${path}`, {
+    response = await fetch(resolveApiUrl(path), {
       headers: token ? { Authorization: `Bearer ${token}` } : undefined
     });
   } catch (error) {
@@ -118,7 +122,7 @@ export async function apiPost<TRequest, TResponse>(path: string, payload: TReque
   let response: Response;
 
   try {
-    response = await fetch(`${BASE_URL}${path}`, {
+    response = await fetch(resolveApiUrl(path), {
       method: "POST",
       headers,
       body: JSON.stringify(payload)
@@ -153,7 +157,7 @@ export async function apiPatch<TRequest, TResponse>(path: string, payload: TRequ
   let response: Response;
 
   try {
-    response = await fetch(`${BASE_URL}${path}`, {
+    response = await fetch(resolveApiUrl(path), {
       method: "PATCH",
       headers,
       body: JSON.stringify(payload)
@@ -180,7 +184,7 @@ export async function apiDelete<TResponse>(path: string, token?: string): Promis
   let response: Response;
 
   try {
-    response = await fetch(`${BASE_URL}${path}`, {
+    response = await fetch(resolveApiUrl(path), {
       method: "DELETE",
       headers: token ? { Authorization: `Bearer ${token}` } : undefined
     });
@@ -206,7 +210,7 @@ export async function apiPostForm<TResponse>(path: string, formData: FormData, t
   let response: Response;
 
   try {
-    response = await fetch(`${BASE_URL}${path}`, {
+    response = await fetch(resolveApiUrl(path), {
       method: "POST",
       headers: token ? { Authorization: `Bearer ${token}` } : undefined,
       body: formData
@@ -237,7 +241,7 @@ export async function apiPostFormWithProgress<TResponse>(
 
   return new Promise<TResponse>((resolve, reject) => {
     const request = new XMLHttpRequest();
-    request.open("POST", `${BASE_URL}${path}`);
+    request.open("POST", resolveApiUrl(path));
     request.responseType = "text";
 
     if (token) {
