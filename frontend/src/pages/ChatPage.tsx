@@ -20,6 +20,7 @@ type ChatMessage = {
   content: string;
   apiContent?: ChatMessageContent;
   thinking?: string;
+  thinkingElapsedSeconds?: number | null;
   phase?: "uploading" | "thinking" | "streaming" | "complete";
   modelName?: string;
   stats?: ChatCompletionStats | null;
@@ -685,6 +686,8 @@ export default function ChatPage() {
 
     let assistantBuffer = "";
     let thinkingBuffer = "";
+    let thinkingStartedAt: number | null = null;
+    let thinkingElapsedSeconds: number | null = null;
     try {
       const stats = await streamCompletion(
         selectedModel,
@@ -692,6 +695,9 @@ export default function ChatPage() {
         useWebSearch && selectedModelSupportsWebSearch,
         abortController.signal,
         (phase) => {
+          if (phase === "thinking" && thinkingStartedAt === null) {
+            thinkingStartedAt = performance.now();
+          }
           setMessages((current: ChatMessage[]) => {
             if (current.length === 0) {
               return current;
@@ -707,16 +713,22 @@ export default function ChatPage() {
         },
         (delta, type) => {
         if (type === "thinking") {
+          if (thinkingStartedAt === null) {
+            thinkingStartedAt = performance.now();
+          }
           thinkingBuffer += delta;
           setMessages((current: ChatMessage[]) => {
             if (current.length === 0) return current;
             const updated = [...current];
             const last = updated[updated.length - 1];
-            updated[updated.length - 1] = { ...last, thinking: (last.thinking ?? "") + delta, phase: "streaming" };
+            updated[updated.length - 1] = { ...last, thinking: (last.thinking ?? "") + delta, phase: "thinking" };
             return updated;
           });
           setThinkingExpandedByIndex((current: Record<number, boolean>) => ({ ...current, [nextMessages.length]: current[nextMessages.length] ?? false }));
         } else {
+          if (thinkingElapsedSeconds === null && thinkingStartedAt !== null) {
+            thinkingElapsedSeconds = Math.max((performance.now() - thinkingStartedAt) / 1000, 0.001);
+          }
           assistantBuffer += delta;
           setMessages((current: ChatMessage[]) => {
             if (current.length === 0) {
@@ -727,6 +739,7 @@ export default function ChatPage() {
             updated[updated.length - 1] = {
               ...last,
               content: last.content + delta,
+              thinkingElapsedSeconds: thinkingElapsedSeconds ?? last.thinkingElapsedSeconds,
               phase: "streaming",
             };
             return updated;
@@ -734,6 +747,9 @@ export default function ChatPage() {
         }
         }
       );
+      if (thinkingElapsedSeconds === null && thinkingStartedAt !== null) {
+        thinkingElapsedSeconds = Math.max((performance.now() - thinkingStartedAt) / 1000, 0.001);
+      }
       setMessages((current: ChatMessage[]) => {
         if (current.length === 0) {
           return current;
@@ -743,6 +759,7 @@ export default function ChatPage() {
         updated[updated.length - 1] = {
           ...last,
           thinking: thinkingBuffer || last.thinking,
+          thinkingElapsedSeconds: thinkingElapsedSeconds ?? last.thinkingElapsedSeconds ?? null,
           content: assistantBuffer,
           modelName: last.modelName || stats.model,
           phase: "complete",
@@ -765,7 +782,11 @@ export default function ChatPage() {
           if (last.role === "assistant") {
             if (!last.content && !last.thinking) return current.slice(0, -1);
             const updated = [...current];
-            updated[updated.length - 1] = { ...last, phase: "complete" };
+            updated[updated.length - 1] = {
+              ...last,
+              thinkingElapsedSeconds: thinkingElapsedSeconds ?? last.thinkingElapsedSeconds ?? null,
+              phase: "complete"
+            };
             return updated;
           }
           return current;
@@ -958,10 +979,10 @@ export default function ChatPage() {
                             className="flex w-full items-center gap-2 rounded-lg px-2 py-1 text-left text-xs font-medium text-black/40 hover:bg-black/5"
                           >
                             <span className="flex-1">
-                              {message.phase === "streaming" || message.phase === "thinking" ? (
+                              {message.phase === "thinking" ? (
                                 <span className="animate-pulse">Thinking...</span>
                               ) : (
-                                formatThoughtLabel(message.stats?.elapsedSeconds ?? null)
+                                formatThoughtLabel(message.thinkingElapsedSeconds ?? null)
                               )}
                             </span>
                             <i
