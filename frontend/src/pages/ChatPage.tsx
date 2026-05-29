@@ -715,7 +715,7 @@ export default function ChatPage() {
             updated[updated.length - 1] = { ...last, thinking: (last.thinking ?? "") + delta, phase: "streaming" };
             return updated;
           });
-          setThinkingExpandedByIndex((current: Record<number, boolean>) => ({ ...current, [nextMessages.length]: true }));
+          setThinkingExpandedByIndex((current: Record<number, boolean>) => ({ ...current, [nextMessages.length]: current[nextMessages.length] ?? false }));
         } else {
           assistantBuffer += delta;
           setMessages((current: ChatMessage[]) => {
@@ -961,7 +961,7 @@ export default function ChatPage() {
                               {message.phase === "streaming" || message.phase === "thinking" ? (
                                 <span className="animate-pulse">Thinking...</span>
                               ) : (
-                                "Thought"
+                                formatThoughtLabel(message.stats?.elapsedSeconds ?? null)
                               )}
                             </span>
                             <i
@@ -1417,4 +1417,13 @@ function formatDuration(value: number): string {
   }
 
   return `${value >= 10 ? value.toFixed(1) : value.toFixed(2)}s`;
+}
+
+function formatThoughtLabel(value: number | null): string {
+  if (value === null || Number.isNaN(value) || value < 0) {
+    return "Thought";
+  }
+
+  const rounded = value >= 10 ? value.toFixed(1) : value.toFixed(2);
+  return `Thought for ${rounded} ${Number(rounded) === 1 ? "second" : "seconds"}`;
 }
