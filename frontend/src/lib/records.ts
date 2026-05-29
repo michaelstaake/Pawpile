@@ -148,6 +148,14 @@ export type ModelUpdateResponse = {
   model: ModelRecord;
 };
 
+export type ModelActivationResponse = {
+  status: string;
+  model_id: number;
+  device_id?: number;
+  pool_id?: number;
+  elapsed_seconds?: number;
+};
+
 export type DeviceUpdateResponse = {
   status: string;
   device: DeviceRecord;

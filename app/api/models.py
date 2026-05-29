@@ -1,5 +1,6 @@
 import os
 import shutil
+import time
 from pathlib import Path
 
 from fastapi import APIRouter, Depends, File, HTTPException, UploadFile
@@ -355,6 +356,8 @@ async def activate_model(model_id: int, _: User = Depends(get_admin_user), db: S
     if resolution is None:
         raise HTTPException(status_code=409, detail="No enabled device available for model")
 
+    activation_started_at = time.perf_counter()
+
     try:
         if isinstance(resolution, PoolActivationTarget):
             await inference.activate_model_on_pool(model, resolution)
@@ -362,14 +365,24 @@ async def activate_model(model_id: int, _: User = Depends(get_admin_user), db: S
             db.add(model)
             db.commit()
             log_event(db, "model.activated", details={"alias": model.alias, "pool_id": resolution.pool_id, "pool_name": resolution.pool_name})
-            return {"status": "ok", "model_id": model.id, "pool_id": resolution.pool_id}
+            return {
+                "status": "ok",
+                "model_id": model.id,
+                "pool_id": resolution.pool_id,
+                "elapsed_seconds": round(time.perf_counter() - activation_started_at, 2),
+            }
         else:
             await inference.activate_model(model, resolution)
             model.activated = True
             db.add(model)
             db.commit()
             log_event(db, "model.activated", details={"alias": model.alias, "device_id": resolution.id, "device_name": resolution.name})
-            return {"status": "ok", "model_id": model.id, "device_id": resolution.id}
+            return {
+                "status": "ok",
+                "model_id": model.id,
+                "device_id": resolution.id,
+                "elapsed_seconds": round(time.perf_counter() - activation_started_at, 2),
+            }
     except RuntimeError as exc:
         log_event(db, "model.activation_failed", details={"alias": model.alias, "error": str(exc)})
         raise HTTPException(status_code=400, detail=str(exc)) from exc

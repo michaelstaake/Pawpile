@@ -3,7 +3,7 @@ import { apiDelete, apiGet, apiPatch, apiPost, apiPostFormWithProgress } from ".
 import { useAuth } from "../context/AuthContext";
 import { useToast } from "../context/ToastContext";
 import { formatDeviceIdLabel } from "../lib/deviceIds";
-import { AssetUploadResponse, DeviceRecord, GpuPoolRecord, ModelRecord, ModelUpdateResponse, ScanResponse, UploadResponse } from "../lib/records";
+import { AssetUploadResponse, DeviceRecord, GpuPoolRecord, ModelActivationResponse, ModelRecord, ModelUpdateResponse, ScanResponse, UploadResponse } from "../lib/records";
 import Modal from "../components/ui/Modal";
 
 const AUTO_SAVE_DELAY_MS = 700;
@@ -176,6 +176,14 @@ function formatUploadEta(seconds: number | null): string {
   }
 
   return `${seconds} second${seconds === 1 ? "" : "s"}`;
+}
+
+function formatModelActivationSuccessMessage(modelAlias: string, elapsedSeconds?: number): string {
+  if (typeof elapsedSeconds !== "number" || Number.isNaN(elapsedSeconds)) {
+    return `${modelAlias} enabled.`;
+  }
+
+  return `${modelAlias} enabled. Loaded in ${elapsedSeconds.toFixed(2)} seconds.`;
 }
 
 export default function ModelsPage({ setupMode = false, onComplete }: ModelsPageProps) {
@@ -539,10 +547,10 @@ export default function ModelsPage({ setupMode = false, onComplete }: ModelsPage
     const nextActivated = !model.activated;
     setLoadingActivationIds((current) => (current.includes(model.id) ? current : [...current, model.id]));
     try {
-      await apiPost<Record<string, never>, { status: string }>(`/api/models/${model.id}/${nextActivated ? "activate" : "deactivate"}`, {}, token);
+      const response = await apiPost<Record<string, never>, ModelActivationResponse | { status: string }>(`/api/models/${model.id}/${nextActivated ? "activate" : "deactivate"}`, {}, token);
       setModels((current) => current.map((item) => (item.id === model.id ? { ...item, activated: nextActivated } : item)));
       savedActivationRef.current[model.id] = nextActivated;
-      showSuccess(`${model.alias} ${nextActivated ? "enabled" : "disabled"}.`, { id: "models-success" });
+      showSuccess(nextActivated ? formatModelActivationSuccessMessage(model.alias, "elapsed_seconds" in response ? response.elapsed_seconds : undefined) : `${model.alias} disabled.`, { id: "models-success" });
     } catch (error) {
       showError(error instanceof Error ? error.message : "Failed to update model activation", { id: "models-error" });
     } finally {
