@@ -5,6 +5,7 @@ import { useToast } from "../context/ToastContext";
 import { AppSettingsRecord } from "../lib/records";
 
 const DEFAULT_BACKGROUND_COLOR = "#efe8d2";
+const DEFAULT_SITENAME = "Pawpile";
 const ALLOWED_BACKGROUND_IMAGE_TYPES = new Set(["image/jpeg", "image/png"]);
 const MAX_BACKGROUND_IMAGE_BYTES = 10 * 1024 * 1024;
 const HEX_COLOR_PATTERN = /^#[0-9a-f]{6}$/i;
@@ -14,12 +15,12 @@ export default function ConfigurationPage() {
   const { showError, showSuccess } = useToast();
   const [settings, setSettings] = useState<AppSettingsRecord>({
     users_can_register: false,
-    sitename: "Pawpile",
+    sitename: DEFAULT_SITENAME,
     background_color: DEFAULT_BACKGROUND_COLOR,
     background_image_path: null,
     background_image_mode: "fill",
   });
-  const [localSitename, setLocalSitename] = useState("Pawpile");
+  const [localSitename, setLocalSitename] = useState(DEFAULT_SITENAME);
   const [localBackgroundColor, setLocalBackgroundColor] = useState(DEFAULT_BACKGROUND_COLOR);
   const [isLoading, setIsLoading] = useState(true);
   const [isSaving, setIsSaving] = useState<keyof AppSettingsRecord | null>(null);
@@ -134,8 +135,19 @@ export default function ConfigurationPage() {
     }
   }
 
+  function commitSitename(rawSitename: string) {
+    const normalized = rawSitename.trim() || DEFAULT_SITENAME;
+    setLocalSitename(normalized);
+
+    if (normalized !== settings.sitename) {
+      void updateSetting("sitename", normalized);
+    }
+  }
+
   function commitBackgroundColor(rawColor: string) {
-    const normalized = rawColor.trim().toLowerCase();
+    const normalized = (rawColor.trim() || DEFAULT_BACKGROUND_COLOR).toLowerCase();
+    setLocalBackgroundColor(normalized);
+
     if (!HEX_COLOR_PATTERN.test(normalized)) {
       setLocalBackgroundColor(settings.background_color || DEFAULT_BACKGROUND_COLOR);
       showError("Background color must be a hex code like #efe8d2.");
@@ -168,14 +180,10 @@ export default function ConfigurationPage() {
                 className="w-full rounded-xl border border-black/15 bg-white px-3 py-2 text-sm text-black focus:outline-none focus:ring-2 focus:ring-ink/20"
                 value={localSitename}
                 onChange={(e) => setLocalSitename(e.target.value)}
-                onBlur={() => {
-                  if (localSitename && localSitename !== settings.sitename) {
-                    void updateSetting("sitename", localSitename);
-                  }
-                }}
+                onBlur={() => commitSitename(localSitename)}
                 onKeyDown={(e) => {
-                  if (e.key === "Enter" && localSitename && localSitename !== settings.sitename) {
-                    void updateSetting("sitename", localSitename);
+                  if (e.key === "Enter") {
+                    commitSitename(localSitename);
                   }
                 }}
                 disabled={isLoading || isSaving === "sitename"}
