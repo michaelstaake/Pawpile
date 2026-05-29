@@ -12,6 +12,7 @@ from app.api.deps import require_api_access
 from app.core.activity_logger import log_event
 from app.core.db import get_db
 from app.core.inference_manager import InferenceManager
+from app.core.token_counter import add_processed_tokens
 from app.core.web_search import WEB_SEARCH_TOOL_DEFINITION, get_search_provider, parse_sse_chunks
 from app.models.app_settings import AppSettings
 from app.models.model_config import ModelConfig
@@ -44,6 +45,82 @@ KNOWN_THINKING_CONTROL_LINES = {
     for lines in controls.values()
     for line in lines
 }
+
+
+def _coerce_usage_count(value: Any) -> int | None:
+    if isinstance(value, bool) or value is None:
+        return None
+
+    if isinstance(value, int):
+        return value if value > 0 else None
+
+    if isinstance(value, float):
+        coerced = int(value)
+        return coerced if coerced > 0 else None
+
+    if isinstance(value, str):
+        text = value.strip()
+        if not text:
+            return None
+        try:
+            coerced = int(text)
+        except ValueError:
+            return None
+        return coerced if coerced > 0 else None
+
+    return None
+
+
+def _record_usage(usage: Any) -> bool:
+    if not isinstance(usage, dict):
+        return False
+
+    total_tokens = _coerce_usage_count(usage.get("total_tokens"))
+    if total_tokens is None:
+        total_tokens = _coerce_usage_count(usage.get("totalTokens"))
+    input_tokens = _coerce_usage_count(usage.get("prompt_tokens"))
+    if input_tokens is None:
+        input_tokens = _coerce_usage_count(usage.get("promptTokens"))
+    output_tokens = _coerce_usage_count(usage.get("completion_tokens"))
+    if output_tokens is None:
+        output_tokens = _coerce_usage_count(usage.get("completionTokens"))
+
+    if total_tokens is None and input_tokens is None and output_tokens is None:
+        return False
+
+    add_processed_tokens(
+        total_tokens,
+        input_tokens=input_tokens,
+        output_tokens=output_tokens,
+    )
+    return True
+
+
+def _record_usage_from_sse_chunk(chunk: bytes | str) -> bool:
+    if isinstance(chunk, bytes):
+        chunk = chunk.decode("utf-8", errors="replace")
+
+    for event in chunk.replace("\r\n", "\n").split("\n\n"):
+        if not event.strip():
+            continue
+
+        for line in event.split("\n"):
+            if not line.startswith("data:"):
+                continue
+
+            payload_str = line[5:].strip()
+            if not payload_str or payload_str == "[DONE]":
+                continue
+
+            try:
+                payload = json.loads(payload_str)
+            except (json.JSONDecodeError, ValueError):
+                continue
+
+            if _record_usage(payload.get("usage")):
+                return True
+
+    return False
 
 
 def _model_family(model: ModelConfig) -> str | None:
@@ -359,8 +436,11 @@ async def v1_chat_completions(payload: OpenAIChatRequest, current_user: User = D
 
         if payload.stream:
             async def web_search_event_stream():
+                usage_recorded = False
                 try:
                     async for chunk in _stream_with_web_search(inference, model.id, request_payload, active_web_search_provider):
+                        if not usage_recorded:
+                            usage_recorded = _record_usage_from_sse_chunk(chunk)
                         yield chunk
                 except RuntimeError as exc:
                     err_msg = str(exc).replace("\\", "\\\\").replace('"', '\\"')
@@ -370,6 +450,7 @@ async def v1_chat_completions(payload: OpenAIChatRequest, current_user: User = D
             return StreamingResponse(web_search_event_stream(), media_type="text/event-stream")
 
         result = await _run_web_search_non_streaming(inference, model.id, request_payload, active_web_search_provider)
+        _record_usage(result.get("usage"))
         return {
             "id": f"chatcmpl-{uuid.uuid4().hex}",
             "object": "chat.completion",
@@ -381,11 +462,14 @@ async def v1_chat_completions(payload: OpenAIChatRequest, current_user: User = D
 
     if payload.stream:
         async def event_stream():
+            usage_recorded = False
             try:
                 async for chunk in inference.stream_chat_completion(model.id, {
                     **request_payload,
                     "stream_options": {"include_usage": True},
                 }):
+                    if not usage_recorded:
+                        usage_recorded = _record_usage_from_sse_chunk(chunk)
                     yield chunk
             except RuntimeError as exc:
                 message = str(exc).replace("\\", "\\\\").replace('"', '\\"')
@@ -395,6 +479,7 @@ async def v1_chat_completions(payload: OpenAIChatRequest, current_user: User = D
         return StreamingResponse(event_stream(), media_type="text/event-stream")
 
     result = await inference.chat_completion(model.id, request_payload)
+    _record_usage(result.get("usage"))
     return {
         "id": f"chatcmpl-{uuid.uuid4().hex}",
         "object": "chat.completion",
