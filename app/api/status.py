@@ -8,6 +8,7 @@ from app.core.config import get_settings
 from app.core.device_manager import build_device_display_suffix
 from app.core.db import get_db
 from app.core.inference_manager import InferenceManager
+from app.core.token_counter import get_processed_tokens
 from app.models.device import Device
 from app.models.model_config import ModelConfig
 
@@ -20,7 +21,7 @@ async def get_status(db: Session = Depends(get_db)) -> dict:
     settings = get_settings()
     devices = db.query(Device).order_by(Device.priority.asc(), Device.id.asc()).all()
     models_by_id = {model.id: model for model in db.query(ModelConfig).all()}
-    runtime_devices, runtime_errors, tokens_processed = await _fetch_runtime_devices(settings)
+    runtime_devices, runtime_errors = await _fetch_runtime_devices(settings)
     system_cpu_usage_percent = _coalesce_float(runtime_devices.get("cpu:0", {}).get("usage_percent"))
     fallback_models_by_device_id: dict[int, list[dict]] = {}
     # pool_model_device_ids maps model_id -> set of device IDs it spans (for pool models)
@@ -98,17 +99,16 @@ async def get_status(db: Session = Depends(get_db)) -> dict:
         "status": "ok",
         "refreshed_at": datetime.now(timezone.utc).isoformat(),
         "system_cpu_usage_percent": system_cpu_usage_percent,
-        "tokens_processed": tokens_processed,
+        "tokens_processed": get_processed_tokens(),
         "devices": serialized_devices,
         "runtime_errors": runtime_errors,
     }
 
 
-async def _fetch_runtime_devices(settings) -> tuple[dict[str, dict], list[dict], int]:
+async def _fetch_runtime_devices(settings) -> tuple[dict[str, dict], list[dict]]:
     runtime_map = settings.inference_runtime_url_map()
     devices: dict[str, dict] = {}
     errors: list[dict] = []
-    tokens_processed = 0
 
     async with httpx.AsyncClient(timeout=settings.inference_service_timeout_seconds) as client:
         for vendor_key, base_url in runtime_map.items():
@@ -120,10 +120,6 @@ async def _fetch_runtime_devices(settings) -> tuple[dict[str, dict], list[dict],
                 continue
 
             payload = response.json()
-            if isinstance(payload, dict):
-                runtime_tokens = _coalesce_int(payload.get("tokens_processed"))
-                if runtime_tokens is not None and runtime_tokens > 0:
-                    tokens_processed += runtime_tokens
             rows = payload.get("devices", []) if isinstance(payload, dict) else []
             for row in rows:
                 hardware_id = row.get("hardware_id") if isinstance(row, dict) else None
@@ -131,7 +127,7 @@ async def _fetch_runtime_devices(settings) -> tuple[dict[str, dict], list[dict],
                     continue
                 devices[str(hardware_id)] = row
 
-    return devices, errors, tokens_processed
+    return devices, errors
 
 
 def _serialize_status_model(row: dict, models_by_id: dict[int, ModelConfig]) -> dict:
