@@ -30,6 +30,14 @@ const appVersionLabel = `v${__APP_VERSION__}`;
 const BACKEND_STATUS_POLL_INTERVAL_MS = 5000;
 const MOBILE_BREAKPOINT_PX = 768;
 
+type AppBackgroundStyle = CSSProperties & {
+  "--app-background-color": string;
+  "--app-background-image": string;
+  "--app-background-position": string;
+  "--app-background-repeat": string;
+  "--app-background-size": string;
+};
+
 function getMainNavItems(user: CurrentUser | null): MobileNavItem[] {
   const items: MobileNavItem[] = [];
 
@@ -309,33 +317,33 @@ function buildAppBackgroundStyle(
   backgroundColor: string,
   backgroundImagePath: string | null,
   backgroundImageMode: "fill" | "stretch" | "repeat",
-): CSSProperties {
-  const baseStyle: CSSProperties = {
-    ["--app-background-color" as string]: backgroundColor || "#efe8d2",
-    ["--app-background-image" as string]: "none",
-    ["--app-background-position" as string]: "center center",
-    ["--app-background-repeat" as string]: "no-repeat",
-    ["--app-background-size" as string]: "auto",
+): AppBackgroundStyle {
+  const baseStyle: AppBackgroundStyle = {
+    "--app-background-color": backgroundColor || "#efe8d2",
+    "--app-background-image": "none",
+    "--app-background-position": "center center",
+    "--app-background-repeat": "no-repeat",
+    "--app-background-size": "auto",
   };
 
   if (!backgroundImagePath) {
     return baseStyle;
   }
 
-  baseStyle["--app-background-image" as string] = `url("${resolveApiUrl(backgroundImagePath)}")`;
+  baseStyle["--app-background-image"] = `url("${resolveApiUrl(backgroundImagePath)}")`;
 
   if (backgroundImageMode === "stretch") {
-    baseStyle["--app-background-size" as string] = "100% 100%";
+    baseStyle["--app-background-size"] = "100% 100%";
     return baseStyle;
   }
 
   if (backgroundImageMode === "repeat") {
-    baseStyle["--app-background-position" as string] = "left top";
-    baseStyle["--app-background-repeat" as string] = "repeat";
-    baseStyle["--app-background-size" as string] = "auto";
+    baseStyle["--app-background-position"] = "left top";
+    baseStyle["--app-background-repeat"] = "repeat";
+    baseStyle["--app-background-size"] = "auto";
     return baseStyle;
   }
 
-  baseStyle["--app-background-size" as string] = "cover";
+  baseStyle["--app-background-size"] = "cover";
   return baseStyle;
 }
