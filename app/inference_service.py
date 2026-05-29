@@ -197,18 +197,16 @@ class InferenceRuntime:
             raise RuntimeError("Model is not active")
 
         url = f"http://{self.settings.llama_host}:{running.port}/v1/chat/completions"
-        decoder = codecs.getincrementaldecoder("utf-8")()
+        decoder = codecs.getincrementaldecoder("utf-8")("ignore")
         event_buffer = ""
         async with httpx.AsyncClient(timeout=self.settings.llama_request_timeout_seconds) as client:
             async with client.stream("POST", url, json=payload) as response:
                 response.raise_for_status()
                 async for chunk in response.aiter_bytes():
                     if chunk:
-                        event_buffer += decoder.decode(chunk)
-                        event_buffer = self._consume_sse_events(event_buffer)
+                        event_buffer = self._track_stream_chunk(event_buffer, decoder, chunk)
                         yield chunk
-                event_buffer += decoder.decode(b"", final=True)
-                self._consume_sse_events(event_buffer, final=True)
+                self._finalize_tracked_stream(event_buffer, decoder)
 
     def _resolve_llama_server_path(self) -> str:
         configured_path = Path(self.settings.llama_server_path)
@@ -336,6 +334,21 @@ class InferenceRuntime:
 
         with self._tokens_lock:
             self._tokens_processed += total_tokens
+
+    def _track_stream_chunk(self, event_buffer: str, decoder, chunk: bytes) -> str:
+        try:
+            event_buffer += decoder.decode(chunk)
+            return self._consume_sse_events(event_buffer)
+        except Exception:
+            logger.exception("Failed to inspect streamed completion chunk for usage stats")
+            return event_buffer
+
+    def _finalize_tracked_stream(self, event_buffer: str, decoder) -> None:
+        try:
+            event_buffer += decoder.decode(b"", final=True)
+            self._consume_sse_events(event_buffer, final=True)
+        except Exception:
+            logger.exception("Failed to finalize streamed completion usage stats")
 
     def _consume_sse_events(self, buffer: str, final: bool = False) -> str:
         normalized_buffer = buffer.replace("\r\n", "\n")
