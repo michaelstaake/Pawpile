@@ -193,6 +193,8 @@ export default function StatusPage() {
   const [devices, setDevices] = useState<DeviceStatusRecord[]>([]);
   const [pools, setPools] = useState<GpuPoolRecord[]>([]);
   const [systemCpuUsagePercent, setSystemCpuUsagePercent] = useState<number | null>(null);
+  const [inputTokensProcessed, setInputTokensProcessed] = useState<number | null>(null);
+  const [outputTokensProcessed, setOutputTokensProcessed] = useState<number | null>(null);
   const [tokensProcessed, setTokensProcessed] = useState<number | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const lastErrorMessageRef = useRef<string | null>(null);
@@ -212,6 +214,8 @@ export default function StatusPage() {
         }
         setDevices(response.devices);
         setSystemCpuUsagePercent(response.system_cpu_usage_percent);
+        setInputTokensProcessed(response.input_tokens_processed);
+        setOutputTokensProcessed(response.output_tokens_processed);
         setTokensProcessed(response.tokens_processed);
         lastErrorMessageRef.current = null;
       } catch (error) {
@@ -219,6 +223,8 @@ export default function StatusPage() {
           return;
         }
         setSystemCpuUsagePercent(null);
+        setInputTokensProcessed(null);
+        setOutputTokensProcessed(null);
         setTokensProcessed(null);
         const message = error instanceof Error ? error.message : "Failed to load status";
         if (lastErrorMessageRef.current !== message) {
@@ -243,6 +249,14 @@ export default function StatusPage() {
       window.clearInterval(intervalId);
     };
   }, [token]);
+
+  const tokenTooltip = useMemo(() => {
+    if (inputTokensProcessed === null || outputTokensProcessed === null) {
+      return undefined;
+    }
+
+    return `${numberFormatter.format(inputTokensProcessed)} input / ${numberFormatter.format(outputTokensProcessed)} output`;
+  }, [inputTokensProcessed, outputTokensProcessed]);
 
   useEffect(() => {
     if (!token) {
@@ -295,7 +309,7 @@ export default function StatusPage() {
 
             <div className="rounded-2xl border border-black/10 bg-white/75 p-4">
               <p className="text-xs font-semibold uppercase tracking-[0.24em] text-black/45">Tokens</p>
-              <p className="mt-2 font-display text-3xl text-ink">{tokensProcessed !== null ? numberFormatter.format(tokensProcessed) : "N/A"}</p>
+              <p className="mt-2 font-display text-3xl text-ink" title={tokenTooltip}>{tokensProcessed !== null ? numberFormatter.format(tokensProcessed) : "N/A"}</p>
               <p className="mt-1 text-sm text-black/55">Since startup</p>
             </div>
           </div>

@@ -8,7 +8,7 @@ from app.core.config import get_settings
 from app.core.device_manager import build_device_display_suffix
 from app.core.db import get_db
 from app.core.inference_manager import InferenceManager
-from app.core.token_counter import get_processed_tokens
+from app.core.token_counter import get_input_tokens_processed, get_output_tokens_processed, get_processed_tokens
 from app.models.device import Device
 from app.models.model_config import ModelConfig
 
@@ -99,6 +99,8 @@ async def get_status(db: Session = Depends(get_db)) -> dict:
         "status": "ok",
         "refreshed_at": datetime.now(timezone.utc).isoformat(),
         "system_cpu_usage_percent": system_cpu_usage_percent,
+        "input_tokens_processed": get_input_tokens_processed(),
+        "output_tokens_processed": get_output_tokens_processed(),
         "tokens_processed": get_processed_tokens(),
         "devices": serialized_devices,
         "runtime_errors": runtime_errors,

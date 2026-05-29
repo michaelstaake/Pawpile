@@ -100,7 +100,11 @@ def append_message(
     db.commit()
     db.refresh(message)
     if payload.role == "assistant" and payload.stats is not None:
-        add_processed_tokens(payload.stats.total_tokens)
+        add_processed_tokens(
+            payload.stats.total_tokens,
+            input_tokens=payload.stats.prompt_tokens,
+            output_tokens=payload.stats.completion_tokens,
+        )
     return {"status": "ok", "message": _serialize_message(message)}
 
 
