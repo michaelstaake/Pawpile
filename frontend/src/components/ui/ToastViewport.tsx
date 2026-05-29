@@ -5,11 +5,9 @@ import { useToast } from "../../context/ToastContext";
 const TOAST_STYLES = {
   success: {
     cardClassName: "border-emerald-200 bg-emerald-50/95 text-emerald-900",
-    closeClassName: "text-emerald-700/80 hover:bg-emerald-100 hover:text-emerald-900",
   },
   error: {
     cardClassName: "border-rose-200 bg-rose-50/95 text-rose-900",
-    closeClassName: "text-rose-700/80 hover:bg-rose-100 hover:text-rose-900",
   },
 } as const;
 
@@ -92,17 +90,7 @@ export default function ToastViewport() {
             aria-live={toast.kind === "error" ? "assertive" : "polite"}
             className={`pointer-events-none rounded-2xl border p-4 shadow-lg shadow-black/10 backdrop-blur transition duration-200 animate-[toast-in_180ms_ease-out] ${hoveredToastId === toast.id ? "opacity-55" : "opacity-85"} ${style.cardClassName}`}
           >
-            <div className="flex items-start gap-3">
-              <p className="min-w-0 flex-1 text-sm leading-6">{toast.message}</p>
-              <button
-                type="button"
-                onClick={() => dismissToast(toast.id)}
-                className={`pointer-events-auto inline-flex h-8 w-8 items-center justify-center rounded-full transition ${style.closeClassName}`}
-                aria-label="Dismiss notification"
-              >
-                <i className="bi bi-x-lg text-xs leading-none" aria-hidden="true" />
-              </button>
-            </div>
+            <p className="min-w-0 text-sm leading-6">{toast.message}</p>
           </section>
         );
       })}
