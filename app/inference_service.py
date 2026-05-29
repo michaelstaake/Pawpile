@@ -1,10 +1,12 @@
 import asyncio
+import codecs
 import json
 import logging
 import os
 import re
 import shlex
 import subprocess
+import threading
 import time
 from dataclasses import dataclass, field
 from pathlib import Path
@@ -53,6 +55,8 @@ class InferenceRuntime:
     def __init__(self) -> None:
         self.settings = get_settings()
         self._running: dict[int, RunningModel] = {}
+        self._tokens_processed = 0
+        self._tokens_lock = threading.Lock()
 
     async def activate_model(self, payload: ActivateModelRequest) -> None:
         effective_vendor = payload.vendor.removesuffix("_pool")
@@ -183,7 +187,9 @@ class InferenceRuntime:
         async with httpx.AsyncClient(timeout=self.settings.llama_request_timeout_seconds) as client:
             response = await client.post(url, json=payload)
         response.raise_for_status()
-        return response.json()
+        response_payload = response.json()
+        self._record_usage_from_payload(response_payload)
+        return response_payload
 
     async def stream_chat_completion(self, model_id: int, payload: dict):
         running = self._running.get(model_id)
@@ -191,12 +197,18 @@ class InferenceRuntime:
             raise RuntimeError("Model is not active")
 
         url = f"http://{self.settings.llama_host}:{running.port}/v1/chat/completions"
+        decoder = codecs.getincrementaldecoder("utf-8")()
+        event_buffer = ""
         async with httpx.AsyncClient(timeout=self.settings.llama_request_timeout_seconds) as client:
             async with client.stream("POST", url, json=payload) as response:
                 response.raise_for_status()
                 async for chunk in response.aiter_bytes():
                     if chunk:
+                        event_buffer += decoder.decode(chunk)
+                        event_buffer = self._consume_sse_events(event_buffer)
                         yield chunk
+                event_buffer += decoder.decode(b"", final=True)
+                self._consume_sse_events(event_buffer, final=True)
 
     def _resolve_llama_server_path(self) -> str:
         configured_path = Path(self.settings.llama_server_path)
@@ -297,7 +309,70 @@ class InferenceRuntime:
                 }
             )
 
-        return {"status": "ok", "devices": devices}
+        return {
+            "status": "ok",
+            "devices": devices,
+            "tokens_processed": self.tokens_processed,
+        }
+
+    @property
+    def tokens_processed(self) -> int:
+        with self._tokens_lock:
+            return self._tokens_processed
+
+    def _record_usage_from_payload(self, payload: object) -> None:
+        if not isinstance(payload, dict):
+            return
+
+        usage = payload.get("usage")
+        if not isinstance(usage, dict):
+            return
+
+        total_tokens = _coalesce_int(usage.get("total_tokens"))
+        if total_tokens is None:
+            total_tokens = _coalesce_int(usage.get("totalTokens"))
+        if total_tokens is None or total_tokens <= 0:
+            return
+
+        with self._tokens_lock:
+            self._tokens_processed += total_tokens
+
+    def _consume_sse_events(self, buffer: str, final: bool = False) -> str:
+        normalized_buffer = buffer.replace("\r\n", "\n")
+        events = normalized_buffer.split("\n\n")
+
+        if not final:
+            remainder = events.pop() if events else ""
+        else:
+            remainder = ""
+
+        for event in events:
+            self._record_usage_from_sse_event(event)
+
+        if final and remainder:
+            self._record_usage_from_sse_event(remainder)
+
+        return remainder
+
+    def _record_usage_from_sse_event(self, event: str) -> None:
+        data_lines: list[str] = []
+        for raw_line in event.split("\n"):
+            if raw_line.startswith("data:"):
+                data_lines.append(raw_line[5:].lstrip())
+
+        if not data_lines:
+            return
+
+        data = "\n".join(data_lines).strip()
+        if not data or data == "[DONE]":
+            return
+
+        try:
+            payload = json.loads(data)
+        except json.JSONDecodeError:
+            return
+
+        self._record_usage_from_payload(payload)
 
     def _collect_dynamic_metrics(self) -> dict[str, dict]:
         metrics: dict[str, dict] = {}

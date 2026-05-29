@@ -120,6 +120,7 @@ export type StatusResponse = {
   status: string;
   refreshed_at: string;
   system_cpu_usage_percent: number | null;
+  tokens_processed: number;
   devices: DeviceStatusRecord[];
   runtime_errors: {
     vendor: string;

@@ -193,6 +193,7 @@ export default function StatusPage() {
   const [devices, setDevices] = useState<DeviceStatusRecord[]>([]);
   const [pools, setPools] = useState<GpuPoolRecord[]>([]);
   const [systemCpuUsagePercent, setSystemCpuUsagePercent] = useState<number | null>(null);
+  const [tokensProcessed, setTokensProcessed] = useState<number | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const lastErrorMessageRef = useRef<string | null>(null);
 
@@ -211,12 +212,14 @@ export default function StatusPage() {
         }
         setDevices(response.devices);
         setSystemCpuUsagePercent(response.system_cpu_usage_percent);
+        setTokensProcessed(response.tokens_processed);
         lastErrorMessageRef.current = null;
       } catch (error) {
         if (!isMounted) {
           return;
         }
         setSystemCpuUsagePercent(null);
+        setTokensProcessed(null);
         const message = error instanceof Error ? error.message : "Failed to load status";
         if (lastErrorMessageRef.current !== message) {
           showError(message, { id: "status-error" });
@@ -277,7 +280,7 @@ export default function StatusPage() {
         <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
           <h2 className="font-display text-3xl text-ink md:text-4xl">Status</h2>
 
-          <div className="grid gap-3 sm:grid-cols-2">
+          <div className="grid gap-3 sm:grid-cols-3">
             <div className="rounded-2xl border border-black/10 bg-white/75 p-4">
               <p className="text-xs font-semibold uppercase tracking-[0.24em] text-black/45">Host CPU</p>
               <p className="mt-2 font-display text-3xl text-ink">{systemCpuUsagePercent !== null ? `${systemCpuUsagePercent.toFixed(1)}%` : "N/A"}</p>
@@ -288,6 +291,12 @@ export default function StatusPage() {
               <p className="text-xs font-semibold uppercase tracking-[0.24em] text-black/45">AI Memory</p>
               <p className="mt-2 font-display text-3xl text-ink">{summary.memoryUsagePercent !== null ? `${summary.memoryUsagePercent.toFixed(1)}%` : "N/A"}</p>
               <p className="mt-1 text-sm text-black/55">{formatMemorySummary(summary.usedMemory, summary.totalMemory)}</p>
+            </div>
+
+            <div className="rounded-2xl border border-black/10 bg-white/75 p-4">
+              <p className="text-xs font-semibold uppercase tracking-[0.24em] text-black/45">Tokens</p>
+              <p className="mt-2 font-display text-3xl text-ink">{tokensProcessed !== null ? numberFormatter.format(tokensProcessed) : "N/A"}</p>
+              <p className="mt-1 text-sm text-black/55">Since startup</p>
             </div>
           </div>
         </div>
