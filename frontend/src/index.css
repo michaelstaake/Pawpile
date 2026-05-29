@@ -15,6 +15,7 @@ body {
 .app-background {
   background-color: var(--app-background-color, #efe8d2);
   background-image: var(--app-background-image, none);
+  background-attachment: fixed;
   background-position: var(--app-background-position, center center);
   background-repeat: var(--app-background-repeat, no-repeat);
   background-size: var(--app-background-size, auto);
