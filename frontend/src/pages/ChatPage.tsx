@@ -1134,7 +1134,7 @@ export default function ChatPage() {
                           <span className="grid gap-1">
                             <span className="font-semibold text-black">Thinking</span>
                             <span className="text-xs leading-5 text-black/50">
-                              Let this message include reasoning when the model supports it.
+                              Some models may disregard this setting.
                             </span>
                           </span>
                         </label>
