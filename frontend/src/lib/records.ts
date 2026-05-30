@@ -116,6 +116,30 @@ export type DeviceStatusRecord = {
   models: StatusModelRecord[];
 };
 
+export type TokenUsageMetricRecord = {
+  total_tokens: number;
+  input_tokens: number;
+  output_tokens: number;
+};
+
+export type TopTokenUserRecord = {
+  username: string;
+  total_tokens: number;
+  input_tokens: number;
+  output_tokens: number;
+} | null;
+
+export type TokenUsageSummaryRecord = {
+  since_startup: TokenUsageMetricRecord;
+  last_1_hour: TokenUsageMetricRecord;
+  last_24_hours: TokenUsageMetricRecord;
+  last_7_days: TokenUsageMetricRecord;
+  last_30_days: TokenUsageMetricRecord;
+  forever: TokenUsageMetricRecord;
+  top_user_last_24_hours: TopTokenUserRecord;
+  top_user_forever: TopTokenUserRecord;
+};
+
 export type StatusResponse = {
   status: string;
   refreshed_at: string;
@@ -123,6 +147,7 @@ export type StatusResponse = {
   input_tokens_processed: number;
   output_tokens_processed: number;
   tokens_processed: number;
+  token_usage: TokenUsageSummaryRecord;
   devices: DeviceStatusRecord[];
   runtime_errors: {
     vendor: string;

@@ -16,6 +16,7 @@ from app.core.device_manager import DeviceManager
 from app.core.gpu_pool_manager import delete_pools_with_unavailable_devices, delete_stale_pool_memberships
 from app.core.inference_manager import InferenceManager, PoolActivationTarget
 from app.core.logging import configure_logging
+from app.core import token_usage as _token_usage
 from app.models.model_config import ModelConfig
 
 settings = get_settings()

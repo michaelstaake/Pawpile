@@ -8,7 +8,7 @@ from app.core.config import get_settings
 from app.core.device_manager import build_device_display_suffix
 from app.core.db import get_db
 from app.core.inference_manager import InferenceManager
-from app.core.token_counter import get_input_tokens_processed, get_output_tokens_processed, get_processed_tokens
+from app.core.token_usage import build_token_usage_summary
 from app.models.device import Device
 from app.models.model_config import ModelConfig
 
@@ -19,6 +19,8 @@ router = APIRouter(prefix="/api/status", tags=["status"])
 async def get_status(db: Session = Depends(get_db)) -> dict:
     inference: InferenceManager = router.inference_manager  # type: ignore[attr-defined]
     settings = get_settings()
+    token_usage = build_token_usage_summary(db)
+    since_startup = token_usage["since_startup"]
     devices = db.query(Device).order_by(Device.priority.asc(), Device.id.asc()).all()
     models_by_id = {model.id: model for model in db.query(ModelConfig).all()}
     runtime_devices, runtime_errors = await _fetch_runtime_devices(settings)
@@ -99,9 +101,10 @@ async def get_status(db: Session = Depends(get_db)) -> dict:
         "status": "ok",
         "refreshed_at": datetime.now(timezone.utc).isoformat(),
         "system_cpu_usage_percent": system_cpu_usage_percent,
-        "input_tokens_processed": get_input_tokens_processed(),
-        "output_tokens_processed": get_output_tokens_processed(),
-        "tokens_processed": get_processed_tokens(),
+        "input_tokens_processed": since_startup["input_tokens"],
+        "output_tokens_processed": since_startup["output_tokens"],
+        "tokens_processed": since_startup["total_tokens"],
+        "token_usage": token_usage,
         "devices": serialized_devices,
         "runtime_errors": runtime_errors,
     }

@@ -4,7 +4,7 @@ from sqlalchemy.orm import Session
 from app.api.deps import get_current_user
 from app.core.attachment_parser import extract_attachment_text
 from app.core.db import get_db
-from app.core.token_counter import add_processed_tokens
+from app.core.token_usage import record_token_usage
 from app.models.chat import Chat, ChatMessage
 from app.models.user import User
 from app.utils.schemas import AttachmentExtractionResponse, ChatCreateRequest, ChatMessageAppendRequest, ChatRenameRequest, normalize_message_content
@@ -100,8 +100,10 @@ def append_message(
     db.commit()
     db.refresh(message)
     if payload.role == "assistant" and payload.stats is not None:
-        add_processed_tokens(
-            payload.stats.total_tokens,
+        record_token_usage(
+            db,
+            user_id=current_user.id,
+            total_tokens=payload.stats.total_tokens,
             input_tokens=payload.stats.prompt_tokens,
             output_tokens=payload.stats.completion_tokens,
         )

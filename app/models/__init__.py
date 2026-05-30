@@ -6,6 +6,7 @@ from app.models.device import Device
 from app.models.gpu_pool import GpuPool, GpuPoolDevice
 from app.models.inference_job import InferenceJob
 from app.models.model_config import ModelConfig
+from app.models.token_usage import TokenUsage
 from app.models.user import User
 
 __all__ = [
@@ -19,5 +20,6 @@ __all__ = [
     "GpuPoolDevice",
     "InferenceJob",
     "ModelConfig",
+    "TokenUsage",
     "User",
 ]

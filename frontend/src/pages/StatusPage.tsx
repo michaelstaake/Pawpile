@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { apiGet } from "../lib/api";
 import { formatDeviceIdLabel } from "../lib/deviceIds";
-import { DeviceStatusRecord, GpuPoolRecord, StatusModelRecord, StatusResponse } from "../lib/records";
+import { DeviceStatusRecord, GpuPoolRecord, StatusModelRecord, StatusResponse, TokenUsageMetricRecord, TokenUsageSummaryRecord, TopTokenUserRecord } from "../lib/records";
 import { useAuth } from "../context/AuthContext";
 import { useToast } from "../context/ToastContext";
 
@@ -83,6 +83,22 @@ function formatModelMemoryTooltip(model: StatusModelRecord) {
 
 function formatRawModelMemoryTooltip(model: StatusModelRecord) {
   return `${model.alias}: ${formatMemory(model.memory_used_mb)}`;
+}
+
+function formatTokenTooltip(metric: TokenUsageMetricRecord | TopTokenUserRecord) {
+  if (!metric) {
+    return undefined;
+  }
+
+  return `${numberFormatter.format(metric.input_tokens)} input / ${numberFormatter.format(metric.output_tokens)} output`;
+}
+
+function formatTokenValue(metric: TokenUsageMetricRecord | TopTokenUserRecord) {
+  if (!metric) {
+    return "N/A";
+  }
+
+  return numberFormatter.format(metric.total_tokens);
 }
 
 function DeviceCard({ device, isPooled, modelColors }: { device: DeviceStatusRecord; isPooled: boolean; modelColors: Map<number, string> }) {
@@ -193,9 +209,7 @@ export default function StatusPage() {
   const [devices, setDevices] = useState<DeviceStatusRecord[]>([]);
   const [pools, setPools] = useState<GpuPoolRecord[]>([]);
   const [systemCpuUsagePercent, setSystemCpuUsagePercent] = useState<number | null>(null);
-  const [inputTokensProcessed, setInputTokensProcessed] = useState<number | null>(null);
-  const [outputTokensProcessed, setOutputTokensProcessed] = useState<number | null>(null);
-  const [tokensProcessed, setTokensProcessed] = useState<number | null>(null);
+  const [tokenUsage, setTokenUsage] = useState<TokenUsageSummaryRecord | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const lastErrorMessageRef = useRef<string | null>(null);
 
@@ -214,18 +228,14 @@ export default function StatusPage() {
         }
         setDevices(response.devices);
         setSystemCpuUsagePercent(response.system_cpu_usage_percent);
-        setInputTokensProcessed(response.input_tokens_processed);
-        setOutputTokensProcessed(response.output_tokens_processed);
-        setTokensProcessed(response.tokens_processed);
+        setTokenUsage(response.token_usage);
         lastErrorMessageRef.current = null;
       } catch (error) {
         if (!isMounted) {
           return;
         }
         setSystemCpuUsagePercent(null);
-        setInputTokensProcessed(null);
-        setOutputTokensProcessed(null);
-        setTokensProcessed(null);
+        setTokenUsage(null);
         const message = error instanceof Error ? error.message : "Failed to load status";
         if (lastErrorMessageRef.current !== message) {
           showError(message, { id: "status-error" });
@@ -249,14 +259,6 @@ export default function StatusPage() {
       window.clearInterval(intervalId);
     };
   }, [token]);
-
-  const tokenTooltip = useMemo(() => {
-    if (inputTokensProcessed === null || outputTokensProcessed === null) {
-      return undefined;
-    }
-
-    return `${numberFormatter.format(inputTokensProcessed)} input / ${numberFormatter.format(outputTokensProcessed)} output`;
-  }, [inputTokensProcessed, outputTokensProcessed]);
 
   useEffect(() => {
     if (!token) {
@@ -288,13 +290,69 @@ export default function StatusPage() {
     };
   }, [visibleDevices]);
 
+  const tokenCards = useMemo(() => {
+    const emptyMetric: TokenUsageMetricRecord = { total_tokens: 0, input_tokens: 0, output_tokens: 0 };
+    const summary = tokenUsage;
+
+    return [
+      {
+        label: "Since Startup",
+        value: formatTokenValue(summary?.since_startup ?? emptyMetric),
+        title: formatTokenTooltip(summary?.since_startup ?? emptyMetric),
+        detail: "Tokens",
+      },
+      {
+        label: "Last 1 Hour",
+        value: formatTokenValue(summary?.last_1_hour ?? emptyMetric),
+        title: formatTokenTooltip(summary?.last_1_hour ?? emptyMetric),
+        detail: "Tokens",
+      },
+      {
+        label: "Last 24 Hours",
+        value: formatTokenValue(summary?.last_24_hours ?? emptyMetric),
+        title: formatTokenTooltip(summary?.last_24_hours ?? emptyMetric),
+        detail: "Tokens",
+      },
+      {
+        label: "Last 7 Days",
+        value: formatTokenValue(summary?.last_7_days ?? emptyMetric),
+        title: formatTokenTooltip(summary?.last_7_days ?? emptyMetric),
+        detail: "Tokens",
+      },
+      {
+        label: "Last 30 Days",
+        value: formatTokenValue(summary?.last_30_days ?? emptyMetric),
+        title: formatTokenTooltip(summary?.last_30_days ?? emptyMetric),
+        detail: "Tokens",
+      },
+      {
+        label: "Forever",
+        value: formatTokenValue(summary?.forever ?? emptyMetric),
+        title: formatTokenTooltip(summary?.forever ?? emptyMetric),
+        detail: "Tokens",
+      },
+      {
+        label: "Top User 24h",
+        value: formatTokenValue(summary?.top_user_last_24_hours ?? null),
+        title: formatTokenTooltip(summary?.top_user_last_24_hours ?? null),
+        detail: summary?.top_user_last_24_hours?.username ?? "No usage yet",
+      },
+      {
+        label: "Top User Forever",
+        value: formatTokenValue(summary?.top_user_forever ?? null),
+        title: formatTokenTooltip(summary?.top_user_forever ?? null),
+        detail: summary?.top_user_forever?.username ?? "No usage yet",
+      },
+    ];
+  }, [tokenUsage]);
+
   return (
     <section className="grid gap-4">
       <article className="overflow-hidden rounded-[32px] border border-black/10 bg-[linear-gradient(135deg,rgba(255,250,236,0.96)_0%,rgba(241,247,241,0.92)_54%,rgba(231,240,237,0.96)_100%)] p-6 shadow-sm backdrop-blur">
         <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
           <h2 className="font-display text-3xl text-ink md:text-4xl">Status</h2>
 
-          <div className="grid gap-3 sm:grid-cols-3">
+          <div className="grid gap-3 sm:grid-cols-2">
             <div className="rounded-2xl border border-black/10 bg-white/75 p-4">
               <p className="text-xs font-semibold uppercase tracking-[0.24em] text-black/45">Host CPU</p>
               <p className="mt-2 font-display text-3xl text-ink">{systemCpuUsagePercent !== null ? `${systemCpuUsagePercent.toFixed(1)}%` : "N/A"}</p>
@@ -306,13 +364,26 @@ export default function StatusPage() {
               <p className="mt-2 font-display text-3xl text-ink">{summary.memoryUsagePercent !== null ? `${summary.memoryUsagePercent.toFixed(1)}%` : "N/A"}</p>
               <p className="mt-1 text-sm text-black/55">{formatMemorySummary(summary.usedMemory, summary.totalMemory)}</p>
             </div>
-
-            <div className="rounded-2xl border border-black/10 bg-white/75 p-4">
-              <p className="text-xs font-semibold uppercase tracking-[0.24em] text-black/45">Tokens</p>
-              <p className="mt-2 font-display text-3xl text-ink" title={tokenTooltip}>{tokensProcessed !== null ? numberFormatter.format(tokensProcessed) : "N/A"}</p>
-              <p className="mt-1 text-sm text-black/55">Since startup</p>
-            </div>
           </div>
+        </div>
+      </article>
+
+      <article className="overflow-hidden rounded-[32px] border border-black/10 bg-[linear-gradient(180deg,rgba(255,255,255,0.88)_0%,rgba(245,240,226,0.78)_100%)] p-6 shadow-sm backdrop-blur">
+        <div className="flex items-center justify-between gap-3">
+          <div>
+            <h3 className="font-display text-2xl text-ink md:text-3xl">Tokens</h3>
+            <p className="mt-1 text-sm text-black/55">Persisted token usage across recent windows and top users.</p>
+          </div>
+        </div>
+
+        <div className="mt-5 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+          {tokenCards.map((card) => (
+            <div key={card.label} className="rounded-2xl border border-black/10 bg-white/80 p-4">
+              <p className="text-xs font-semibold uppercase tracking-[0.24em] text-black/45">{card.label}</p>
+              <p className="mt-2 font-display text-3xl text-ink" title={card.title}>{card.value}</p>
+              <p className="mt-1 text-sm text-black/55">{card.detail}</p>
+            </div>
+          ))}
         </div>
       </article>
 
