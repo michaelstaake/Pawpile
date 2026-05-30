@@ -361,18 +361,18 @@ export default function StatusPage() {
         <div className="flex items-center justify-between gap-3">
           <div>
             <h3 className="font-display text-2xl text-ink md:text-3xl">Status</h3>
-            <p className="mt-1 text-sm text-black/55">Live system health plus persisted token usage across recent windows and top users.</p>
+            {/* <p className="mt-1 text-sm text-black/55">Live system health plus persisted token usage across recent windows and top users.</p> */}
           </div>
         </div>
 
         <div className="mt-5 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-          <div className="rounded-2xl border border-black/10 bg-white/80 p-4">
+          <div className="rounded-2xl border border-black/10 bg-white/80 p-4 lg:col-span-2">
             <p className="text-xs font-semibold uppercase tracking-[0.24em] text-black/45">Host CPU</p>
             <p className="mt-2 font-display text-3xl text-ink">{systemCpuUsagePercent !== null ? `${systemCpuUsagePercent.toFixed(1)}%` : "N/A"}</p>
             <p className="mt-1 text-sm text-black/55">Total utilization</p>
           </div>
 
-          <div className="rounded-2xl border border-black/10 bg-white/80 p-4">
+          <div className="rounded-2xl border border-black/10 bg-white/80 p-4 lg:col-span-2">
             <p className="text-xs font-semibold uppercase tracking-[0.24em] text-black/45">AI Memory</p>
             <p className="mt-2 font-display text-3xl text-ink">{summary.memoryUsagePercent !== null ? `${summary.memoryUsagePercent.toFixed(1)}%` : "N/A"}</p>
             <p className="mt-1 text-sm text-black/55">{formatMemorySummary(summary.usedMemory, summary.totalMemory)}</p>
