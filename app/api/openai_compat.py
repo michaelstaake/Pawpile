@@ -45,6 +45,7 @@ KNOWN_THINKING_CONTROL_LINES = {
     for lines in controls.values()
     for line in lines
 }
+KNOWN_THINKING_CONTROL_LINES.update({THINKING_DISABLED_PROMPT, THINKING_ENABLED_PROMPT})
 
 
 def _coerce_usage_count(value: Any) -> int | None:
@@ -135,6 +136,14 @@ def _model_family(model: ModelConfig) -> str | None:
     return None
 
 
+def _resolve_enable_thinking(payload: OpenAIChatRequest, model: ModelConfig) -> bool:
+    if model.discourage_thinking:
+        return False
+    if payload.enable_thinking is not None:
+        return payload.enable_thinking
+    return True
+
+
 def _strip_known_thinking_control_lines(text: str) -> str:
     cleaned_lines = [
         line
@@ -142,6 +151,18 @@ def _strip_known_thinking_control_lines(text: str) -> str:
         if line.strip() not in KNOWN_THINKING_CONTROL_LINES
     ]
     return "\n".join(cleaned_lines).strip()
+
+
+def _thinking_control_lines(model: ModelConfig, enabled: bool) -> list[str]:
+    lines = [THINKING_ENABLED_PROMPT if enabled else THINKING_DISABLED_PROMPT]
+    family = _model_family(model)
+    if family is None:
+        return lines
+
+    for line in THINKING_CONTROL_RULES[family][enabled]:
+        if line not in lines:
+            lines.append(line)
+    return lines
 
 
 def _prepend_system_lines(content: str | list[dict], prefix_lines: list[str]) -> str | list[dict]:
@@ -160,11 +181,7 @@ def _prepend_system_lines(content: str | list[dict], prefix_lines: list[str]) ->
 
 
 def _apply_thinking_controls(messages: list[dict], model: ModelConfig, enabled: bool) -> list[dict]:
-    family = _model_family(model)
-    if family is None:
-        return messages
-
-    prefix_lines = THINKING_CONTROL_RULES[family][enabled]
+    prefix_lines = _thinking_control_lines(model, enabled)
     if messages and messages[0].get("role") == "system":
         existing = messages[0].get("content") or ""
         return [
@@ -396,8 +413,7 @@ async def v1_chat_completions(payload: OpenAIChatRequest, current_user: User = D
         request_payload["presence_penalty"] = model.presence_penalty
     if "repetition_penalty" not in request_payload:
         request_payload["repetition_penalty"] = model.repetition_penalty
-    if "enable_thinking" not in request_payload:
-        request_payload["enable_thinking"] = not model.discourage_thinking
+    request_payload["enable_thinking"] = _resolve_enable_thinking(payload, model)
     request_payload["messages"] = [
         {
             key: value

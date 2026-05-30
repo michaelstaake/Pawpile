@@ -420,6 +420,7 @@ class OpenAIChatRequest(BaseModel):
     model: str
     messages: list[ChatMessageRequest]
     stream: bool = False
+    enable_thinking: bool | None = None
     temperature: float | None = None
     top_p: float | None = None
     top_k: int | None = Field(default=None, ge=0)
