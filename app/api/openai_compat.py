@@ -360,6 +360,7 @@ def v1_models(_: User = Depends(require_api_access), db: Session = Depends(get_d
 @router.post("/chat/completions")
 async def v1_chat_completions(payload: OpenAIChatRequest, current_user: User = Depends(require_api_access), db: Session = Depends(get_db)):
     inference: InferenceManager = router.inference_manager  # type: ignore[attr-defined]
+    current_user_id = current_user.id if getattr(current_user, "id", None) else None
     model = (
         db.query(ModelConfig)
         .filter(ModelConfig.alias == payload.model, ModelConfig.activated.is_(True))
@@ -398,7 +399,7 @@ async def v1_chat_completions(payload: OpenAIChatRequest, current_user: User = D
     log_event(
         db,
         "chat.completion",
-        user_id=current_user.id,
+        user_id=current_user_id,
         username=current_user.username,
         details={"model": model.alias, "stream": payload.stream},
     )
@@ -457,7 +458,7 @@ async def v1_chat_completions(payload: OpenAIChatRequest, current_user: User = D
                 try:
                     async for chunk in _stream_with_web_search(inference, model.id, request_payload, active_web_search_provider):
                         if not usage_recorded:
-                            usage_recorded = _record_usage_from_sse_chunk(chunk, db=db, user_id=current_user.id)
+                            usage_recorded = _record_usage_from_sse_chunk(chunk, db=db, user_id=current_user_id)
                         yield chunk
                 except RuntimeError as exc:
                     err_msg = str(exc).replace("\\", "\\\\").replace('"', '\\"')
@@ -467,7 +468,7 @@ async def v1_chat_completions(payload: OpenAIChatRequest, current_user: User = D
             return StreamingResponse(web_search_event_stream(), media_type="text/event-stream")
 
         result = await _run_web_search_non_streaming(inference, model.id, request_payload, active_web_search_provider)
-        _record_usage(result.get("usage"), db=db, user_id=current_user.id)
+    _record_usage(result.get("usage"), db=db, user_id=current_user_id)
         return {
             "id": f"chatcmpl-{uuid.uuid4().hex}",
             "object": "chat.completion",
@@ -486,7 +487,7 @@ async def v1_chat_completions(payload: OpenAIChatRequest, current_user: User = D
                     "stream_options": {"include_usage": True},
                 }):
                     if not usage_recorded:
-                        usage_recorded = _record_usage_from_sse_chunk(chunk, db=db, user_id=current_user.id)
+                        usage_recorded = _record_usage_from_sse_chunk(chunk, db=db, user_id=current_user_id)
                     yield chunk
             except RuntimeError as exc:
                 message = str(exc).replace("\\", "\\\\").replace('"', '\\"')
@@ -496,7 +497,7 @@ async def v1_chat_completions(payload: OpenAIChatRequest, current_user: User = D
         return StreamingResponse(event_stream(), media_type="text/event-stream")
 
     result = await inference.chat_completion(model.id, request_payload)
-    _record_usage(result.get("usage"), db=db, user_id=current_user.id)
+    _record_usage(result.get("usage"), db=db, user_id=current_user_id)
     return {
         "id": f"chatcmpl-{uuid.uuid4().hex}",
         "object": "chat.completion",
