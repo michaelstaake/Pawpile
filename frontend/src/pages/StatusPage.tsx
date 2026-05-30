@@ -105,6 +105,33 @@ function formatWholePercent(value: number) {
   return `${Math.round(clampPercent(value))}%`;
 }
 
+function getSystemHealth(activeModels: number, memoryUsagePercent: number | null) {
+  if (activeModels === 0) {
+    return {
+      label: "Unready",
+      iconClassName: "bi bi-x-octagon-fill",
+      iconColorClassName: "text-[#c63f3f]",
+      detail: "No models are currently loaded.",
+    };
+  }
+
+  if (memoryUsagePercent !== null && memoryUsagePercent > 80) {
+    return {
+      label: "Warning",
+      iconClassName: "bi bi-exclamation-triangle-fill",
+      iconColorClassName: "text-[#c98a13]",
+      detail: "Models are running, but AI memory usage is above 80%.",
+    };
+  }
+
+  return {
+    label: "Ready",
+    iconClassName: "bi bi-check-circle-fill",
+    iconColorClassName: "text-[#2f8f4e]",
+    detail: "At least one model is loaded and memory pressure is normal.",
+  };
+}
+
 function DeviceCard({ device, isPooled, modelColors }: { device: DeviceStatusRecord; isPooled: boolean; modelColors: Map<number, string> }) {
   const isCpuDevice = device.device_type.toLowerCase() === "cpu" || device.vendor.toLowerCase() === "cpu";
   const memoryPercent = getMemoryPercent(device.memory_used_mb, device.memory_total_mb);
@@ -355,6 +382,11 @@ export default function StatusPage() {
     ];
   }, [tokenUsage]);
 
+  const systemHealth = useMemo(
+    () => getSystemHealth(summary.activeModels, summary.memoryUsagePercent),
+    [summary.activeModels, summary.memoryUsagePercent],
+  );
+
   return (
     <section className="grid gap-4">
       <article className="overflow-hidden rounded-[32px] border border-black/10 bg-[linear-gradient(180deg,rgba(255,255,255,0.88)_0%,rgba(245,240,226,0.78)_100%)] p-6 shadow-sm backdrop-blur">
@@ -366,16 +398,25 @@ export default function StatusPage() {
         </div>
 
         <div className="mt-5 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-          <div className="rounded-2xl border border-black/10 bg-white/80 p-4 lg:col-span-2">
+          <div className="rounded-2xl border border-black/10 bg-white/80 p-4">
             <p className="text-xs font-semibold uppercase tracking-[0.24em] text-black/45">Host CPU</p>
             <p className="mt-2 font-display text-3xl text-ink">{systemCpuUsagePercent !== null ? `${systemCpuUsagePercent.toFixed(1)}%` : "N/A"}</p>
             <p className="mt-1 text-sm text-black/55">Total utilization</p>
           </div>
 
-          <div className="rounded-2xl border border-black/10 bg-white/80 p-4 lg:col-span-2">
+          <div className="rounded-2xl border border-black/10 bg-white/80 p-4">
             <p className="text-xs font-semibold uppercase tracking-[0.24em] text-black/45">AI Memory</p>
             <p className="mt-2 font-display text-3xl text-ink">{summary.memoryUsagePercent !== null ? `${summary.memoryUsagePercent.toFixed(1)}%` : "N/A"}</p>
             <p className="mt-1 text-sm text-black/55">{formatMemorySummary(summary.usedMemory, summary.totalMemory)}</p>
+          </div>
+
+          <div className="rounded-2xl border border-black/10 bg-white/80 p-4 sm:col-span-2 lg:col-span-2">
+            <p className="text-xs font-semibold uppercase tracking-[0.24em] text-black/45">System Health</p>
+            <div className="mt-2 flex items-center gap-3">
+              <i className={`${systemHealth.iconClassName} ${systemHealth.iconColorClassName} text-[28px] leading-none`} aria-hidden="true" />
+              <p className="font-display text-3xl text-ink">{systemHealth.label}</p>
+            </div>
+            <p className="mt-1 text-sm text-black/55">{systemHealth.detail}</p>
           </div>
 
           {tokenCards.map((card) => (
