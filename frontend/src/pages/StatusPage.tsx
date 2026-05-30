@@ -101,6 +101,10 @@ function formatTokenValue(metric: TokenUsageMetricRecord | TopTokenUserRecord) {
   return numberFormatter.format(metric.total_tokens);
 }
 
+function formatWholePercent(value: number) {
+  return `${Math.round(clampPercent(value))}%`;
+}
+
 function DeviceCard({ device, isPooled, modelColors }: { device: DeviceStatusRecord; isPooled: boolean; modelColors: Map<number, string> }) {
   const isCpuDevice = device.device_type.toLowerCase() === "cpu" || device.vendor.toLowerCase() === "cpu";
   const memoryPercent = getMemoryPercent(device.memory_used_mb, device.memory_total_mb);
@@ -293,6 +297,11 @@ export default function StatusPage() {
   const tokenCards = useMemo(() => {
     const emptyMetric: TokenUsageMetricRecord = { total_tokens: 0, input_tokens: 0, output_tokens: 0 };
     const summary = tokenUsage;
+    const topUserLast24Hours = summary?.top_user_last_24_hours ?? null;
+    const last24HoursTotalTokens = summary?.last_24_hours.total_tokens ?? 0;
+    const topUserLast24HoursPercent = topUserLast24Hours && last24HoursTotalTokens > 0
+      ? (topUserLast24Hours.total_tokens / last24HoursTotalTokens) * 100
+      : 0;
 
     return [
       {
@@ -333,9 +342,9 @@ export default function StatusPage() {
       },
       {
         label: "Top User 24h",
-        value: formatTokenValue(summary?.top_user_last_24_hours ?? null),
-        title: formatTokenTooltip(summary?.top_user_last_24_hours ?? null),
-        detail: summary?.top_user_last_24_hours?.username ?? "No usage yet",
+        value: topUserLast24Hours?.username ?? "No usage yet",
+        title: formatTokenTooltip(topUserLast24Hours),
+        detail: topUserLast24Hours ? formatWholePercent(topUserLast24HoursPercent) : "0%",
       },
       {
         label: "Top User Forever",
@@ -348,35 +357,27 @@ export default function StatusPage() {
 
   return (
     <section className="grid gap-4">
-      <article className="overflow-hidden rounded-[32px] border border-black/10 bg-[linear-gradient(135deg,rgba(255,250,236,0.96)_0%,rgba(241,247,241,0.92)_54%,rgba(231,240,237,0.96)_100%)] p-6 shadow-sm backdrop-blur">
-        <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-          <h2 className="font-display text-3xl text-ink md:text-4xl">Status</h2>
-
-          <div className="grid gap-3 sm:grid-cols-2">
-            <div className="rounded-2xl border border-black/10 bg-white/75 p-4">
-              <p className="text-xs font-semibold uppercase tracking-[0.24em] text-black/45">Host CPU</p>
-              <p className="mt-2 font-display text-3xl text-ink">{systemCpuUsagePercent !== null ? `${systemCpuUsagePercent.toFixed(1)}%` : "N/A"}</p>
-              <p className="mt-1 text-sm text-black/55">Total utilization</p>
-            </div>
-
-            <div className="rounded-2xl border border-black/10 bg-white/75 p-4">
-              <p className="text-xs font-semibold uppercase tracking-[0.24em] text-black/45">AI Memory</p>
-              <p className="mt-2 font-display text-3xl text-ink">{summary.memoryUsagePercent !== null ? `${summary.memoryUsagePercent.toFixed(1)}%` : "N/A"}</p>
-              <p className="mt-1 text-sm text-black/55">{formatMemorySummary(summary.usedMemory, summary.totalMemory)}</p>
-            </div>
-          </div>
-        </div>
-      </article>
-
       <article className="overflow-hidden rounded-[32px] border border-black/10 bg-[linear-gradient(180deg,rgba(255,255,255,0.88)_0%,rgba(245,240,226,0.78)_100%)] p-6 shadow-sm backdrop-blur">
         <div className="flex items-center justify-between gap-3">
           <div>
-            <h3 className="font-display text-2xl text-ink md:text-3xl">Tokens</h3>
-            <p className="mt-1 text-sm text-black/55">Persisted token usage across recent windows and top users.</p>
+            <h3 className="font-display text-2xl text-ink md:text-3xl">Status</h3>
+            <p className="mt-1 text-sm text-black/55">Live system health plus persisted token usage across recent windows and top users.</p>
           </div>
         </div>
 
         <div className="mt-5 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+          <div className="rounded-2xl border border-black/10 bg-white/80 p-4">
+            <p className="text-xs font-semibold uppercase tracking-[0.24em] text-black/45">Host CPU</p>
+            <p className="mt-2 font-display text-3xl text-ink">{systemCpuUsagePercent !== null ? `${systemCpuUsagePercent.toFixed(1)}%` : "N/A"}</p>
+            <p className="mt-1 text-sm text-black/55">Total utilization</p>
+          </div>
+
+          <div className="rounded-2xl border border-black/10 bg-white/80 p-4">
+            <p className="text-xs font-semibold uppercase tracking-[0.24em] text-black/45">AI Memory</p>
+            <p className="mt-2 font-display text-3xl text-ink">{summary.memoryUsagePercent !== null ? `${summary.memoryUsagePercent.toFixed(1)}%` : "N/A"}</p>
+            <p className="mt-1 text-sm text-black/55">{formatMemorySummary(summary.usedMemory, summary.totalMemory)}</p>
+          </div>
+
           {tokenCards.map((card) => (
             <div key={card.label} className="rounded-2xl border border-black/10 bg-white/80 p-4">
               <p className="text-xs font-semibold uppercase tracking-[0.24em] text-black/45">{card.label}</p>
