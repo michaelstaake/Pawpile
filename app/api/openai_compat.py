@@ -468,7 +468,7 @@ async def v1_chat_completions(payload: OpenAIChatRequest, current_user: User = D
             return StreamingResponse(web_search_event_stream(), media_type="text/event-stream")
 
         result = await _run_web_search_non_streaming(inference, model.id, request_payload, active_web_search_provider)
-    _record_usage(result.get("usage"), db=db, user_id=current_user_id)
+        _record_usage(result.get("usage"), db=db, user_id=current_user_id)
         return {
             "id": f"chatcmpl-{uuid.uuid4().hex}",
             "object": "chat.completion",
