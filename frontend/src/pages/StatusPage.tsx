@@ -120,7 +120,7 @@ function getSystemHealth(activeModels: number, memoryUsagePercent: number | null
       label: "Warning",
       iconClassName: "bi bi-exclamation-triangle-fill",
       iconColorClassName: "text-[#c98a13]",
-      detail: "Models are running, but AI memory usage is above 80%.",
+      detail: "AI memory usage is above 80%.",
     };
   }
 
@@ -128,7 +128,7 @@ function getSystemHealth(activeModels: number, memoryUsagePercent: number | null
     label: "Ready",
     iconClassName: "bi bi-check-circle-fill",
     iconColorClassName: "text-[#2f8f4e]",
-    detail: "At least one model is loaded and memory pressure is normal.",
+    detail: "Everything is awesome!",
   };
 }
 
