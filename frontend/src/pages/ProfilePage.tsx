@@ -86,7 +86,6 @@ export default function ProfilePage() {
             <h2 className="mt-2 font-display text-2xl text-black">Profile</h2>
             <p className="mt-2 text-sm text-black/60">
               Signed in as <span className="font-semibold text-black">{user?.username ?? "Unknown user"}</span>
-              {user?.email ? <> with <span className="font-semibold text-black">{user.email}</span></> : null}.
             </p>
           </div>
           <button
