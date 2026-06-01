@@ -280,18 +280,18 @@ function describeAttachment(file: Attachment): string {
 
 function formatContextLength(value: number | null): string {
   if (value == null || !Number.isFinite(value) || value <= 0) {
-    return "Unknown context";
+    return "Unknown Context";
   }
 
   if (value >= 1_000_000) {
-    return `${(value / 1_000_000).toFixed(value % 1_000_000 === 0 ? 0 : 1)}M context`;
+    return `${Math.floor(value / 1_000_000)}M Context`;
   }
 
   if (value >= 1_000) {
-    return `${(value / 1_000).toFixed(value % 1_000 === 0 ? 0 : 1)}K context`;
+    return `${Math.floor(value / 1_000)}K Context`;
   }
 
-  return `${value} context`;
+  return `${Math.floor(value)} Context`;
 }
 
 export default function ChatPage() {
@@ -975,8 +975,7 @@ export default function ChatPage() {
         ) : isNewChatEmptyState ? (
           <div className="mx-auto mb-6 w-full max-w-5xl">
             <div className="mb-4 text-center">
-              <div className="font-display text-xl text-ink md:text-2xl">Choose a model</div>
-              <p className="mt-2 text-sm text-black/60 md:text-[15px]">Start a new chat with a model that matches the tools and context window you need.</p>
+              <p className="mt-2 text-sm text-black/60 md:text-[15px]">Choose a model</p>
             </div>
             <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
               {models.map((alias) => {
@@ -991,7 +990,7 @@ export default function ChatPage() {
                     className={`group flex min-h-[172px] flex-col rounded-[24px] border p-5 text-left shadow-sm transition-all ${
                       isSelected
                         ? "border-ink bg-ink text-white shadow-lg shadow-black/10"
-                        : "border-black/10 bg-[#fffdf7] text-ink hover:-translate-y-0.5 hover:border-black/20 hover:shadow-md"
+                        : "border-black/10 bg-[#fffdf7] text-ink hover:border-black/20 hover:shadow-md"
                     }`}
                     aria-pressed={isSelected}
                   >
