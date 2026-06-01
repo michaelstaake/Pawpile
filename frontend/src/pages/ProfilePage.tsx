@@ -79,16 +79,20 @@ export default function ProfilePage() {
 
   return (
     <section className="grid gap-4">
-      <article className="overflow-hidden rounded-3xl border border-black/10 bg-[linear-gradient(135deg,rgba(17,24,39,0.96),rgba(56,189,248,0.84))] p-6 text-white shadow-sm">
-        <div className="flex items-start justify-between gap-4">
-          <div>
-            <p className="text-xs font-semibold uppercase tracking-[0.24em] text-white/65">{roleLabel}</p>
-            <h1 className="mt-3 font-display text-3xl leading-tight">Welcome back, {user?.username ?? "there"}</h1>
+      <article className="rounded-3xl border border-black/10 bg-white/85 p-5 shadow-sm backdrop-blur">
+        <div className="flex flex-wrap items-start justify-between gap-4">
+          <div className="max-w-2xl">
+            <p className="text-xs font-semibold uppercase tracking-[0.18em] text-black/45">{roleLabel}</p>
+            <h2 className="mt-2 font-display text-2xl text-black">Profile</h2>
+            <p className="mt-2 text-sm text-black/60">
+              Signed in as <span className="font-semibold text-black">{user?.username ?? "Unknown user"}</span>
+              {user?.email ? <> with <span className="font-semibold text-black">{user.email}</span></> : null}.
+            </p>
           </div>
           <button
             type="button"
             onClick={logout}
-            className="mt-1 shrink-0 rounded-xl border border-white/20 bg-white/10 px-4 py-2 text-sm font-semibold text-white hover:bg-white/20 transition"
+            className="shrink-0 rounded-xl border border-black/15 bg-white px-4 py-3 text-sm font-semibold text-black transition hover:bg-black/5"
           >
             Log out
           </button>
