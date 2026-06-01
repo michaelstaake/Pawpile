@@ -334,6 +334,7 @@ export default function ChatPage() {
   const shouldShowTranscript = activeChatId !== null || messages.length > 0;
   const isNewChatEmptyState = activeChatId === null && messages.length === 0;
   const shouldShowNoModelsEmptyState = isNewChatEmptyState && !isLoadingModels && models.length === 0;
+  const newChatModelGridClassName = models.length >= 3 ? "grid gap-3 sm:grid-cols-2 xl:grid-cols-3" : models.length === 2 ? "grid gap-3 sm:grid-cols-2" : "grid gap-3";
 
   useEffect(() => {
     void loadModels();
@@ -977,7 +978,7 @@ export default function ChatPage() {
             <div className="mb-4 text-center">
               <p className="mt-2 text-sm text-black/60 md:text-[15px]">New chat - choose a model</p>
             </div>
-            <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
+            <div className={newChatModelGridClassName}>
               {models.map((alias) => {
                 const details = modelCardDetails[alias];
                 const isSelected = selectedModel === alias;
