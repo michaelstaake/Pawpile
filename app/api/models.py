@@ -239,6 +239,10 @@ async def update_model(model_id: int, payload: ModelUpdateRequest, _: User = Dep
     if not model:
         raise HTTPException(status_code=404, detail="Model not found")
 
+    normalized_alias = None
+    if payload.alias is not None:
+        normalized_alias = payload.alias.strip() or _default_model_alias(model)
+
     was_activated = model.activated
     next_assignment_mode = payload.assignment_mode or model.assignment_mode
     next_pinned_device_id = model.pinned_device_id
@@ -275,10 +279,10 @@ async def update_model(model_id: int, payload: ModelUpdateRequest, _: User = Dep
         if not pinned_pool:
             raise HTTPException(status_code=404, detail="GPU pool not found")
 
-    if payload.alias is not None:
+    if normalized_alias is not None:
         alias_conflict = (
             db.query(ModelConfig)
-            .filter(ModelConfig.alias == payload.alias, ModelConfig.id != model_id)
+            .filter(ModelConfig.alias == normalized_alias, ModelConfig.id != model_id)
             .first()
         )
         if alias_conflict:
@@ -302,7 +306,7 @@ async def update_model(model_id: int, payload: ModelUpdateRequest, _: User = Dep
         "vision_enabled",
         "web_search_enabled",
     ]:
-        value = getattr(payload, field)
+        value = normalized_alias if field == "alias" else getattr(payload, field)
         if value is not None:
             setattr(model, field, value)
 
@@ -735,6 +739,10 @@ def _build_unique_alias(db: Session, base_alias: str) -> str:
         alias = f"{base}-{suffix}"
         suffix += 1
     return alias
+
+
+def _default_model_alias(model: ModelConfig) -> str:
+    return Path(model.file_name).stem or "model"
 
 
 def _next_model_priority(db: Session) -> int:
