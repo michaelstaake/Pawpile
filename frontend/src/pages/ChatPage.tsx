@@ -42,11 +42,22 @@ type ModelListResponse = {
     object: string;
     created: number;
     owned_by: string;
+    description?: string;
+    context_length?: number;
+    tool_calling_enabled?: boolean;
     discourage_thinking?: boolean;
     vision_enabled?: boolean;
     web_search_enabled?: boolean;
     web_search_available?: boolean;
   }[];
+};
+
+type ModelCardDetails = {
+  description: string;
+  contextLength: number | null;
+  toolCallingEnabled: boolean;
+  webSearchEnabled: boolean;
+  visionEnabled: boolean;
 };
 
 type ChatSummary = {
@@ -267,11 +278,28 @@ function describeAttachment(file: Attachment): string {
   return "Metadata only";
 }
 
+function formatContextLength(value: number | null): string {
+  if (value == null || !Number.isFinite(value) || value <= 0) {
+    return "Unknown context";
+  }
+
+  if (value >= 1_000_000) {
+    return `${(value / 1_000_000).toFixed(value % 1_000_000 === 0 ? 0 : 1)}M context`;
+  }
+
+  if (value >= 1_000) {
+    return `${(value / 1_000).toFixed(value % 1_000 === 0 ? 0 : 1)}K context`;
+  }
+
+  return `${value} context`;
+}
+
 export default function ChatPage() {
   const { token, user } = useAuth();
   const { closeMobileNav, setMobileNavSection } = useMobileNav();
   const { showError } = useToast();
   const [models, setModels] = useState<string[]>([]);
+  const [modelCardDetails, setModelCardDetails] = useState<Record<string, ModelCardDetails>>({});
   const [modelVisionDefaults, setModelVisionDefaults] = useState<Record<string, boolean>>({});
   const [modelSearchAvailability, setModelSearchAvailability] = useState<Record<string, boolean>>({});
   const [modelThinkingDisabledDefaults, setModelThinkingDisabledDefaults] = useState<Record<string, boolean>>({});
@@ -418,14 +446,23 @@ export default function ChatPage() {
     try {
       const response = await apiGet<ModelListResponse>("/v1/models", token || undefined);
       const aliases = response.data.map((entry) => entry.id);
+      const cardDetails: Record<string, ModelCardDetails> = {};
       const visionDefaults: Record<string, boolean> = {};
       const searchAvailability: Record<string, boolean> = {};
       const thinkingDisabledDefaults: Record<string, boolean> = {};
       for (const entry of response.data) {
+        cardDetails[entry.id] = {
+          description: entry.description?.trim() ?? "",
+          contextLength: entry.context_length ?? null,
+          toolCallingEnabled: entry.tool_calling_enabled ?? false,
+          webSearchEnabled: entry.web_search_enabled ?? false,
+          visionEnabled: entry.vision_enabled ?? false,
+        };
         visionDefaults[entry.id] = entry.vision_enabled ?? false;
         searchAvailability[entry.id] = entry.web_search_available ?? false;
         thinkingDisabledDefaults[entry.id] = entry.discourage_thinking ?? false;
       }
+      setModelCardDetails(cardDetails);
       setModelVisionDefaults(visionDefaults);
       setModelSearchAvailability(searchAvailability);
       setModelThinkingDisabledDefaults(thinkingDisabledDefaults);
@@ -936,23 +973,89 @@ export default function ChatPage() {
             </div>
           </div>
         ) : isNewChatEmptyState ? (
-          <div className="mx-auto mb-6 w-full max-w-xl">
-            <select
-              value={selectedModel}
-              onChange={(event) => setSelectedModel(event.target.value)}
-              disabled={isLoadingModels || models.length === 0}
-              className="h-12 w-full rounded-xl border border-black/15 bg-white px-4 text-sm shadow-sm"
-            >
-              {models.length === 0 ? (
-                <option value="">{isLoadingModels ? "Loading models..." : "No active models"}</option>
-              ) : (
-                models.map((alias) => (
-                  <option key={alias} value={alias}>
-                    {alias}
-                  </option>
-                ))
-              )}
-            </select>
+          <div className="mx-auto mb-6 w-full max-w-5xl">
+            <div className="mb-4 text-center">
+              <div className="font-display text-xl text-ink md:text-2xl">Choose a model</div>
+              <p className="mt-2 text-sm text-black/60 md:text-[15px]">Start a new chat with a model that matches the tools and context window you need.</p>
+            </div>
+            <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
+              {models.map((alias) => {
+                const details = modelCardDetails[alias];
+                const isSelected = selectedModel === alias;
+
+                return (
+                  <button
+                    key={alias}
+                    type="button"
+                    onClick={() => setSelectedModel(alias)}
+                    className={`group flex min-h-[172px] flex-col rounded-[24px] border p-5 text-left shadow-sm transition-all ${
+                      isSelected
+                        ? "border-ink bg-ink text-white shadow-lg shadow-black/10"
+                        : "border-black/10 bg-[#fffdf7] text-ink hover:-translate-y-0.5 hover:border-black/20 hover:shadow-md"
+                    }`}
+                    aria-pressed={isSelected}
+                  >
+                    <div className="flex items-start justify-between gap-3">
+                      <div className="min-w-0 flex-1">
+                        <div className="font-display text-lg leading-tight">{alias}</div>
+                        {details?.description ? (
+                          <p className={`mt-2 text-sm leading-6 ${isSelected ? "text-white/80" : "text-black/65"}`}>
+                            {details.description}
+                          </p>
+                        ) : null}
+                      </div>
+                      <span
+                        className={`inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-full border ${
+                          isSelected ? "border-white/20 bg-white/10 text-white" : "border-black/10 bg-white text-black/55"
+                        }`}
+                      >
+                        <i className={`bi ${isSelected ? "bi-check2" : "bi-arrow-up-right"} text-[18px] leading-none`} aria-hidden="true" />
+                      </span>
+                    </div>
+                    <div className="mt-4 flex flex-wrap gap-2">
+                      <span
+                        className={`inline-flex items-center gap-2 rounded-full px-3 py-1.5 text-xs font-medium ${
+                          isSelected ? "bg-white/10 text-white/90" : "bg-black/5 text-black/70"
+                        }`}
+                      >
+                        <i className="bi bi-bucket text-[13px] leading-none" aria-hidden="true" />
+                        <span>{formatContextLength(details?.contextLength ?? null)}</span>
+                      </span>
+                      {details?.toolCallingEnabled ? (
+                        <span
+                          className={`inline-flex items-center gap-2 rounded-full px-3 py-1.5 text-xs font-medium ${
+                            isSelected ? "bg-white/10 text-white/90" : "bg-black/5 text-black/70"
+                          }`}
+                        >
+                          <i className="bi bi-tools text-[13px] leading-none" aria-hidden="true" />
+                          <span>Tool Calling</span>
+                        </span>
+                      ) : null}
+                      {details?.webSearchEnabled ? (
+                        <span
+                          className={`inline-flex items-center gap-2 rounded-full px-3 py-1.5 text-xs font-medium ${
+                            isSelected ? "bg-white/10 text-white/90" : "bg-black/5 text-black/70"
+                          }`}
+                        >
+                          <i className="bi bi-globe2 text-[13px] leading-none" aria-hidden="true" />
+                          <span>Web Search</span>
+                        </span>
+                      ) : null}
+                      {details?.visionEnabled ? (
+                        <span
+                          className={`inline-flex items-center gap-2 rounded-full px-3 py-1.5 text-xs font-medium ${
+                            isSelected ? "bg-white/10 text-white/90" : "bg-black/5 text-black/70"
+                          }`}
+                        >
+                          <i className="bi bi-image text-[13px] leading-none" aria-hidden="true" />
+                          <span>Vision Capable</span>
+                        </span>
+                      ) : null}
+                    </div>
+                  </button>
+                );
+              })}
+            </div>
           </div>
         ) : shouldShowTranscript ? (
           <div className="relative min-w-0">
