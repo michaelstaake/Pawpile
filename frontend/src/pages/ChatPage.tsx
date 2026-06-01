@@ -1018,7 +1018,7 @@ export default function ChatPage() {
                           isSelected ? "bg-white/10 text-white/90" : "bg-black/5 text-black/70"
                         }`}
                       >
-                        <i className="bi bi-memory text-[13px] leading-none" aria-hidden="true" />
+                        <i className="bi bi-box text-[13px] leading-none" aria-hidden="true" />
                         <span>{formatContextLength(details?.contextLength ?? null)}</span>
                       </span>
                       {details?.toolCallingEnabled ? (
