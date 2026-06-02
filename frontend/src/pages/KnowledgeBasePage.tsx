@@ -239,147 +239,137 @@ export default function KnowledgeBasePage() {
   };
 
   return (
-    <div className="grid gap-4 lg:grid-cols-[260px_1fr] lg:gap-5">
-      {/* Sidebar - Categories (visible on all screens, but prominent on desktop) */}
-      <aside className="rounded-2xl border border-black/10 bg-white/80 p-4 shadow-sm backdrop-blur lg:order-1 lg:sticky lg:top-[72px] lg:max-h-[calc(100vh-88px)]">
-        <div className="mb-3 flex items-center justify-between">
-          <h2 className="font-display text-base">Categories</h2>
-          <button
-            type="button"
-            onClick={openCreateCategory}
-            className="rounded-lg bg-ink px-2.5 py-1 text-[13px] font-semibold text-white transition hover:bg-ink/90"
-          >
-            + Add
-          </button>
-        </div>
-
-        <div ref={menuRef} className="relative overflow-y-auto">
-          <button
-            type="button"
-            onClick={() => {
-              if (draftMode !== "idle") cancelDraft();
-              setSelectedCategoryId(null);
-              setOpenMenuId("all");
-            }}
-            className={`mb-1 flex w-full items-center justify-between gap-2 rounded-lg px-2.5 py-2 text-left text-sm transition ${
+    <div className="grid gap-4">
+      {/* Categories list */}
+      <div ref={menuRef} className="grid gap-3">
+        <button
+          type="button"
+          onClick={() => {
+            if (draftMode !== "idle") cancelDraft();
+            setSelectedCategoryId(null);
+            setOpenMenuId("all");
+          }}
+          className={`flex w-full items-center justify-between gap-2 rounded-2xl border border-black/10 bg-white/80 p-4 shadow-sm backdrop-blur transition ${
+            selectedCategoryId === null
+              ? "bg-ink text-white"
+              : "text-black/70 hover:bg-black/5"
+          }`}
+        >
+          <div className="flex items-center gap-2">
+            <i className="bi bi-collection text-[14px]"></i>
+            <span className="font-medium">All</span>
+            <span className={`rounded-full px-2 py-0.5 text-[11px] font-medium ${
               selectedCategoryId === null
-                ? "bg-ink text-white"
-                : "text-black/70 hover:bg-black/5"
-            }`}
+                ? "bg-white/20 text-white/80"
+                : "bg-black/10 text-black/50"
+            }`}>{documents.length}</span>
+          </div>
+          <button
+            type="button"
+            onClick={(e) => { e.stopPropagation(); setOpenMenuId(openMenuId === "all" ? null : "all"); }}
+            className="rounded-lg border border-black/15 p-1.5 text-xs text-black/70 transition hover:bg-black/5"
           >
-            <div className="flex items-center gap-2">
-              <i className="bi bi-collection text-[14px]"></i>
-              <span className="font-medium">All</span>
-            </div>
+            <i className="bi bi-three-dots-vertical"></i>
+          </button>
+        </button>
+
+        {openMenuId === "all" && (
+          <div className="absolute right-2 z-50 mt-1 w-40 rounded-xl border border-black/10 bg-white py-1 shadow-lg">
             <button
               type="button"
-              onClick={(e) => { e.stopPropagation(); setOpenMenuId(openMenuId === "all" ? null : "all"); }}
-              className="rounded p-1 transition hover:bg-white/20"
+              onMouseDown={(e) => e.stopPropagation()}
+              onClick={() => { setOpenMenuId(null); startCreate(); }}
+              className="flex w-full items-center gap-2 px-3 py-2 text-sm text-black/70 transition hover:bg-black/5"
             >
-              <i className="bi bi-three-dots-vertical text-[14px]"></i>
+              <i className="bi bi-plus-lg text-[14px]"></i>
+              Add Document
             </button>
-          </button>
+          </div>
+        )}
 
-          {openMenuId === "all" && (
-            <div className="absolute z-50 mt-1 w-40 rounded-xl border border-black/10 bg-white py-1 shadow-lg">
+        <button
+          type="button"
+          onClick={openCreateCategory}
+          className="flex w-full items-center justify-center gap-2 rounded-2xl border border-dashed border-black/20 bg-white/60 p-4 text-sm text-black/40 transition hover:border-black/40 hover:bg-black/5 hover:text-black/60"
+        >
+          <i className="bi bi-plus-lg text-[14px]"></i>
+          Add new category
+        </button>
+
+        {categories.map((cat) => (
+          <div key={cat.id} className="relative">
+            <button
+              type="button"
+              onClick={() => {
+                if (draftMode !== "idle") cancelDraft();
+                setSelectedCategoryId(selectedCategoryId === cat.id ? null : cat.id);
+              }}
+              className={`flex w-full items-center justify-between gap-2 rounded-2xl border border-black/10 bg-white/80 p-4 shadow-sm backdrop-blur transition ${
+                selectedCategoryId === cat.id
+                  ? "bg-ink text-white"
+                  : "text-black/70 hover:bg-black/5"
+              }`}
+            >
+              <div className="flex items-center gap-2">
+                <i className={`bi bi-folder text-[14px] ${
+                  selectedCategoryId === cat.id ? "text-white/70" : "text-black/35"
+                }`}></i>
+                <span className="font-medium text-sm">{cat.name}</span>
+                <span className={`rounded-full px-2 py-0.5 text-[11px] font-medium ${
+                  selectedCategoryId === cat.id
+                    ? "bg-white/20 text-white/80"
+                    : "bg-black/10 text-black/50"
+                }`}>{getDocumentCount(cat.id)}</span>
+              </div>
               <button
                 type="button"
-                onMouseDown={(e) => e.stopPropagation()}
-                onClick={() => { setOpenMenuId(null); startCreate(); }}
-                className="flex w-full items-center gap-2 px-3 py-2 text-sm text-black/70 transition hover:bg-black/5"
+                onClick={(e) => { e.stopPropagation(); setOpenMenuId(openMenuId === `cat-${cat.id}` ? null : `cat-${cat.id}`); }}
+                className="rounded-lg border border-black/15 p-1.5 text-xs text-black/70 transition hover:bg-black/5"
               >
-                <i className="bi bi-plus-lg text-[14px]"></i>
-                Add Document
+                <i className="bi bi-three-dots-vertical"></i>
               </button>
-            </div>
-          )}
+            </button>
 
-          {categories.length === 0 ? (
-            <p className="px-2.5 py-2 text-xs text-black/40">
-              No categories yet.
-            </p>
-          ) : (
-            <div className="space-y-0.5">
-              {categories.map((cat) => (
-                <div
-                  key={cat.id}
-                  className={`relative rounded-lg transition ${
-                    selectedCategoryId === cat.id
-                      ? "bg-ink text-white"
-                      : "text-black/70 hover:bg-black/5"
-                  }`}
+            {openMenuId === `cat-${cat.id}` && (
+              <div className="absolute right-2 z-50 mt-1 w-40 rounded-xl border border-black/10 bg-white py-1 shadow-lg">
+                <button
+                  type="button"
+                  onMouseDown={(e) => e.stopPropagation()}
+                  onClick={() => { setOpenMenuId(null); startCreate(cat.id); }}
+                  className="flex w-full items-center gap-2 px-3 py-2 text-sm text-black/70 transition hover:bg-black/5"
                 >
+                  <i className="bi bi-plus-lg text-[14px]"></i>
+                  Add Document
+                </button>
+                <button
+                  type="button"
+                  onMouseDown={(e) => e.stopPropagation()}
+                  onClick={() => { setOpenMenuId(null); openEditCategory(cat); }}
+                  className="flex w-full items-center gap-2 px-3 py-2 text-sm text-black/70 transition hover:bg-black/5"
+                >
+                  <i className="bi bi-pencil text-[14px]"></i>
+                  Edit
+                </button>
+                {!cat.is_default && getDocumentCount(cat.id) === 0 && (
                   <button
                     type="button"
-                    onClick={() => {
-                      if (draftMode !== "idle") cancelDraft();
-                      setSelectedCategoryId(selectedCategoryId === cat.id ? null : cat.id);
-                    }}
-                    className="flex w-full items-center justify-between gap-2 rounded-lg px-2.5 py-2 text-left text-sm"
+                    onMouseDown={(e) => e.stopPropagation()}
+                    onClick={() => { setOpenMenuId(null); handleDeleteCategory(cat.id); }}
+                    disabled={isDeletingCategory === cat.id}
+                    className="flex w-full items-center gap-2 px-3 py-2 text-sm text-red-600 transition hover:bg-red-50 disabled:opacity-50"
                   >
-                    <div className="flex items-center gap-2">
-                      <i className={`bi bi-folder text-[14px] ${
-                        selectedCategoryId === cat.id ? "text-white/70" : "text-black/35"
-                      }`}></i>
-                      <span className="text-sm">{cat.name}</span>
-                      <span className={`rounded-full px-1.5 py-0.5 text-[10px] font-medium ${
-                        selectedCategoryId === cat.id
-                          ? "bg-white/20 text-white/80"
-                          : "bg-black/10 text-black/50"
-                      }`}>{getDocumentCount(cat.id)}</span>
-                    </div>
+                    <i className="bi bi-trash text-[14px]"></i>
+                    {isDeletingCategory === cat.id ? "Deleting..." : "Delete"}
                   </button>
-                  <button
-                    type="button"
-                    onClick={(e) => { e.stopPropagation(); setOpenMenuId(openMenuId === `cat-${cat.id}` ? null : `cat-${cat.id}`); }}
-                    className="absolute right-2 top-1/2 -translate-y-1/2 rounded p-1 transition hover:bg-white/20"
-                  >
-                    <i className="bi bi-three-dots-vertical text-[14px]"></i>
-                  </button>
-
-                  {openMenuId === `cat-${cat.id}` && (
-                    <div className="absolute right-2 z-50 mt-1 w-40 rounded-xl border border-black/10 bg-white py-1 shadow-lg">
-                      <button
-                        type="button"
-                        onMouseDown={(e) => e.stopPropagation()}
-                        onClick={() => { setOpenMenuId(null); startCreate(cat.id); }}
-                        className="flex w-full items-center gap-2 px-3 py-2 text-sm text-black/70 transition hover:bg-black/5"
-                      >
-                        <i className="bi bi-plus-lg text-[14px]"></i>
-                        Add Document
-                      </button>
-                      <button
-                        type="button"
-                        onMouseDown={(e) => e.stopPropagation()}
-                        onClick={() => { setOpenMenuId(null); openEditCategory(cat); }}
-                        className="flex w-full items-center gap-2 px-3 py-2 text-sm text-black/70 transition hover:bg-black/5"
-                      >
-                        <i className="bi bi-pencil text-[14px]"></i>
-                        Edit
-                      </button>
-                      {!cat.is_default && getDocumentCount(cat.id) === 0 && (
-                        <button
-                          type="button"
-                          onMouseDown={(e) => e.stopPropagation()}
-                          onClick={() => { setOpenMenuId(null); handleDeleteCategory(cat.id); }}
-                          disabled={isDeletingCategory === cat.id}
-                          className="flex w-full items-center gap-2 px-3 py-2 text-sm text-red-600 transition hover:bg-red-50 disabled:opacity-50"
-                        >
-                          <i className="bi bi-trash text-[14px]"></i>
-                          {isDeletingCategory === cat.id ? "Deleting..." : "Delete"}
-                        </button>
-                      )}
-                    </div>
-                  )}
-                </div>
-              ))}
-            </div>
-          )}
-        </div>
-      </aside>
+                )}
+              </div>
+            )}
+          </div>
+        ))}
+      </div>
 
       {/* Main content area */}
-      <div className="grid gap-4 lg:order-2">
+      <div className="grid gap-4">
         {/* Draft form */}
         {(draftMode === "creating" || draftMode === "editing") && (
           <article className="rounded-2xl border border-black/10 bg-white/80 p-5 shadow-sm backdrop-blur">
