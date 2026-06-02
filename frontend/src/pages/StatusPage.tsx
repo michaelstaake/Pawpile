@@ -495,7 +495,7 @@ export default function StatusPage() {
                 <a href="#" className="text-blue-600 hover:underline" onClick={(e) => { e.preventDefault(); openManageCostModal(); }}>Manage Cost</a>
               </p>
             ) : appSettings ? (
-              <p className="mt-1 text-sm text-black/55">Based on ${appSettings.input_price_per_1m.toFixed(2)}/1M Input, ${appSettings.output_price_per_1m.toFixed(2)}/1M Output</p>
+              <p className="mt-1 text-sm text-black/55">Based on cloud API pricing of ${appSettings.input_price_per_1m.toFixed(2)}/1M Input, ${appSettings.output_price_per_1m.toFixed(2)}/1M Output</p>
             ) : null}
           </div>
         </div>
