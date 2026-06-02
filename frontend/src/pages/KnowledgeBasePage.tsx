@@ -242,7 +242,7 @@ export default function KnowledgeBasePage() {
   return (
     <div className="grid gap-4 lg:grid-cols-[260px_1fr] lg:gap-5">
       {/* Sidebar - Categories (visible on all screens, but prominent on desktop) */}
-      <aside className="rounded-2xl border border-black/10 bg-white/80 p-4 shadow-sm backdrop-blur lg:order-1 lg:sticky lg:top-[72px] lg:max-h-[calc(100vh-88px)] lg:overflow-y-auto">
+      <aside className="rounded-2xl border border-black/10 bg-white/80 p-4 shadow-sm backdrop-blur lg:order-1 lg:sticky lg:top-[72px] lg:max-h-[calc(100vh-88px)]">
         <div className="mb-3 flex items-center justify-between">
           <h2 className="font-display text-base">Categories</h2>
           <button
@@ -254,7 +254,7 @@ export default function KnowledgeBasePage() {
           </button>
         </div>
 
-        <div ref={menuRef} className="relative">
+        <div ref={menuRef} className="relative overflow-y-auto">
           <button
             type="button"
             onClick={() => {
