@@ -191,55 +191,41 @@ function DeviceCard({ device, isPooled, modelColors }: { device: DeviceStatusRec
         </div>
       </div>
 
-      <div className="mt-5 grid gap-4 lg:grid-cols-2">
-        <div className="grid gap-4">
-          <section className="rounded-2xl border border-black/10 bg-[#f3efe2] p-4">
-            <div className="flex items-center justify-between gap-3">
-              <div>
-                <p className="text-xs font-semibold uppercase tracking-[0.24em] text-black/45">Memory</p>
-                <p className="mt-1 text-sm text-black/65">{formatMemorySummary(device.memory_used_mb, device.memory_total_mb)}</p>
-              </div>
-              <p className="font-display text-2xl text-ink">{memoryPercent !== null ? `${memoryPercent.toFixed(1)}%` : "N/A"}</p>
+      <div className="mt-5 grid gap-4">
+        <section className="rounded-2xl border border-black/10 bg-[#f3efe2] p-4">
+          <div className="flex items-center justify-between gap-3">
+            <div>
+              <p className="text-xs font-semibold uppercase tracking-[0.24em] text-black/45">Memory</p>
+              <p className="mt-1 text-sm text-black/65">{formatMemorySummary(device.memory_used_mb, device.memory_total_mb)}</p>
             </div>
-            <div className="mt-4 flex h-4 overflow-hidden rounded-full bg-black/10">
-              {memoryPercent !== null ? memoryBarSegments.map((segment, index) => (
-                <div
-                  key={segment.key}
-                  className={`h-full ${memoryBarSegments.length === 1 ? "rounded-full" : index === 0 ? "rounded-l-full" : index === memoryBarSegments.length - 1 ? "rounded-r-full" : ""}`}
-                  style={{
-                    width: `${segment.width}%`,
-                    backgroundColor: segment.backgroundColor,
-                  }}
-                  title={segment.title}
-                />
-              )) : <div className="h-full w-full rounded-full bg-black/25" title="Memory capacity unavailable" />}
-            </div>
-          </section>
-        </div>
-
-        <section className="rounded-2xl border border-black/10 bg-[#fffdf7] p-4">
-          <p className="text-xs font-semibold uppercase tracking-[0.24em] text-black/45">Loaded Models</p>
-
-          <div className="mt-4 space-y-3">
-            {device.models.length > 0 ? device.models.map((model, index) => (
-              <div key={`${device.id}-legend-${model.model_id}`} className="rounded-2xl border border-black/10 bg-white px-3 py-3">
-                <div>
-                  <p className="flex items-center gap-1.5 text-sm font-semibold text-ink">
-                    <span className="h-2.5 w-2.5 shrink-0 rounded-full" style={{ backgroundColor: getModelColor(modelColors, model.model_id) }} />
-                    <span>{model.alias}</span>
-                  </p>
-                  <p className="mt-0.5 text-xs text-black/50">
-                    {model.file_name}
-                  </p>
-                </div>
-              </div>
-            )) : (
-              <div className="rounded-2xl border border-dashed border-black/15 bg-sand/60 px-4 py-6 text-sm text-black/55">
-                No models are currently loaded on this device.
-              </div>
-            )}
+            <p className="font-display text-2xl text-ink">{memoryPercent !== null ? `${memoryPercent.toFixed(1)}%` : "N/A"}</p>
+          </div>
+          <div className="mt-4 flex h-4 overflow-hidden rounded-full bg-black/10">
+            {memoryPercent !== null ? memoryBarSegments.map((segment, index) => (
+              <div
+                key={segment.key}
+                className={`h-full ${memoryBarSegments.length === 1 ? "rounded-full" : index === 0 ? "rounded-l-full" : index === memoryBarSegments.length - 1 ? "rounded-r-full" : ""}`}
+                style={{
+                  width: `${segment.width}%`,
+                  backgroundColor: segment.backgroundColor,
+                }}
+                title={segment.title}
+              />
+            )) : <div className="h-full w-full rounded-full bg-black/25" title="Memory capacity unavailable" />}
           </div>
         </section>
+
+        {device.models.length > 0 && (
+          <div className="space-y-2">
+            {device.models.map((model) => (
+              <div key={`${device.id}-legend-${model.model_id}`} className="flex items-center gap-1.5">
+                <span className="h-2.5 w-2.5 shrink-0 rounded-full" style={{ backgroundColor: getModelColor(modelColors, model.model_id) }} />
+                <span className="text-sm font-semibold text-ink">{model.alias}</span>
+                <span className="text-xs text-black/50">{model.file_name}</span>
+              </div>
+            ))}
+          </div>
+        )}
       </div>
     </article>
   );
