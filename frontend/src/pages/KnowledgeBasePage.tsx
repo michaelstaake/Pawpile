@@ -99,12 +99,16 @@ export default function KnowledgeBasePage() {
     }
   }
 
-  function startCreate() {
-    const defaultCat = categories.find((c) => c.is_default);
+  function startCreate(preselectedCategoryId?: number) {
     setDraftMode("creating");
     setDraftTitle("");
     setDraftContent("");
-    setDraftCategoryId(defaultCat ? defaultCat.id : null);
+    if (preselectedCategoryId !== undefined) {
+      setDraftCategoryId(preselectedCategoryId);
+    } else {
+      const defaultCat = categories.find((c) => c.is_default);
+      setDraftCategoryId(defaultCat ? defaultCat.id : null);
+    }
     setEditingId(null);
   }
 
@@ -281,6 +285,7 @@ export default function KnowledgeBasePage() {
             <div className="absolute z-50 mt-1 w-40 rounded-xl border border-black/10 bg-white py-1 shadow-lg">
               <button
                 type="button"
+                onMouseDown={(e) => e.stopPropagation()}
                 onClick={() => { setOpenMenuId(null); startCreate(); }}
                 className="flex w-full items-center gap-2 px-3 py-2 text-sm text-black/70 transition hover:bg-black/5"
               >
@@ -340,7 +345,8 @@ export default function KnowledgeBasePage() {
                     <div className="absolute right-2 z-50 mt-1 w-40 rounded-xl border border-black/10 bg-white py-1 shadow-lg">
                       <button
                         type="button"
-                        onClick={() => { setOpenMenuId(null); startCreate(); }}
+                        onMouseDown={(e) => e.stopPropagation()}
+                        onClick={() => { setOpenMenuId(null); startCreate(cat.id); }}
                         className="flex w-full items-center gap-2 px-3 py-2 text-sm text-black/70 transition hover:bg-black/5"
                       >
                         <i className="bi bi-plus-lg text-[14px]"></i>
@@ -348,6 +354,7 @@ export default function KnowledgeBasePage() {
                       </button>
                       <button
                         type="button"
+                        onMouseDown={(e) => e.stopPropagation()}
                         onClick={() => { setOpenMenuId(null); openEditCategory(cat); }}
                         className="flex w-full items-center gap-2 px-3 py-2 text-sm text-black/70 transition hover:bg-black/5"
                       >
@@ -357,6 +364,7 @@ export default function KnowledgeBasePage() {
                       {!cat.is_default && (
                         <button
                           type="button"
+                          onMouseDown={(e) => e.stopPropagation()}
                           onClick={() => { setOpenMenuId(null); handleDeleteCategory(cat.id); }}
                           disabled={isDeletingCategory === cat.id}
                           className="flex w-full items-center gap-2 px-3 py-2 text-sm text-red-600 transition hover:bg-red-50 disabled:opacity-50"
@@ -514,6 +522,7 @@ export default function KnowledgeBasePage() {
                         <div className="absolute right-0 z-50 mt-1 w-40 rounded-xl border border-black/10 bg-white py-1 shadow-lg">
                           <button
                             type="button"
+                            onMouseDown={(e) => e.stopPropagation()}
                             onClick={() => { setOpenMenuId(null); startEdit(doc); }}
                             className="flex w-full items-center gap-2 px-3 py-2 text-sm text-black/70 transition hover:bg-black/5"
                           >
@@ -522,6 +531,7 @@ export default function KnowledgeBasePage() {
                           </button>
                           <button
                             type="button"
+                            onMouseDown={(e) => e.stopPropagation()}
                             onClick={() => { setOpenMenuId(null); handleDelete(doc.id); }}
                             disabled={isDeleting === doc.id}
                             className="flex w-full items-center gap-2 px-3 py-2 text-sm text-red-600 transition hover:bg-red-50 disabled:opacity-50"
