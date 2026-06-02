@@ -352,3 +352,41 @@ export async function fetchRunningTasks(token?: string): Promise<RunningTaskReco
 export async function cancelRunningTask(taskId: string, token?: string): Promise<{ status: string; message: string }> {
   return apiDelete<{ status: string; message: string }>(`/api/tasks/${taskId}`, token);
 }
+
+export type TaskStatusResponse = {
+  task_id: string;
+  task_type: string;
+  description: string;
+  status: string;
+  progress: number;
+  metadata: Record<string, string | number | boolean | null>;
+  created_at: number;
+  error: string | null;
+};
+
+export async function fetchTaskStatus(taskId: string, token?: string): Promise<TaskStatusResponse> {
+  const tasks = await apiGet<TaskStatusResponse[]>("/api/tasks", token);
+  return tasks.find(t => t.task_id === taskId) || null as unknown as TaskStatusResponse;
+}
+
+export async function pollUntilTaskComplete(taskId: string, token?: string, maxAttempts: number = 600, intervalMs: number = 1000): Promise<TaskStatusResponse> {
+  for (let i = 0; i < maxAttempts; i++) {
+    const tasks = await apiGet<TaskStatusResponse[]>("/api/tasks", token);
+    const found = tasks.find(t => t.task_id === taskId);
+    if (!found) {
+      // Task is no longer in the running list, meaning it completed
+      return {
+        task_id: taskId,
+        task_type: "",
+        description: "",
+        status: "completed",
+        progress: 1,
+        metadata: {},
+        created_at: 0,
+        error: null,
+      } as TaskStatusResponse;
+    }
+    await new Promise(resolve => setTimeout(resolve, intervalMs));
+  }
+  throw new Error("Upload timed out");
+}

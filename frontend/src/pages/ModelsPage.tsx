@@ -1,5 +1,5 @@
 import { type DragEvent, type FormEvent, useEffect, useRef, useState } from "react";
-import { apiDelete, apiGet, apiPatch, apiPost, apiPostFormWithProgress } from "../lib/api";
+import { apiDelete, apiGet, apiPatch, apiPost, apiPostFormWithProgress, pollUntilTaskComplete } from "../lib/api";
 import { useAuth } from "../context/AuthContext";
 import { useToast } from "../context/ToastContext";
 import { formatDeviceIdLabel } from "../lib/deviceIds";
@@ -447,7 +447,7 @@ export default function ModelsPage({ setupMode = false, onComplete }: ModelsPage
 
     try {
       if (uploadMode === "model") {
-        const response = await apiPostFormWithProgress<UploadResponse>("/api/models/upload", formData, token, (progress) => {
+        const uploadResponse = await apiPostFormWithProgress<{ task_id: string }>("/api/models/upload", formData, token, (progress) => {
           const total = progress.total || totalBytes;
           setUploadProgress({
             loaded: progress.loaded,
@@ -457,10 +457,12 @@ export default function ModelsPage({ setupMode = false, onComplete }: ModelsPage
             setIsProcessingUpload(true);
           }
         });
-        applyUploadedModel(response.model);
+        const taskId = uploadResponse.task_id;
+        await pollUntilTaskComplete(taskId, token);
+        await refreshData(token);
         resetUploadSelection();
         setUploadProgress({ loaded: totalBytes, total: totalBytes });
-        showSuccess(`Uploaded ${response.model.file_name}.`, { id: "models-success" });
+        showSuccess(`Uploaded ${filesToUpload[0].name}.`, { id: "models-success" });
       } else {
         const response = await apiPostFormWithProgress<AssetUploadResponse>(`/api/models/${uploadTargetModelId}/files`, formData, token, (progress) => {
           const total = progress.total || totalBytes;
