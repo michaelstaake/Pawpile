@@ -24,6 +24,15 @@ from app.core.device_manager import DeviceManager, get_supported_vendors, is_sup
 logger = logging.getLogger(__name__)
 
 
+def _coalesce_int(value: object) -> int | None:
+    if value is None or value == "":
+        return None
+    try:
+        return int(value)
+    except (TypeError, ValueError):
+        return None
+
+
 class ActivateModelRequest(BaseModel):
     model_id: int
     alias: str
