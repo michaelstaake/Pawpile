@@ -459,36 +459,44 @@ export function BackgroundProgressProvider({ children }: { children: ReactNode }
 
     const intervalId = window.setInterval(() => {
       updateUploadClock(Date.now());
-      const loaded = state.uploadProgress.loaded;
-      const total = state.uploadProgress.total;
-      const percent = formatPercent(loaded, total);
-      const elapsedSeconds = Math.max(1, Math.floor((Date.now() - (state.uploadStartedAt || Date.now())) / 1000));
-      const etaSeconds = percent > 0 && percent < 100
-        ? Math.round((elapsedSeconds / percent) * (100 - percent))
-        : null;
-      const title = state.uploadMode === "files" ? "Uploading files" : "Uploading model";
-      const progressContent = (
-        <div className="flex flex-col gap-2">
-          <p className="font-semibold">{title}...</p>
-          <div className="h-1.5 w-full overflow-hidden rounded-full bg-blue-200/60">
-            <div className="h-full rounded-full bg-blue-500 transition-[width]" style={{ width: `${percent}%` }} />
-          </div>
-          <div className="flex items-center justify-between text-xs text-blue-700/70">
-            <span>{percent}%</span>
-            <span>
-              {formatBytes(loaded)} / {formatBytes(total)}
-              {etaSeconds != null ? ` · ${formatEta(etaSeconds)} remaining` : ""}
-            </span>
-          </div>
-        </div>
-      );
-      showInfo(title, { id: "models-upload-info", content: progressContent });
     }, 1000);
 
     return () => {
       window.clearInterval(intervalId);
     };
-  }, [state.isUploading, state.uploadProgress, state.uploadStartedAt, state.uploadMode, updateUploadClock, showInfo]);
+  }, [state.isUploading, updateUploadClock]);
+
+  useEffect(() => {
+    if (!state.isUploading) {
+      return;
+    }
+
+    const loaded = state.uploadProgress.loaded;
+    const total = state.uploadProgress.total;
+    const percent = formatPercent(loaded, total);
+    const now = state.uploadClock || Date.now();
+    const elapsedSeconds = Math.max(1, Math.floor((now - (state.uploadStartedAt || now)) / 1000));
+    const etaSeconds = percent > 0 && percent < 100
+      ? Math.round((elapsedSeconds / percent) * (100 - percent))
+      : null;
+    const title = state.uploadMode === "files" ? "Uploading files" : "Uploading model";
+    const progressContent = (
+      <div className="flex flex-col gap-2">
+        <p className="font-semibold">{title}...</p>
+        <div className="h-1.5 w-full overflow-hidden rounded-full bg-blue-200/60">
+          <div className="h-full rounded-full bg-blue-500 transition-[width]" style={{ width: `${percent}%` }} />
+        </div>
+        <div className="flex items-center justify-between text-xs text-blue-700/70">
+          <span>{percent}%</span>
+          <span>
+            {formatBytes(loaded)} / {formatBytes(total)}
+            {etaSeconds != null ? ` · ${formatEta(etaSeconds)} remaining` : ""}
+          </span>
+        </div>
+      </div>
+    );
+    showInfo(title, { id: "models-upload-info", content: progressContent });
+  }, [state.isUploading, state.uploadClock, state.uploadProgress, state.uploadStartedAt, state.uploadMode, showInfo]);
 
   const contextValue: BackgroundProgressContextType = {
     ...state,
