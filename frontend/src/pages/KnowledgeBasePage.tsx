@@ -40,7 +40,7 @@ export default function KnowledgeBasePage() {
   const [editingCategoryId, setEditingCategoryId] = useState<number | null>(null);
   const [categoryName, setCategoryName] = useState("");
   const [isDeletingCategory, setIsDeletingCategory] = useState<number | null>(null);
-  const [openMenuId, setOpenMenuId] = useState<number | null>(null);
+  const [openMenuId, setOpenMenuId] = useState<string | null>(null);
   const menuRef = useRef<HTMLDivElement>(null);
   const hasLoaded = useRef(false);
 
@@ -256,7 +256,7 @@ export default function KnowledgeBasePage() {
             onClick={() => {
               if (draftMode !== "idle") cancelDraft();
               setSelectedCategoryId(null);
-              setOpenMenuId(-1);
+              setOpenMenuId("all");
             }}
             className={`mb-1 flex w-full items-center justify-between gap-2 rounded-lg px-2.5 py-2 text-left text-sm transition ${
               selectedCategoryId === null
@@ -270,14 +270,14 @@ export default function KnowledgeBasePage() {
             </div>
             <button
               type="button"
-              onClick={(e) => { e.stopPropagation(); setOpenMenuId(openMenuId === -1 ? null : -1); }}
+              onClick={(e) => { e.stopPropagation(); setOpenMenuId(openMenuId === "all" ? null : "all"); }}
               className="rounded p-1 transition hover:bg-white/20"
             >
               <i className="bi bi-three-dots-vertical text-[14px]"></i>
             </button>
           </button>
 
-          {openMenuId === -1 && (
+          {openMenuId === "all" && (
             <div className="absolute z-50 mt-1 w-40 rounded-xl border border-black/10 bg-white py-1 shadow-lg">
               <button
                 type="button"
@@ -310,7 +310,7 @@ export default function KnowledgeBasePage() {
                     onClick={() => {
                       if (draftMode !== "idle") cancelDraft();
                       setSelectedCategoryId(selectedCategoryId === cat.id ? null : cat.id);
-                      setOpenMenuId(cat.id);
+                      setOpenMenuId(`cat-${cat.id}`);
                     }}
                     className="flex w-full items-center justify-between gap-2 rounded-lg px-2.5 py-2 text-left text-sm"
                   >
@@ -329,14 +329,14 @@ export default function KnowledgeBasePage() {
                     </div>
                     <button
                       type="button"
-                      onClick={(e) => { e.stopPropagation(); setOpenMenuId(openMenuId === cat.id ? null : cat.id); }}
+                      onClick={(e) => { e.stopPropagation(); setOpenMenuId(openMenuId === `cat-${cat.id}` ? null : `cat-${cat.id}`); }}
                       className="rounded p-1 transition hover:bg-white/20"
                     >
                       <i className="bi bi-three-dots-vertical text-[14px]"></i>
                     </button>
                   </button>
 
-                  {openMenuId === cat.id && (
+                  {openMenuId === `cat-${cat.id}` && (
                     <div className="absolute right-2 z-50 mt-1 w-40 rounded-xl border border-black/10 bg-white py-1 shadow-lg">
                       <button
                         type="button"
@@ -505,12 +505,12 @@ export default function KnowledgeBasePage() {
                     <div className="relative shrink-0">
                       <button
                         type="button"
-                        onClick={(e) => { e.stopPropagation(); setOpenMenuId(openMenuId === doc.id ? null : doc.id); }}
+                        onClick={(e) => { e.stopPropagation(); setOpenMenuId(openMenuId === `doc-${doc.id}` ? null : `doc-${doc.id}`); }}
                         className="rounded-lg border border-black/15 p-1.5 text-xs text-black/70 transition hover:bg-black/5"
                       >
                         <i className="bi bi-three-dots-vertical"></i>
                       </button>
-                      {openMenuId === doc.id && (
+                      {openMenuId === `doc-${doc.id}` && (
                         <div className="absolute right-0 z-50 mt-1 w-40 rounded-xl border border-black/10 bg-white py-1 shadow-lg">
                           <button
                             type="button"
