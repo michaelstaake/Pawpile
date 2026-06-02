@@ -256,70 +256,69 @@ export default function App() {
 
   const appBackgroundStyle = buildAppBackgroundStyle(backgroundColor, backgroundImagePath, backgroundImageMode);
 
-  return (
+ return (
     <BackgroundProgressProvider>
       <div className="app-background min-h-screen text-ink font-body" style={appBackgroundStyle}>
         <GlobalProgressIndicator />
         <ToastViewport />
         <MobileNavProvider value={{ closeMobileNav: () => setIsMobileNavOpen(false), setMobileNavSection }}>
           <div className="mx-auto max-w-7xl px-4 py-6 md:px-8">
-          <header className="relative z-50 mb-6 flex items-center justify-between gap-4 overflow-visible rounded-2xl border border-black/10 bg-white/80 p-4 shadow-sm backdrop-blur isolate">
-            <NavLink to="/" className="inline-flex items-baseline gap-3 rounded-lg focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ink/30">
-              <h1 className="font-display text-2xl font-semibold tracking-tight">{sitename}</h1>
-            </NavLink>
-            {showMainNav ? (
-              <>
-                <button
-                  type="button"
-                  onClick={() => setIsMobileNavOpen(true)}
-                  className="inline-flex items-center gap-2 rounded-xl border border-black/10 bg-white px-3 py-2 text-sm font-medium text-ink transition hover:border-black/20 hover:bg-black/5 xl:hidden"
-                  aria-label="Open navigation menu"
-                  aria-expanded={isMobileNavOpen}
-                  aria-controls="mobile-nav-title"
-                >
-                  <i className="bi bi-list text-[18px] leading-none" aria-hidden="true" />
-                  <span>Menu</span>
-                </button>
-                <nav className="hidden items-center gap-2 xl:flex">
-                  {mainNavItems.map((item) => (
-                    <MainNavLink key={`${item.to}-${item.label}`} to={item.to} end={item.end} iconClassName={item.iconClassName} label={item.label} />
-                  ))}
-                </nav>
-              </>
-            ) : null}
-          </header>
+            <header className="relative z-50 mb-6 flex items-center justify-between gap-4 overflow-visible rounded-2xl border border-black/10 bg-white/80 p-4 shadow-sm backdrop-blur isolate">
+              <NavLink to="/" className="inline-flex items-baseline gap-3 rounded-lg focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ink/30">
+                <h1 className="font-display text-2xl font-semibold tracking-tight">{sitename}</h1>
+              </NavLink>
+              {showMainNav ? (
+                <>
+                  <button
+                    type="button"
+                    onClick={() => setIsMobileNavOpen(true)}
+                    className="inline-flex items-center gap-2 rounded-xl border border-black/10 bg-white px-3 py-2 text-sm font-medium text-ink transition hover:border-black/20 hover:bg-black/5 xl:hidden"
+                    aria-label="Open navigation menu"
+                    aria-expanded={isMobileNavOpen}
+                    aria-controls="mobile-nav-title"
+                  >
+                    <i className="bi bi-list text-[18px] leading-none" aria-hidden="true" />
+                    <span>Menu</span>
+                  </button>
+                  <nav className="hidden items-center gap-2 xl:flex">
+                    {mainNavItems.map((item) => (
+                      <MainNavLink key={`${item.to}-${item.label}`} to={item.to} end={item.end} iconClassName={item.iconClassName} label={item.label} />
+                    ))}
+                  </nav>
+                </>
+              ) : null}
+            </header>
 
-          <Routes>
-            <Route path="/" element={<HomeRoute />} />
-            <Route path="/settings" element={<RequireAdmin><SettingsPage /></RequireAdmin>} />
-            <Route path="/configuration" element={<RequireAdmin><Navigate to="/settings" replace /></RequireAdmin>} />
-            <Route path="/devices" element={<RequireAdmin><DevicesPage /></RequireAdmin>} />
-            <Route path="/models" element={<RequireAdmin><ModelsPage /></RequireAdmin>} />
-            <Route path="/users" element={<RequireAdmin><Navigate to="/settings" replace /></RequireAdmin>} />
-            <Route path="/login" element={<AuthPage />} />
-            <Route path="/register" element={<RegisterPage />} />
-            <Route path="/auth" element={<Navigate to="/login" replace />} />
-            <Route path="/status" element={<RequireSetup><StatusPage /></RequireSetup>} />
-            <Route path="/profile" element={<RequireUser><ProfilePage /></RequireUser>} />
-            <Route path="/api" element={<Navigate to="/apikeys" replace />} />
-            <Route path="/apikeys" element={<RequireUser><ApiPage /></RequireUser>} />
-            <Route path="/kb" element={<RequireUser><KnowledgeBasePage /></RequireUser>} />
-            <Route path="/setup" element={<SetupRoute />} />
-            <Route path="/403" element={<ForbiddenPage />} />
-            <Route path="/404" element={<NotFoundPage />} />
-            <Route path="*" element={requiresSetup ? <Navigate to="/setup" replace /> : <NotFoundPage />} />
-          </Routes>
+            <Routes>
+              <Route path="/" element={<HomeRoute />} />
+              <Route path="/settings" element={<RequireAdmin><SettingsPage /></RequireAdmin>} />
+              <Route path="/configuration" element={<RequireAdmin><Navigate to="/settings" replace /></RequireAdmin>} />
+              <Route path="/devices" element={<RequireAdmin><DevicesPage /></RequireAdmin>} />
+              <Route path="/models" element={<RequireAdmin><ModelsPage /></RequireAdmin>} />
+              <Route path="/users" element={<RequireAdmin><Navigate to="/settings" replace /></RequireAdmin>} />
+              <Route path="/login" element={<AuthPage />} />
+              <Route path="/register" element={<RegisterPage />} />
+              <Route path="/auth" element={<Navigate to="/login" replace />} />
+              <Route path="/status" element={<RequireSetup><StatusPage /></RequireSetup>} />
+              <Route path="/profile" element={<RequireUser><ProfilePage /></RequireUser>} />
+              <Route path="/api" element={<Navigate to="/apikeys" replace />} />
+              <Route path="/apikeys" element={<RequireUser><ApiPage /></RequireUser>} />
+              <Route path="/kb" element={<RequireUser><KnowledgeBasePage /></RequireUser>} />
+              <Route path="/setup" element={<SetupRoute />} />
+              <Route path="/403" element={<ForbiddenPage />} />
+              <Route path="/404" element={<NotFoundPage />} />
+              <Route path="*" element={requiresSetup ? <Navigate to="/setup" replace /> : <NotFoundPage />} />
+            </Routes>
 
-          <MobileNavDrawer
-            open={showMainNav && isMobileNavOpen}
-            onClose={() => setIsMobileNavOpen(false)}
-            sitename={sitename}
-            navItems={mainNavItems}
-            extraSection={mobileNavSection}
-          />
-        </div>
-         </MobileNavProvider>
-        </div>
+            <MobileNavDrawer
+              open={showMainNav && isMobileNavOpen}
+              onClose={() => setIsMobileNavOpen(false)}
+              sitename={sitename}
+              navItems={mainNavItems}
+              extraSection={mobileNavSection}
+            />
+          </div>
+        </MobileNavProvider>
       </div>
     </BackgroundProgressProvider>
   );
