@@ -16,7 +16,7 @@ export default function CodeEditor({
   height = "19rem",
 }: CodeEditorProps) {
   return (
-    <div className="grid gap-1">
+    <div className="grid gap-1 overflow-hidden rounded-2xl">
       <MonacoEditor
         height={height}
         value={value}
