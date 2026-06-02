@@ -236,6 +236,11 @@ export default function KnowledgeBasePage() {
     return categories.find((c) => c.id === catId)?.name ?? null;
   };
 
+  const getDocumentCount = (catId: number | null): number => {
+    if (catId === null) return 0;
+    return documents.filter((d) => d.category_id === catId).length;
+  };
+
   return (
     <div className="grid gap-4 lg:grid-cols-[260px_1fr] lg:gap-5">
       {/* Sidebar - Categories (visible on all screens, but prominent on desktop) */}
@@ -320,13 +325,11 @@ export default function KnowledgeBasePage() {
                         selectedCategoryId === cat.id ? "text-white/70" : "text-black/35"
                       }`}></i>
                       <span className="text-sm">{cat.name}</span>
-                      {cat.is_default && (
-                        <span className={`rounded-full px-1.5 py-0.5 text-[10px] font-medium ${
-                          selectedCategoryId === cat.id
-                            ? "bg-white/20 text-white/80"
-                            : "bg-black/10 text-black/50"
-                        }`}>Default</span>
-                      )}
+                      <span className={`rounded-full px-1.5 py-0.5 text-[10px] font-medium ${
+                        selectedCategoryId === cat.id
+                          ? "bg-white/20 text-white/80"
+                          : "bg-black/10 text-black/50"
+                      }`}>{getDocumentCount(cat.id)}</span>
                     </div>
                   </button>
                   <button
