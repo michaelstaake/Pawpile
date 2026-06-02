@@ -3,6 +3,7 @@ import { useAuth } from "../context/AuthContext";
 import { useToast } from "../context/ToastContext";
 import Modal from "../components/ui/Modal";
 import MarkdownRenderer from "../components/ui/MarkdownRenderer";
+import CodeEditor from "../components/ui/CodeEditor";
 import {
   createKbDocument,
   deleteKbDocument,
@@ -376,17 +377,12 @@ export default function KnowledgeBasePage() {
                     </div>
                   </div>
                 ) : (
-                  <div>
-                    <label className="mb-1 block text-sm font-medium text-black/70">Content (Markdown)</label>
-                    <textarea
-                      value={draftContent}
-                      onChange={(e) => setDraftContent(e.target.value)}
-                      className="h-48 w-full resize-y rounded-xl border border-black/15 bg-white px-3 py-2 text-sm"
-                      placeholder="Write your markdown content here..."
-                      maxLength={MAX_CONTENT_LENGTH}
-                    />
-                    <p className="mt-1 text-xs text-black/45">{draftContent.length} / {MAX_CONTENT_LENGTH} characters</p>
-                  </div>
+                  <CodeEditor
+                    value={draftContent}
+                    onChange={setDraftContent}
+                    placeholder="Write your markdown content here..."
+                    maxLength={MAX_CONTENT_LENGTH}
+                  />
                 )}
                 <div className="flex gap-2">
                   <button
