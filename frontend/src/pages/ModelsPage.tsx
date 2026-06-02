@@ -168,23 +168,6 @@ function formatFileSize(bytes: number): string {
   return `${value.toFixed(value >= 10 ? 0 : 1)} ${units[unitIndex]}`;
 }
 
-function formatUploadSizeInWholeMb(bytes: number): string {
-  return `${Math.round(bytes / (1024 * 1024)).toLocaleString()} MB`;
-}
-
-function formatUploadEta(seconds: number | null): string {
-  if (seconds == null) {
-    return "Calculating...";
-  }
-
-  if (seconds >= 60) {
-    const minutes = Math.floor(seconds / 60);
-    const remainingSeconds = seconds % 60;
-    return `${minutes} minute${minutes === 1 ? "" : "s"} ${remainingSeconds} second${remainingSeconds === 1 ? "" : "s"}`;
-  }
-
-  return `${seconds} second${seconds === 1 ? "" : "s"}`;
-}
 
 function formatModelActivationSuccessMessage(modelAlias: string, elapsedSeconds?: number): string {
   if (typeof elapsedSeconds !== "number" || Number.isNaN(elapsedSeconds)) {
@@ -217,15 +200,7 @@ export default function ModelsPage({ setupMode = false, onComplete }: ModelsPage
   const [isFetchModalOpen, setIsFetchModalOpen] = useState(false);
   const {
     isFetching,
-    fetchJobId,
-    fetchProgress,
-    fetchFileName,
-    fetchStartedAt,
     isUploading,
-    isProcessingUpload,
-    uploadProgress,
-    uploadStartedAt,
-    uploadClock,
     uploadMode,
     isScanning: contextIsScanning,
     startFetch,
@@ -237,10 +212,8 @@ export default function ModelsPage({ setupMode = false, onComplete }: ModelsPage
     startScan,
     stopScan,
     updateUploadProgress,
-    updateUploadClock: contextUpdateUploadClock,
     resetFetch,
     setFetchJobId: contextSetFetchJobId,
-    setFetchFileName: contextSetFetchFileName,
     setUploadMode: contextSetUploadMode,
   } = useBackgroundProgress();
   const [isReordering, setIsReordering] = useState(false);
@@ -742,40 +715,8 @@ export default function ModelsPage({ setupMode = false, onComplete }: ModelsPage
   }
 
   const activeModels = models.filter((model) => model.activated).length;
-  const selectedUploadBytes = selectedUploadFiles.reduce((total, file) => total + file.size, 0);
-  const uploadTotal = uploadProgress.total || selectedUploadBytes || 0;
-  const uploadPercent = uploadTotal > 0 ? Math.min(100, Math.round((uploadProgress.loaded / uploadTotal) * 100)) : 0;
-  const uploadEtaSeconds =
-    uploadStartedAt != null && uploadProgress.loaded > 0 && uploadTotal > 0 && uploadPercent >= 5 && uploadProgress.loaded < uploadTotal
-      ? Math.max(
-          1,
-          Math.ceil((((uploadTotal - uploadProgress.loaded) / uploadProgress.loaded) * Math.max(1, uploadClock - uploadStartedAt)) / 1000),
-        )
-      : null;
-  const fetchTotal = fetchProgress.total || 0;
-  const fetchPercent = fetchTotal > 0 ? Math.min(100, Math.round((fetchProgress.loaded / fetchTotal) * 100)) : 0;
-  const fetchEtaSeconds =
-    fetchStartedAt != null && fetchProgress.loaded > 0 && fetchTotal > 0 && fetchPercent >= 5 && fetchProgress.loaded < fetchTotal
-      ? Math.max(
-          1,
-          Math.ceil((((fetchTotal - fetchProgress.loaded) / fetchProgress.loaded) * Math.max(1, Date.now() - fetchStartedAt)) / 1000),
-        )
-      : null;
   const assignmentTargets = buildAssignmentTargets(devices, pools);
   const uploadContextModel = uploadTargetModelId != null ? models.find((model) => model.id === uploadTargetModelId) ?? null : null;
-  const uploadSummaryLabel =
-    selectedUploadFiles.length === 1
-      ? selectedUploadFiles[0].name
-      : selectedUploadFiles.length > 1
-        ? `${selectedUploadFiles.length} files selected`
-        : null;
-  const uploadHeading = isProcessingUpload
-    ? uploadMode === "files"
-      ? "Processing files..."
-      : "Model processing..."
-    : uploadMode === "files"
-      ? "Uploading files..."
-      : "Model uploading...";
 
   function closeUploadModal() {
     if (isUploading) {
@@ -826,62 +767,6 @@ export default function ModelsPage({ setupMode = false, onComplete }: ModelsPage
         </div>
 
         {setupMode ? <p className="mt-2 max-w-3xl text-sm text-black/70">Register and activate at least one model to complete setup.</p> : null}
-
-        {isUploading || selectedUploadFiles.length > 0 ? (
-          <div className="mt-3 grid gap-3 rounded-2xl border border-dashed border-black/15 bg-sand/70 p-4">
-            <div className="flex flex-wrap items-center justify-between gap-2">
-              <h3 className="font-display text-base">{uploadHeading}</h3>
-              {uploadSummaryLabel ? <span className="text-sm text-black/60">{uploadSummaryLabel}</span> : null}
-            </div>
-            {isUploading && isProcessingUpload ? (
-              <p className="rounded-xl border border-black/10 bg-white/70 px-3 py-3 text-sm text-black/70">
-                This could take several minutes, especially with large files. If you aren't using an SSD with fast sustained writes, you may even want to go make some coffee or take a walk if staring at this message isn't your preferred pastime. You can safely navigate away from this page - you will be notified with a success or error message once this process either completes or fails.
-              </p>
-            ) : null}
-            {isUploading && uploadTotal > 0 && !isProcessingUpload ? (
-              <div className="grid gap-2 rounded-xl border border-black/10 bg-white/70 px-3 py-3">
-                <div className="flex items-center justify-between gap-3 text-sm text-black/70">
-                  <span>{uploadPercent}%</span>
-                  <span>{formatUploadSizeInWholeMb(uploadProgress.loaded)} / {formatUploadSizeInWholeMb(uploadTotal)}</span>
-                </div>
-                <div className="h-2 overflow-hidden rounded-full bg-black/10">
-                  <div className="h-full rounded-full bg-amber transition-[width] duration-150" style={{ width: `${uploadPercent}%` }} />
-                </div>
-                <p className="text-sm text-black/70">Estimated time remaining: {formatUploadEta(uploadEtaSeconds)}</p>
-              </div>
-            ) : null}
-          </div>
-        ) : null}
-
-        {isFetching && fetchJobId ? (
-          <div className="mt-3 grid gap-3 rounded-2xl border border-dashed border-black/15 bg-sand/70 p-4">
-            <div className="flex flex-wrap items-center justify-between gap-2">
-              <h3 className="font-display text-base">Fetching file...</h3>
-              {fetchFileName ? (
-                <span className="max-w-xs truncate text-sm text-black/60" title={fetchFileName}>
-                  {fetchFileName}
-                </span>
-              ) : null}
-            </div>
-            {isFetching && fetchProgress.total && fetchProgress.total > 0 ? (
-              <div className="grid gap-2 rounded-xl border border-black/10 bg-white/70 px-3 py-3">
-                <div className="flex items-center justify-between gap-3 text-sm text-black/70">
-                  <span>{fetchProgress.total > 0 ? Math.min(100, Math.round((fetchProgress.loaded / fetchProgress.total) * 100)) : 0}%</span>
-                  <span>{formatUploadSizeInWholeMb(fetchProgress.loaded)} / {formatUploadSizeInWholeMb(fetchProgress.total)}</span>
-                </div>
-                <div className="h-2 overflow-hidden rounded-full bg-black/10">
-                  <div className="h-full rounded-full bg-amber transition-[width] duration-150" style={{ width: `${fetchProgress.total > 0 ? Math.min(100, Math.round((fetchProgress.loaded / fetchProgress.total) * 100)) : 0}%` }} />
-                </div>
-                <p className="text-sm text-black/70">Estimated time remaining: {formatUploadEta(fetchEtaSeconds)}</p>
-              </div>
-            ) : null}
-            {isFetching && (!fetchProgress.total || fetchProgress.total === 0) ? (
-              <p className="rounded-xl border border-black/10 bg-white/70 px-3 py-3 text-sm text-black/70">
-                Downloading file... This could take several minutes for large models. You can safely navigate away from this page - you will be notified with a success or error message once this process either completes or fails.
-              </p>
-            ) : null}
-          </div>
-        ) : null}
 
         <div className="mt-5 space-y-4">
           {models.map((model) => {
@@ -1316,9 +1201,8 @@ export default function ModelsPage({ setupMode = false, onComplete }: ModelsPage
               type="button"
               className="rounded-xl border border-black/15 px-4 py-2 text-sm font-semibold text-black hover:bg-black/5 disabled:cursor-not-allowed disabled:opacity-60"
               onClick={() => {
-                if (!isFetching) {
-                  setFetchUrlInput("");
-                }
+                setFetchUrlInput("");
+                setIsFetchModalOpen(false);
               }}
               disabled={isFetching}
             >

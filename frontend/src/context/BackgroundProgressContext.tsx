@@ -343,7 +343,7 @@ export function BackgroundProgressProvider({ children }: { children: ReactNode }
 
   // Upload clock timer
   useEffect(() => {
-    if (!state.isUploading || !state.isProcessingUpload) {
+    if (!state.isUploading) {
       return;
     }
 
@@ -354,7 +354,7 @@ export function BackgroundProgressProvider({ children }: { children: ReactNode }
     return () => {
       window.clearInterval(intervalId);
     };
-  }, [state.isUploading, state.isProcessingUpload, updateUploadClock]);
+  }, [state.isUploading, updateUploadClock]);
 
   const contextValue: BackgroundProgressContextType = {
     ...state,
