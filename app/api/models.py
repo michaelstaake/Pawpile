@@ -79,8 +79,8 @@ async def _run_upload_job(
     model_dir: Path,
     destination: Path,
     max_bytes: int,
-    db: Session,
 ) -> None:
+    db = SessionLocal()
     written = 0
 
     try:
@@ -113,34 +113,37 @@ async def _run_upload_job(
     finally:
         await file.close()
 
-    model = ModelConfig(
-        priority=_next_model_priority(db),
-        file_name=file_name,
-        model_dir_name=model_dir_name,
-        file_path=str(destination.resolve()),
-        alias=_build_unique_alias(db, Path(file_name).stem),
-        context_length=get_settings().default_context_length,
-        gpu_layers=get_settings().default_gpu_layers,
-        threads=get_settings().default_threads,
-        temperature=get_settings().default_temperature,
-        top_p=get_settings().default_top_p,
-        top_k=get_settings().default_top_k,
-        presence_penalty=get_settings().default_presence_penalty,
-        repetition_penalty=get_settings().default_repetition_penalty,
-        mmproj_file_name=_detect_mmproj_file_name(model_dir, file_name),
-    )
     try:
-        db.add(model)
-        db.commit()
-        db.refresh(model)
-    except SQLAlchemyError as exc:
-        db.rollback()
-        _remove_model_dir(model_dir)
-        task_manager.fail_task(task_id, "Uploaded model could not be registered")
-        raise HTTPException(status_code=500, detail="Uploaded model could not be registered") from exc
+        model = ModelConfig(
+            priority=_next_model_priority(db),
+            file_name=file_name,
+            model_dir_name=model_dir_name,
+            file_path=str(destination.resolve()),
+            alias=_build_unique_alias(db, Path(file_name).stem),
+            context_length=get_settings().default_context_length,
+            gpu_layers=get_settings().default_gpu_layers,
+            threads=get_settings().default_threads,
+            temperature=get_settings().default_temperature,
+            top_p=get_settings().default_top_p,
+            top_k=get_settings().default_top_k,
+            presence_penalty=get_settings().default_presence_penalty,
+            repetition_penalty=get_settings().default_repetition_penalty,
+            mmproj_file_name=_detect_mmproj_file_name(model_dir, file_name),
+        )
+        try:
+            db.add(model)
+            db.commit()
+            db.refresh(model)
+        except SQLAlchemyError as exc:
+            db.rollback()
+            _remove_model_dir(model_dir)
+            task_manager.fail_task(task_id, "Uploaded model could not be registered")
+            raise HTTPException(status_code=500, detail="Uploaded model could not be registered") from exc
 
-    task_manager.complete_task(task_id)
-    log_event(db, "model.uploaded", details={"file_name": file_name, "alias": model.alias})
+        task_manager.complete_task(task_id)
+        log_event(db, "model.uploaded", details={"file_name": file_name, "alias": model.alias})
+    finally:
+        db.close()
 
 
 async def _run_fetch_job(
@@ -322,7 +325,7 @@ async def upload_model(
     task_id = str(uuid.uuid4())
 
     upload_task = asyncio.create_task(
-        _run_upload_job(task_id, file, file_name, model_dir_name, model_dir, destination, max_bytes, db)
+        _run_upload_job(task_id, file, file_name, model_dir_name, model_dir, destination, max_bytes)
     )
     task_manager.add_task(
         task_id=task_id,
