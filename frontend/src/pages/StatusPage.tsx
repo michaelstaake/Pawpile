@@ -442,9 +442,8 @@ export default function StatusPage() {
   );
 
   return (
-    <section className="grid gap-4">
-      <article className="overflow-hidden rounded-[32px] border border-black/10 bg-[linear-gradient(180deg,rgba(255,255,255,0.88)_0%,rgba(245,240,226,0.78)_100%)] p-6 shadow-sm backdrop-blur">
-        <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-12">
+    <section className="grid gap-4 overflow-hidden rounded-[32px] border border-black/10 bg-[linear-gradient(180deg,rgba(255,255,255,0.88)_0%,rgba(245,240,226,0.78)_100%)] p-6 shadow-sm backdrop-blur">
+      <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-12">
           <div className="rounded-2xl border border-black/10 bg-white/80 p-4 lg:col-span-3">
             <p className="text-xs font-semibold uppercase tracking-[0.24em] text-black/45">Free Disk Space</p>
             <p className="mt-2 font-display text-3xl text-ink">{formatDiskSpace(systemDiskFreeBytes)}</p>
@@ -492,7 +491,6 @@ export default function StatusPage() {
             ) : null}
           </div>
         </div>
-      </article>
 
       {user?.is_admin && (
         <Modal open={isManageCostOpen} onClose={() => setIsManageCostOpen(false)} labelledBy="manage-cost-modal-title" panelClassName="max-w-lg">
