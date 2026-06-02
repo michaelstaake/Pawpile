@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState, type FormEvent } from "react";
 import { useAuth } from "../context/AuthContext";
 import { useToast } from "../context/ToastContext";
+import MarkdownRenderer from "../components/ui/MarkdownRenderer";
 import {
   createKbDocument,
   deleteKbDocument,
@@ -24,6 +25,7 @@ export default function KnowledgeBasePage() {
   const [draftContent, setDraftContent] = useState("");
   const [isSaving, setIsSaving] = useState(false);
   const [isDeleting, setIsDeleting] = useState<number | null>(null);
+  const [showPreview, setShowPreview] = useState(false);
   const hasLoaded = useRef(false);
 
   useEffect(() => {
@@ -63,6 +65,7 @@ export default function KnowledgeBasePage() {
     setDraftTitle("");
     setDraftContent("");
     setEditingId(null);
+    setShowPreview(false);
   }
 
   async function saveDraft(e: FormEvent) {
@@ -119,7 +122,19 @@ export default function KnowledgeBasePage() {
       {(draftMode === "creating" || draftMode === "editing") && (
         <article className="rounded-2xl border border-black/10 bg-white/80 p-5 shadow-sm backdrop-blur">
           <form onSubmit={saveDraft}>
-            <h2 className="mb-3 font-display text-lg">{draftMode === "creating" ? "Add Document" : "Edit Document"}</h2>
+            <div className="mb-3 flex items-center justify-between">
+              <h2 className="font-display text-lg">{draftMode === "creating" ? "Add Document" : "Edit Document"}</h2>
+              {draftContent && (
+                <button
+                  type="button"
+                  onClick={() => setShowPreview(!showPreview)}
+                  className="inline-flex items-center gap-1.5 rounded-lg border border-black/15 px-3 py-1.5 text-xs font-medium text-black/70 transition hover:bg-black/5"
+                >
+                  <i className={`bi bi-${showPreview ? "code-slash" : "eye"} text-[14px] leading-none`}></i>
+                  {showPreview ? "Edit" : "Preview"}
+                </button>
+              )}
+            </div>
             <div className="grid gap-3">
               <div>
                 <label className="mb-1 block text-sm font-medium text-black/70">Title</label>
@@ -133,17 +148,26 @@ export default function KnowledgeBasePage() {
                   required
                 />
               </div>
-              <div>
-                <label className="mb-1 block text-sm font-medium text-black/70">Content (Markdown)</label>
-                <textarea
-                  value={draftContent}
-                  onChange={(e) => setDraftContent(e.target.value)}
-                  className="h-48 w-full resize-y rounded-xl border border-black/15 bg-white px-3 py-2 text-sm"
-                  placeholder="Write your markdown content here..."
-                  maxLength={MAX_CONTENT_LENGTH}
-                />
-                <p className="mt-1 text-xs text-black/45">{draftContent.length} / {MAX_CONTENT_LENGTH} characters</p>
-              </div>
+              {showPreview ? (
+                <div>
+                  <label className="mb-1 block text-sm font-medium text-black/70">Preview</label>
+                  <div className="markdown-content min-h-[200px] max-h-[400px] overflow-y-auto rounded-xl border border-black/15 bg-white p-4 text-sm">
+                    <MarkdownRenderer content={draftContent} />
+                  </div>
+                </div>
+              ) : (
+                <div>
+                  <label className="mb-1 block text-sm font-medium text-black/70">Content (Markdown)</label>
+                  <textarea
+                    value={draftContent}
+                    onChange={(e) => setDraftContent(e.target.value)}
+                    className="h-48 w-full resize-y rounded-xl border border-black/15 bg-white px-3 py-2 text-sm"
+                    placeholder="Write your markdown content here..."
+                    maxLength={MAX_CONTENT_LENGTH}
+                  />
+                  <p className="mt-1 text-xs text-black/45">{draftContent.length} / {MAX_CONTENT_LENGTH} characters</p>
+                </div>
+              )}
               <div className="flex gap-2">
                 <button
                   type="submit"
