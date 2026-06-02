@@ -147,6 +147,8 @@ function DeviceCard({ device, isPooled, modelColors }: { device: DeviceStatusRec
   const isCpuDevice = device.device_type.toLowerCase() === "cpu" || device.vendor.toLowerCase() === "cpu";
   const gpuUsagePercent = clampPercent(device.gpu_usage_percent);
   const hasGpuUsage = device.gpu_usage_percent !== null && device.gpu_usage_percent !== undefined;
+  const cpuUsagePercent = clampPercent(device.usage_percent);
+  const hasCpuUsage = device.usage_percent !== null && device.usage_percent !== undefined;
   const memoryPercent = getMemoryPercent(device.memory_used_mb, device.memory_total_mb);
   const modelMemoryTotal = device.models.reduce(
     (sum, model) => sum + (isCpuDevice ? model.memory_used_mb : model.display_memory_used_mb),
@@ -194,21 +196,39 @@ function DeviceCard({ device, isPooled, modelColors }: { device: DeviceStatusRec
       </div>
 
       <div className="mt-5 grid gap-4">
-        <section className="rounded-2xl border border-black/10 bg-[#f3efe2] p-4">
-          <div className="flex items-center justify-between gap-3">
-            <div>
-              <p className="text-xs font-semibold uppercase tracking-[0.24em] text-black/45">GPU</p>
-              <p className="mt-1 text-sm text-black/65">{hasGpuUsage ? formatWholePercent(gpuUsagePercent) : "N/A"}</p>
+        {!isCpuDevice && (
+          <section className="rounded-2xl border border-black/10 bg-[#f3efe2] p-4">
+            <div className="flex items-center justify-between gap-3">
+              <div>
+                <p className="text-xs font-semibold uppercase tracking-[0.24em] text-black/45">GPU</p>
+                <p className="mt-1 text-sm text-black/65">{hasGpuUsage ? formatWholePercent(gpuUsagePercent) : "N/A"}</p>
+              </div>
+              <p className="font-display text-2xl text-ink">{hasGpuUsage ? `${formatWholePercent(gpuUsagePercent)}` : "N/A"}</p>
             </div>
-            <div className="h-4 w-[140px] overflow-hidden rounded-full bg-black/10">
+            <div className="mt-4 h-4 overflow-hidden rounded-full bg-black/10">
               {hasGpuUsage ? (
                 <div className="h-full rounded-full bg-black" style={{ width: `${gpuUsagePercent}%` }} />
               ) : (
                 <div className="h-full rounded-full bg-black/25" title="GPU usage unavailable" />
               )}
             </div>
-          </div>
-        </section>
+          </section>
+        )}
+
+        {isCpuDevice && hasCpuUsage && (
+          <section className="rounded-2xl border border-black/10 bg-[#f3efe2] p-4">
+            <div className="flex items-center justify-between gap-3">
+              <div>
+                <p className="text-xs font-semibold uppercase tracking-[0.24em] text-black/45">CPU</p>
+                <p className="mt-1 text-sm text-black/65">{formatWholePercent(cpuUsagePercent)}</p>
+              </div>
+              <p className="font-display text-2xl text-ink">{formatWholePercent(cpuUsagePercent)}</p>
+            </div>
+            <div className="mt-4 h-4 overflow-hidden rounded-full bg-black/10">
+              <div className="h-full rounded-full bg-black" style={{ width: `${cpuUsagePercent}%` }} />
+            </div>
+          </section>
+        )}
 
         <section className="rounded-2xl border border-black/10 bg-[#f3efe2] p-4">
           <div className="flex items-center justify-between gap-3">
