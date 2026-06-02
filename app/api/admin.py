@@ -40,6 +40,10 @@ def update_settings(payload: AppSettingsUpdateRequest, admin_user: User = Depend
         app_settings.background_image_mode = payload.background_image_mode
     if payload.knowledge_base_enabled is not None:
         app_settings.knowledge_base_enabled = payload.knowledge_base_enabled
+    if payload.input_price_per_1m is not None:
+        app_settings.input_price_per_1m = payload.input_price_per_1m
+    if payload.output_price_per_1m is not None:
+        app_settings.output_price_per_1m = payload.output_price_per_1m
 
     db.add(app_settings)
     db.commit()
@@ -228,6 +232,8 @@ def _serialize_app_settings(app_settings) -> AppSettingsResponse:
         background_image_path=app_settings.background_image_path,
         background_image_mode=app_settings.background_image_mode,
         knowledge_base_enabled=app_settings.knowledge_base_enabled,
+        input_price_per_1m=app_settings.input_price_per_1m,
+        output_price_per_1m=app_settings.output_price_per_1m,
     )
 
 

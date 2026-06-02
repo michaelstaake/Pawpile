@@ -1,9 +1,10 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { apiGet } from "../lib/api";
+import { apiGet, apiPatch } from "../lib/api";
 import { formatDeviceIdLabel } from "../lib/deviceIds";
-import { DeviceStatusRecord, GpuPoolRecord, StatusModelRecord, StatusResponse, TokenUsageMetricRecord, TokenUsageSummaryRecord, TopTokenUserRecord } from "../lib/records";
+import { AppSettingsRecord, DeviceStatusRecord, GpuPoolRecord, StatusModelRecord, StatusResponse, TokenUsageMetricRecord, TokenUsageSummaryRecord, TopTokenUserRecord } from "../lib/records";
 import { useAuth } from "../context/AuthContext";
 import { useToast } from "../context/ToastContext";
+import Modal from "../components/ui/Modal";
 
 const POLL_INTERVAL_MS = 5000;
 const PRIMARY_MODEL_COLORS = [
@@ -252,8 +253,12 @@ export default function StatusPage() {
   const [systemCpuUsagePercent, setSystemCpuUsagePercent] = useState<number | null>(null);
   const [systemDiskFreeBytes, setSystemDiskFreeBytes] = useState<number>(0);
   const [tokenUsage, setTokenUsage] = useState<TokenUsageSummaryRecord | null>(null);
+  const [appSettings, setAppSettings] = useState<AppSettingsRecord | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const lastErrorMessageRef = useRef<string | null>(null);
+  const [isManageCostOpen, setIsManageCostOpen] = useState(false);
+  const [modalDraft, setModalDraft] = useState({ input_price_per_1m: "0", output_price_per_1m: "0" });
+  const [isSavingCost, setIsSavingCost] = useState(false);
 
   useEffect(() => {
     let isMounted = true;
@@ -310,6 +315,55 @@ export default function StatusPage() {
     }
     apiGet<GpuPoolRecord[]>("/api/devices/pools", token).then(setPools).catch(() => {});
   }, [token]);
+
+  useEffect(() => {
+    if (!token) {
+      return;
+    }
+    apiGet<AppSettingsRecord>("/api/admin/settings", token).then(setAppSettings).catch(() => {});
+  }, [token]);
+
+  const estimatedSavings = useMemo(() => {
+    if (!tokenUsage || !appSettings) {
+      return 0;
+    }
+    const forever = tokenUsage.forever;
+    if (!forever) {
+      return 0;
+    }
+    const inputCost = (forever.input_tokens / 1_000_000) * (appSettings.input_price_per_1m || 0);
+    const outputCost = (forever.output_tokens / 1_000_000) * (appSettings.output_price_per_1m || 0);
+    return inputCost + outputCost;
+  }, [tokenUsage, appSettings]);
+
+  function openManageCostModal() {
+    setModalDraft({
+      input_price_per_1m: (appSettings?.input_price_per_1m ?? 0).toString(),
+      output_price_per_1m: (appSettings?.output_price_per_1m ?? 0).toString(),
+    });
+    setIsManageCostOpen(true);
+  }
+
+  async function saveCostSettings() {
+    if (!token) return;
+    setIsSavingCost(true);
+    try {
+      const response = await apiPatch<Record<string, unknown>, AppSettingsRecord>(
+        "/api/admin/settings",
+        {
+          input_price_per_1m: parseFloat(modalDraft.input_price_per_1m) || 0,
+          output_price_per_1m: parseFloat(modalDraft.output_price_per_1m) || 0,
+        },
+        token,
+      );
+      setAppSettings(response);
+      setIsManageCostOpen(false);
+    } catch (error) {
+      showError(error instanceof Error ? error.message : "Failed to save cost settings");
+    } finally {
+      setIsSavingCost(false);
+    }
+  }
 
   const visibleDevices = useMemo(() => devices.filter((device) => device.enabled), [devices]);
   const poolDeviceIds = useMemo(() => new Set(pools.flatMap((pool) => pool.devices.map((d) => d.id))), [pools]);
@@ -377,21 +431,21 @@ export default function StatusPage() {
         value: formatTokenValue(summary?.last_30_days ?? emptyMetric),
         title: formatTokenTooltip(summary?.last_30_days ?? emptyMetric),
         detail: "Tokens",
-        className: "lg:col-span-4",
+        className: "lg:col-span-3",
       },
       {
         label: "Forever",
         value: formatTokenValue(summary?.forever ?? emptyMetric),
         title: formatTokenTooltip(summary?.forever ?? emptyMetric),
         detail: "Tokens",
-        className: "lg:col-span-4",
+        className: "lg:col-span-3",
       },
       {
         label: "Top User 24h",
         value: topUserLast24Hours?.username ?? "No usage yet",
         title: formatTokenTooltip(topUserLast24Hours),
         detail: topUserLast24Hours ? formatWholePercent(topUserLast24HoursPercent) : "0%",
-        className: "lg:col-span-4",
+        className: "lg:col-span-3",
       },
     ];
   }, [tokenUsage]);
@@ -446,8 +500,68 @@ export default function StatusPage() {
               <p className="mt-1 text-sm text-black/55">{card.detail}</p>
             </div>
           ))}
+
+          <div className="rounded-2xl border border-black/10 bg-white/80 p-4 lg:col-span-3">
+            <p className="text-xs font-semibold uppercase tracking-[0.24em] text-black/45">Estimated Savings</p>
+            <p className="mt-2 font-display text-3xl text-ink">{appSettings ? `$${estimatedSavings.toFixed(2)}` : "N/A"}</p>
+            <p className="mt-1 text-sm">
+              <a href="#" className="text-blue-600 hover:underline" onClick={(e) => { e.preventDefault(); openManageCostModal(); }}>Manage Cost</a>
+            </p>
+          </div>
         </div>
       </article>
+
+      <Modal open={isManageCostOpen} onClose={() => setIsManageCostOpen(false)} labelledBy="manage-cost-modal-title">
+        <div className="p-6">
+          <h2 id="manage-cost-modal-title" className="font-display text-2xl text-ink">Manage Cost</h2>
+          <p className="mt-1 text-sm text-black/55">Set the price per 1M tokens for input and output to estimate your savings.</p>
+
+          <div className="mt-6 grid gap-4 sm:grid-cols-2">
+            <div>
+              <label htmlFor="input-price" className="block text-sm font-medium text-black/70">Input (per 1M tokens)</label>
+              <div className="mt-1 flex rounded-lg border border-black/10 bg-white overflow-hidden">
+                <span className="flex items-center pl-3 text-black/50">$</span>
+                <input
+                  id="input-price"
+                  type="number"
+                  step="0.000001"
+                  min="0"
+                  value={modalDraft.input_price_per_1m}
+                  onChange={(e) => setModalDraft((d) => ({ ...d, input_price_per_1m: e.target.value }))}
+                  className="w-full border-0 bg-transparent px-3 py-2.5 text-ink outline-none focus:ring-0"
+                />
+              </div>
+            </div>
+
+            <div>
+              <label htmlFor="output-price" className="block text-sm font-medium text-black/70">Output (per 1M tokens)</label>
+              <div className="mt-1 flex rounded-lg border border-black/10 bg-white overflow-hidden">
+                <span className="flex items-center pl-3 text-black/50">$</span>
+                <input
+                  id="output-price"
+                  type="number"
+                  step="0.000001"
+                  min="0"
+                  value={modalDraft.output_price_per_1m}
+                  onChange={(e) => setModalDraft((d) => ({ ...d, output_price_per_1m: e.target.value }))}
+                  className="w-full border-0 bg-transparent px-3 py-2.5 text-ink outline-none focus:ring-0"
+                />
+              </div>
+            </div>
+          </div>
+
+          <div className="mt-6 flex justify-end">
+            <button
+              type="button"
+              onClick={saveCostSettings}
+              disabled={isSavingCost}
+              className="rounded-lg bg-black px-4 py-2 text-sm font-medium text-white hover:bg-black/85 disabled:opacity-50"
+            >
+              {isSavingCost ? "Saving..." : "Save"}
+            </button>
+          </div>
+        </div>
+      </Modal>
 
       {isLoading ? (
         <div className="rounded-2xl border border-black/10 bg-white/80 px-4 py-8 text-sm text-black/55 shadow-sm">Loading...</div>

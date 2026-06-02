@@ -1,4 +1,4 @@
-from sqlalchemy import Boolean, Integer, String
+from sqlalchemy import Boolean, Float, Integer, String
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.core.db import Base
@@ -16,3 +16,5 @@ class AppSettings(Base):
     background_image_mode: Mapped[str] = mapped_column(String(16), default="fill", nullable=False)
     active_web_search_provider_id: Mapped[int | None] = mapped_column(Integer, nullable=True)
     knowledge_base_enabled: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
+    input_price_per_1m: Mapped[float] = mapped_column(Float, default=0.0, nullable=False)
+    output_price_per_1m: Mapped[float] = mapped_column(Float, default=0.0, nullable=False)

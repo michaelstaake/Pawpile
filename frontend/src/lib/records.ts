@@ -224,6 +224,8 @@ export type AppSettingsRecord = {
   background_color: string;
   background_image_path: string | null;
   background_image_mode: BackgroundImageMode;
+  input_price_per_1m: number;
+  output_price_per_1m: number;
 };
 
 export type ApiKeyCreateResponse = {

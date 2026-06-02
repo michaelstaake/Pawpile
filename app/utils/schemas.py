@@ -206,6 +206,8 @@ class AppSettingsResponse(BaseModel):
     background_image_path: str | None = None
     background_image_mode: Literal["fill", "stretch", "repeat"] = "fill"
     knowledge_base_enabled: bool = False
+    input_price_per_1m: float = 0.0
+    output_price_per_1m: float = 0.0
 
     @field_validator("background_color", mode="before")
     @classmethod
@@ -219,6 +221,8 @@ class AppSettingsUpdateRequest(BaseModel):
     background_color: str | None = None
     background_image_mode: Literal["fill", "stretch", "repeat"] | None = None
     knowledge_base_enabled: bool | None = None
+    input_price_per_1m: float | None = None
+    output_price_per_1m: float | None = None
 
     @field_validator("background_color", mode="before")
     @classmethod
