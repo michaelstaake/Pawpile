@@ -319,15 +319,14 @@ async def _stream_with_web_search(
         intermediate_payload["stream_options"] = stream_options
         async for chunk in inference.stream_chat_completion(model_id, intermediate_payload):
             buffered.append(chunk)
+            yield chunk  # Stream to client immediately to prevent timeout
 
         message, finish_reason = parse_sse_chunks(buffered)
         tool_calls = message.get("tool_calls", [])
         web_search_calls = [tc for tc in tool_calls if tc.get("function", {}).get("name") == "web_search"]
 
         if finish_reason != "tool_calls" or not web_search_calls:
-            # Final answer — stream it out
-            for chunk in buffered:
-                yield chunk
+            # Final answer — already streamed above, just return
             return
 
         # Execute searches and continue loop
