@@ -994,7 +994,7 @@ export default function ModelsPage({ setupMode = false, onComplete }: ModelsPage
                       <span className="text-sm text-black/70">Knowledge Base</span>
                       <span className="text-xs text-black/45">
                         {modalDraft.tool_calling_enabled
-                          ? "Allows the model to retrieve relevant documents from your knowledge base."
+                          ? "Enables Retrieval-Augmented Generation (RAG) features powered by Knowledge Base content"
                           : "Requires tool calling to be enabled first."}
                       </span>
                     </span>
