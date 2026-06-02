@@ -336,48 +336,49 @@ export default function StatusPage() {
         value: formatTokenValue(summary?.since_startup ?? emptyMetric),
         title: formatTokenTooltip(summary?.since_startup ?? emptyMetric),
         detail: "Tokens",
+        className: "lg:col-span-3",
       },
       {
         label: "Last 1 Hour",
         value: formatTokenValue(summary?.last_1_hour ?? emptyMetric),
         title: formatTokenTooltip(summary?.last_1_hour ?? emptyMetric),
         detail: "Tokens",
+        className: "lg:col-span-3",
       },
       {
         label: "Last 24 Hours",
         value: formatTokenValue(summary?.last_24_hours ?? emptyMetric),
         title: formatTokenTooltip(summary?.last_24_hours ?? emptyMetric),
         detail: "Tokens",
+        className: "lg:col-span-3",
       },
       {
         label: "Last 7 Days",
         value: formatTokenValue(summary?.last_7_days ?? emptyMetric),
         title: formatTokenTooltip(summary?.last_7_days ?? emptyMetric),
         detail: "Tokens",
+        className: "lg:col-span-3",
       },
       {
         label: "Last 30 Days",
         value: formatTokenValue(summary?.last_30_days ?? emptyMetric),
         title: formatTokenTooltip(summary?.last_30_days ?? emptyMetric),
         detail: "Tokens",
+        className: "lg:col-span-4",
       },
       {
         label: "Forever",
         value: formatTokenValue(summary?.forever ?? emptyMetric),
         title: formatTokenTooltip(summary?.forever ?? emptyMetric),
         detail: "Tokens",
+        className: "lg:col-span-4",
       },
       {
         label: "Top User 24h",
         value: topUserLast24Hours?.username ?? "No usage yet",
         title: formatTokenTooltip(topUserLast24Hours),
         detail: topUserLast24Hours ? formatWholePercent(topUserLast24HoursPercent) : "0%",
-      },
-      {
-        label: "Top User Forever",
-        value: formatTokenValue(summary?.top_user_forever ?? null),
-        title: formatTokenTooltip(summary?.top_user_forever ?? null),
-        detail: summary?.top_user_forever?.username ?? "No usage yet",
+        className: "lg:col-span-4",
       },
     ];
   }, [tokenUsage]);
@@ -397,20 +398,20 @@ export default function StatusPage() {
           </div>
         </div>
 
-        <div className="mt-5 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-          <div className="rounded-2xl border border-black/10 bg-white/80 p-4">
+        <div className="mt-5 grid gap-3 sm:grid-cols-2 lg:grid-cols-12">
+          <div className="rounded-2xl border border-black/10 bg-white/80 p-4 lg:col-span-3">
             <p className="text-xs font-semibold uppercase tracking-[0.24em] text-black/45">Host CPU</p>
             <p className="mt-2 font-display text-3xl text-ink">{systemCpuUsagePercent !== null ? `${systemCpuUsagePercent.toFixed(1)}%` : "N/A"}</p>
             <p className="mt-1 text-sm text-black/55">Total utilization</p>
           </div>
 
-          <div className="rounded-2xl border border-black/10 bg-white/80 p-4">
+          <div className="rounded-2xl border border-black/10 bg-white/80 p-4 lg:col-span-3">
             <p className="text-xs font-semibold uppercase tracking-[0.24em] text-black/45">AI Memory</p>
             <p className="mt-2 font-display text-3xl text-ink">{summary.memoryUsagePercent !== null ? `${summary.memoryUsagePercent.toFixed(1)}%` : "N/A"}</p>
             <p className="mt-1 text-sm text-black/55">{formatMemorySummary(summary.usedMemory, summary.totalMemory)}</p>
           </div>
 
-          <div className="rounded-2xl border border-black/10 bg-white/80 p-4 sm:col-span-2 lg:col-span-2">
+          <div className="rounded-2xl border border-black/10 bg-white/80 p-4 sm:col-span-2 lg:col-span-6">
             <p className="text-xs font-semibold uppercase tracking-[0.24em] text-black/45">System Health</p>
             <div className="mt-2 flex items-center gap-3">
               <i className={`${systemHealth.iconClassName} ${systemHealth.iconColorClassName} text-[28px] leading-none`} aria-hidden="true" />
@@ -420,7 +421,7 @@ export default function StatusPage() {
           </div>
 
           {tokenCards.map((card) => (
-            <div key={card.label} className="rounded-2xl border border-black/10 bg-white/80 p-4">
+            <div key={card.label} className={`rounded-2xl border border-black/10 bg-white/80 p-4 ${card.className || ""}`}>
               <p className="text-xs font-semibold uppercase tracking-[0.24em] text-black/45">{card.label}</p>
               <p className="mt-2 font-display text-3xl text-ink" title={card.title}>{card.value}</p>
               <p className="mt-1 text-sm text-black/55">{card.detail}</p>
