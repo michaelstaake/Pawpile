@@ -4,7 +4,7 @@ from uuid import uuid4
 from fastapi import APIRouter, Depends, File, HTTPException, UploadFile
 from sqlalchemy.orm import Session
 
-from app.api.deps import get_admin_user
+from app.api.deps import get_admin_user, get_current_user
 from app.core.activity_logger import log_event
 from app.core.app_settings import get_or_create_app_settings
 from app.core.config import get_settings
@@ -21,7 +21,7 @@ BACKGROUND_IMAGE_EXTENSIONS = {".jpg", ".jpeg", ".png"}
 
 
 @router.get("/settings", response_model=AppSettingsResponse)
-def get_settings(_: User = Depends(get_admin_user), db: Session = Depends(get_db)) -> AppSettingsResponse:
+def get_settings(current_user: User = Depends(get_current_user), db: Session = Depends(get_db)) -> AppSettingsResponse:
     app_settings = get_or_create_app_settings(db)
     return _serialize_app_settings(app_settings)
 
