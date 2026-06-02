@@ -223,6 +223,7 @@ export function BackgroundProgressProvider({ children }: { children: ReactNode }
       id: "models-upload-info",
       content: (
         <div className="flex flex-col gap-2">
+          <p className="font-semibold">{title}</p>
           <p className="text-sm text-blue-700/80">This could take several minutes...</p>
           {state.uploadFileName ? (
             <div className="flex items-center gap-2 text-xs text-blue-700/70">
@@ -431,8 +432,10 @@ export function BackgroundProgressProvider({ children }: { children: ReactNode }
       ? Math.round((elapsedSeconds / percent) * (100 - percent))
       : null;
     const title = state.uploadMode === "files" ? "Uploading files" : "Uploading model";
+    const processingTitle = state.uploadMode === "files" ? "Processing files" : "Processing model";
     const progressContent = isUploadBytesComplete ? (
       <div className="flex flex-col gap-2">
+        <p className="font-semibold">{processingTitle}</p>
         <p className="text-sm text-blue-700/80">This could take several minutes...</p>
         {state.uploadFileName ? (
           <div className="flex items-center gap-2 text-xs text-blue-700/70">
