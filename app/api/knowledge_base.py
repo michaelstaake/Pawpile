@@ -119,10 +119,13 @@ def delete_category(
     if cat.is_default:
         raise HTTPException(status_code=400, detail="Cannot delete the Default category")
 
-    # Unassign documents from this category (they'll go back to uncategorized, then RAG finds them all)
-    db.query(KnowledgeBaseDocument).filter(
-        KnowledgeBaseDocument.category_id == cat_id
-    ).update({"category_id": None}, synchronize_session="fetch")
+    doc_count = (
+        db.query(KnowledgeBaseDocument)
+        .filter(KnowledgeBaseDocument.category_id == cat_id)
+        .count()
+    )
+    if doc_count > 0:
+        raise HTTPException(status_code=400, detail=f"Cannot delete category with {doc_count} document(s). Move or delete documents first.")
 
     db.delete(cat)
     db.commit()

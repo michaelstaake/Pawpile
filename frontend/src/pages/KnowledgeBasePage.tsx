@@ -128,14 +128,11 @@ export default function KnowledgeBasePage() {
 
   async function saveDraft(e: FormEvent) {
     e.preventDefault();
-    if (!token || !draftTitle.trim()) return;
+    if (!token || !draftTitle.trim() || !draftCategoryId) return;
 
     setIsSaving(true);
     try {
-      const payload: Record<string, unknown> = { title: draftTitle.trim(), content: draftContent };
-      if (draftCategoryId !== null) {
-        payload.category_id = draftCategoryId;
-      }
+      const payload = { title: draftTitle.trim(), content: draftContent, category_id: draftCategoryId };
       if (draftMode === "creating") {
         await createKbDocument(payload, token);
         showSuccess("Document created.");
@@ -360,7 +357,7 @@ export default function KnowledgeBasePage() {
                         <i className="bi bi-pencil text-[14px]"></i>
                         Edit
                       </button>
-                      {!cat.is_default && (
+                      {!cat.is_default && getDocumentCount(cat.id) === 0 && (
                         <button
                           type="button"
                           onMouseDown={(e) => e.stopPropagation()}
@@ -395,10 +392,13 @@ export default function KnowledgeBasePage() {
                   <label className="mb-1 block text-sm font-medium text-black/70">Category</label>
                   <select
                     value={draftCategoryId ?? ""}
-                    onChange={(e) => setDraftCategoryId(e.target.value ? Number(e.target.value) : null)}
+                    onChange={(e) => setDraftCategoryId(Number(e.target.value))}
                     className="w-full rounded-xl border border-black/15 bg-white px-3 py-2 text-sm"
+                    required
                   >
-                    <option value="">No category</option>
+                    <option value="" disabled>
+                      Select a category
+                    </option>
                     {categories.map((cat) => (
                       <option key={cat.id} value={cat.id}>
                         {cat.name}{cat.is_default ? " (Default)" : ""}
