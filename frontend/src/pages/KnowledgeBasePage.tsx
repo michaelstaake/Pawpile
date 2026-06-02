@@ -40,6 +40,8 @@ export default function KnowledgeBasePage() {
   const [editingCategoryId, setEditingCategoryId] = useState<number | null>(null);
   const [categoryName, setCategoryName] = useState("");
   const [isDeletingCategory, setIsDeletingCategory] = useState<number | null>(null);
+  const [openMenuId, setOpenMenuId] = useState<number | null>(null);
+  const menuRef = useRef<HTMLDivElement>(null);
   const hasLoaded = useRef(false);
 
   useEffect(() => {
@@ -52,6 +54,16 @@ export default function KnowledgeBasePage() {
     if (!token) return;
     void loadDocuments(token);
   }, [selectedCategoryId, token]);
+
+  useEffect(() => {
+    function handleClick(e: MouseEvent) {
+      if (menuRef.current && !menuRef.current.contains(e.target as Node)) {
+        setOpenMenuId(null);
+      }
+    }
+    document.addEventListener("mousedown", handleClick);
+    return () => document.removeEventListener("mousedown", handleClick);
+  }, []);
 
   async function loadAll(activeToken: string) {
     setIsLoading(true);
@@ -238,88 +250,128 @@ export default function KnowledgeBasePage() {
           </button>
         </div>
 
-        <button
-          type="button"
-          onClick={() => {
-            if (draftMode !== "idle") cancelDraft();
-            setSelectedCategoryId(null);
-          }}
-          className={`mb-1 flex w-full items-center gap-2 rounded-lg px-2.5 py-2 text-left text-sm transition ${
-            selectedCategoryId === null
-              ? "bg-ink text-white"
-              : "text-black/70 hover:bg-black/5"
-          }`}
-        >
-          <i className="bi bi-collection text-[14px]"></i>
-          <span className="font-medium">All</span>
-        </button>
+        <div ref={menuRef} className="relative">
+          <button
+            type="button"
+            onClick={() => {
+              if (draftMode !== "idle") cancelDraft();
+              setSelectedCategoryId(null);
+              setOpenMenuId(-1);
+            }}
+            className={`mb-1 flex w-full items-center justify-between gap-2 rounded-lg px-2.5 py-2 text-left text-sm transition ${
+              selectedCategoryId === null
+                ? "bg-ink text-white"
+                : "text-black/70 hover:bg-black/5"
+            }`}
+          >
+            <div className="flex items-center gap-2">
+              <i className="bi bi-collection text-[14px]"></i>
+              <span className="font-medium">All</span>
+            </div>
+            <button
+              type="button"
+              onClick={(e) => { e.stopPropagation(); setOpenMenuId(openMenuId === -1 ? null : -1); }}
+              className="rounded p-1 transition hover:bg-white/20"
+            >
+              <i className="bi bi-three-dots-vertical text-[14px]"></i>
+            </button>
+          </button>
 
-        {categories.length === 0 ? (
-          <p className="px-2.5 py-2 text-xs text-black/40">
-            No categories yet.
-          </p>
-        ) : (
-          <div className="space-y-0.5">
-            {categories.map((cat) => (
-              <div
-                key={cat.id}
-                className={`group flex items-center justify-between rounded-lg px-2.5 py-2 transition ${
-                  selectedCategoryId === cat.id
-                    ? "bg-ink text-white"
-                    : "text-black/70 hover:bg-black/5"
-                }`}
+          {openMenuId === -1 && (
+            <div className="absolute z-50 mt-1 w-40 rounded-xl border border-black/10 bg-white py-1 shadow-lg">
+              <button
+                type="button"
+                onClick={() => { setOpenMenuId(null); startCreate(); }}
+                className="flex w-full items-center gap-2 px-3 py-2 text-sm text-black/70 transition hover:bg-black/5"
               >
-                <button
-                  type="button"
-                  onClick={() => {
-                    if (draftMode !== "idle") cancelDraft();
-                    setSelectedCategoryId(selectedCategoryId === cat.id ? null : cat.id);
-                  }}
-                  className="flex flex-1 items-center gap-2 text-left"
+                <i className="bi bi-plus-lg text-[14px]"></i>
+                Add Document
+              </button>
+            </div>
+          )}
+
+          {categories.length === 0 ? (
+            <p className="px-2.5 py-2 text-xs text-black/40">
+              No categories yet.
+            </p>
+          ) : (
+            <div className="space-y-0.5">
+              {categories.map((cat) => (
+                <div
+                  key={cat.id}
+                  className={`relative rounded-lg transition ${
+                    selectedCategoryId === cat.id
+                      ? "bg-ink text-white"
+                      : "text-black/70 hover:bg-black/5"
+                  }`}
                 >
-                  <i className={`bi bi-folder text-[14px] ${
-                    selectedCategoryId === cat.id ? "text-white/70" : "text-black/35"
-                  }`}></i>
-                  <span className="text-sm">{cat.name}</span>
-                  {cat.is_default && (
-                    <span className={`rounded-full px-1.5 py-0.5 text-[10px] font-medium ${
-                      selectedCategoryId === cat.id
-                        ? "bg-white/20 text-white/80"
-                        : "bg-black/10 text-black/50"
-                    }`}>Default</span>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      if (draftMode !== "idle") cancelDraft();
+                      setSelectedCategoryId(selectedCategoryId === cat.id ? null : cat.id);
+                      setOpenMenuId(cat.id);
+                    }}
+                    className="flex w-full items-center justify-between gap-2 rounded-lg px-2.5 py-2 text-left text-sm"
+                  >
+                    <div className="flex items-center gap-2">
+                      <i className={`bi bi-folder text-[14px] ${
+                        selectedCategoryId === cat.id ? "text-white/70" : "text-black/35"
+                      }`}></i>
+                      <span className="text-sm">{cat.name}</span>
+                      {cat.is_default && (
+                        <span className={`rounded-full px-1.5 py-0.5 text-[10px] font-medium ${
+                          selectedCategoryId === cat.id
+                            ? "bg-white/20 text-white/80"
+                            : "bg-black/10 text-black/50"
+                        }`}>Default</span>
+                      )}
+                    </div>
+                    <button
+                      type="button"
+                      onClick={(e) => { e.stopPropagation(); setOpenMenuId(openMenuId === cat.id ? null : cat.id); }}
+                      className="rounded p-1 transition hover:bg-white/20"
+                    >
+                      <i className="bi bi-three-dots-vertical text-[14px]"></i>
+                    </button>
+                  </button>
+
+                  {openMenuId === cat.id && (
+                    <div className="absolute right-2 z-50 mt-1 w-40 rounded-xl border border-black/10 bg-white py-1 shadow-lg">
+                      <button
+                        type="button"
+                        onClick={() => { setOpenMenuId(null); startCreate(); }}
+                        className="flex w-full items-center gap-2 px-3 py-2 text-sm text-black/70 transition hover:bg-black/5"
+                      >
+                        <i className="bi bi-plus-lg text-[14px]"></i>
+                        Add Document
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => { setOpenMenuId(null); openEditCategory(cat); }}
+                        className="flex w-full items-center gap-2 px-3 py-2 text-sm text-black/70 transition hover:bg-black/5"
+                      >
+                        <i className="bi bi-pencil text-[14px]"></i>
+                        Edit
+                      </button>
+                      {!cat.is_default && (
+                        <button
+                          type="button"
+                          onClick={() => { setOpenMenuId(null); handleDeleteCategory(cat.id); }}
+                          disabled={isDeletingCategory === cat.id}
+                          className="flex w-full items-center gap-2 px-3 py-2 text-sm text-red-600 transition hover:bg-red-50 disabled:opacity-50"
+                        >
+                          <i className="bi bi-trash text-[14px]"></i>
+                          {isDeletingCategory === cat.id ? "Deleting..." : "Delete"}
+                        </button>
+                      )}
+                    </div>
                   )}
-                </button>
-                {!cat.is_default && (
-                  <div className="flex gap-1 opacity-0 transition group-hover:opacity-100">
-                    <button
-                      type="button"
-                      onClick={(e) => { e.stopPropagation(); openEditCategory(cat); }}
-                      className={`rounded px-1.5 py-0.5 text-[11px] font-medium transition ${
-                        selectedCategoryId === cat.id
-                          ? "text-white/70 hover:bg-white/20"
-                          : "text-black/40 hover:bg-black/10"
-                      }`}
-                    >
-                      Edit
-                    </button>
-                    <button
-                      type="button"
-                      onClick={(e) => { e.stopPropagation(); handleDeleteCategory(cat.id); }}
-                      disabled={isDeletingCategory === cat.id}
-                      className={`rounded px-1.5 py-0.5 text-[11px] font-medium transition hover:bg-red-50 disabled:opacity-50 ${
-                        selectedCategoryId === cat.id
-                          ? "text-red-300"
-                          : "text-red-500"
-                      }`}
-                    >
-                      {isDeletingCategory === cat.id ? "..." : "Del"}
-                    </button>
-                  </div>
-                )}
-              </div>
-            ))}
-          </div>
-        )}
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
       </aside>
 
       {/* Main content area */}
@@ -408,26 +460,15 @@ export default function KnowledgeBasePage() {
         {/* Document list */}
         {draftMode === "idle" && (
         <article className="rounded-2xl border border-black/10 bg-white/80 p-5 shadow-sm backdrop-blur">
-          <div className="mb-4 flex items-center justify-between">
-            <div className="flex items-center gap-2 text-sm">
-              <span className="font-display text-base">Documents</span>
-              {selectedCategoryId !== null && (
-                <>
-                  <i className="bi bi-chevron-right text-[10px] text-black/30"></i>
-                  <span className="font-medium text-black/70">
-                    {categories.find((c) => c.id === selectedCategoryId)?.name}
-                  </span>
-                </>
-              )}
-            </div>
-            {draftMode === "idle" && (
-              <button
-                type="button"
-                onClick={startCreate}
-                className="rounded-xl bg-ink px-4 py-2 text-sm font-semibold text-white transition hover:bg-ink/90"
-              >
-                + Add Document
-              </button>
+          <div className="mb-4 flex items-center gap-2 text-sm">
+            <span className="font-display text-base">Documents</span>
+            {selectedCategoryId !== null && (
+              <>
+                <i className="bi bi-chevron-right text-[10px] text-black/30"></i>
+                <span className="font-medium text-black/70">
+                  {categories.find((c) => c.id === selectedCategoryId)?.name}
+                </span>
+              </>
             )}
           </div>
 
@@ -435,14 +476,14 @@ export default function KnowledgeBasePage() {
             <p className="py-8 text-center text-sm text-black/45">Loading...</p>
           ) : documents.length === 0 ? (
             <p className="py-8 text-center text-sm text-black/45">
-              No documents yet. Click "Add Document" to create your first knowledge base entry.
+              No documents yet. Use the menu icon next to a category to add one.
             </p>
           ) : (
             <div className="grid gap-3">
               {documents.map((doc) => (
                 <div
                   key={doc.id}
-                  className="rounded-xl border border-black/10 bg-white/60 p-4 transition hover:bg-black/5"
+                  className="relative rounded-xl border border-black/10 bg-white/60 p-4 transition hover:bg-black/5"
                 >
                   <div className="flex items-start justify-between gap-3">
                     <div className="flex-1">
@@ -461,22 +502,35 @@ export default function KnowledgeBasePage() {
                         Updated: {doc.updated_at ? new Date(doc.updated_at).toLocaleDateString() : "N/A"}
                       </p>
                     </div>
-                    <div className="flex gap-2 shrink-0">
+                    <div className="relative shrink-0">
                       <button
                         type="button"
-                        onClick={() => startEdit(doc)}
-                        className="rounded-lg border border-black/15 px-3 py-1.5 text-xs font-medium text-black/70 transition hover:bg-black/5"
+                        onClick={(e) => { e.stopPropagation(); setOpenMenuId(openMenuId === doc.id ? null : doc.id); }}
+                        className="rounded-lg border border-black/15 p-1.5 text-xs text-black/70 transition hover:bg-black/5"
                       >
-                        Edit
+                        <i className="bi bi-three-dots-vertical"></i>
                       </button>
-                      <button
-                        type="button"
-                        onClick={() => handleDelete(doc.id)}
-                        disabled={isDeleting === doc.id}
-                        className="rounded-lg border border-red-200 px-3 py-1.5 text-xs font-medium text-red-600 transition hover:bg-red-50 disabled:opacity-50"
-                      >
-                        {isDeleting === doc.id ? "Deleting..." : "Delete"}
-                      </button>
+                      {openMenuId === doc.id && (
+                        <div className="absolute right-0 z-50 mt-1 w-40 rounded-xl border border-black/10 bg-white py-1 shadow-lg">
+                          <button
+                            type="button"
+                            onClick={() => { setOpenMenuId(null); startEdit(doc); }}
+                            className="flex w-full items-center gap-2 px-3 py-2 text-sm text-black/70 transition hover:bg-black/5"
+                          >
+                            <i className="bi bi-pencil text-[14px]"></i>
+                            Edit
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => { setOpenMenuId(null); handleDelete(doc.id); }}
+                            disabled={isDeleting === doc.id}
+                            className="flex w-full items-center gap-2 px-3 py-2 text-sm text-red-600 transition hover:bg-red-50 disabled:opacity-50"
+                          >
+                            <i className="bi bi-trash text-[14px]"></i>
+                            {isDeleting === doc.id ? "Deleting..." : "Delete"}
+                          </button>
+                        </div>
+                      )}
                     </div>
                   </div>
                 </div>
