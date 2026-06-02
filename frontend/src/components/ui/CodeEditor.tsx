@@ -58,7 +58,7 @@ export default function CodeEditor({
         }}
       />
       {maxLength !== undefined && (
-        <p className="bg-[#0f0f0f] px-2 py-1.5 text-xs text-white/35">
+        <p className="bg-[#efe8d2] px-2 py-1.5 text-xs text-black">
           {value.length} / {maxLength} characters
         </p>
       )}
