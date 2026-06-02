@@ -1,6 +1,6 @@
 import { createContext, ReactNode, useCallback, useContext, useEffect, useMemo, useRef, useState } from "react";
 
-export type ToastKind = "success" | "error";
+export type ToastKind = "success" | "error" | "info";
 
 export type Toast = {
   id: string;
@@ -19,12 +19,14 @@ type ToastContextValue = {
   showToast: (kind: ToastKind, message: string, options?: ShowToastOptions) => string;
   showSuccess: (message: string, options?: ShowToastOptions) => string;
   showError: (message: string, options?: ShowToastOptions) => string;
+  showInfo: (message: string, options?: ShowToastOptions) => string;
   dismissToast: (id: string) => void;
 };
 
 const TOAST_DURATION_MS: Record<ToastKind, number> = {
   success: 7000,
   error: 14000,
+  info: 0,
 };
 
 const MAX_VISIBLE_TOASTS = 4;
@@ -51,6 +53,8 @@ export function ToastProvider({ children }: { children: ReactNode }) {
       window.clearTimeout(existingTimerId);
     }
 
+    if (duration === 0) return;
+
     const timerId = window.setTimeout(() => {
       timersRef.current.delete(id);
       setToasts((currentToasts) => currentToasts.filter((toast) => toast.id !== id));
@@ -75,6 +79,7 @@ export function ToastProvider({ children }: { children: ReactNode }) {
 
   const showSuccess = useCallback((message: string, options?: ShowToastOptions) => showToast("success", message, options), [showToast]);
   const showError = useCallback((message: string, options?: ShowToastOptions) => showToast("error", message, options), [showToast]);
+  const showInfo = useCallback((message: string, options?: ShowToastOptions) => showToast("info", message, options), [showToast]);
 
   useEffect(() => () => {
     for (const timerId of timersRef.current.values()) {
@@ -88,8 +93,9 @@ export function ToastProvider({ children }: { children: ReactNode }) {
     showToast,
     showSuccess,
     showError,
+    showInfo,
     dismissToast,
-  }), [dismissToast, showError, showSuccess, showToast, toasts]);
+  }), [dismissToast, showError, showInfo, showSuccess, showToast, toasts]);
 
   return <ToastContext.Provider value={value}>{children}</ToastContext.Provider>;
 }

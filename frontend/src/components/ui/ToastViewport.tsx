@@ -9,6 +9,9 @@ const TOAST_STYLES = {
   error: {
     cardClassName: "border-rose-200 bg-rose-50/95 text-rose-900",
   },
+  info: {
+    cardClassName: "border-blue-200 bg-blue-50/95 text-blue-900",
+  },
 } as const;
 
 export default function ToastViewport() {

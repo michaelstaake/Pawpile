@@ -12,6 +12,39 @@ import { apiGet, pollUntilTaskComplete, type RunningTaskRecord } from "../lib/ap
 import { useToast } from "./ToastContext";
 import { type FetchProgressRecord } from "../lib/records";
 
+function formatBytes(bytes: number): string {
+  if (bytes < 1024) return `${bytes} B`;
+  const units = ["KB", "MB", "GB", "TB"];
+  let value = bytes / 1024;
+  let unitIndex = 0;
+  while (value >= 1024 && unitIndex < units.length - 1) {
+    value /= 1024;
+    unitIndex += 1;
+  }
+  return `${value.toFixed(value >= 10 ? 0 : 1)} ${units[unitIndex]}`;
+}
+
+function formatPercent(loaded: number, total: number): number {
+  if (total <= 0) return 0;
+  return Math.min(100, Math.round((loaded / total) * 100));
+}
+
+function formatEtaFromStart(loaded: number, total: number, startedAt: number | null): number | null {
+  if (startedAt == null || loaded <= 0 || total <= 0) return null;
+  const percent = (loaded / total) * 100;
+  if (percent < 5 || loaded >= total) return null;
+  return Math.max(1, Math.ceil((((total - loaded) / loaded) * Math.max(1, Date.now() - startedAt)) / 1000));
+}
+
+function formatEta(seconds: number): string {
+  if (seconds >= 60) {
+    const minutes = Math.floor(seconds / 60);
+    const remainingSeconds = seconds % 60;
+    return `${minutes}m ${remainingSeconds}s`;
+  }
+  return `${seconds}s`;
+}
+
 type UploadProgressState = {
   loaded: number;
   total: number;
@@ -70,7 +103,7 @@ export const BackgroundProgressContext = createContext<BackgroundProgressContext
 
 export function BackgroundProgressProvider({ children }: { children: ReactNode }) {
   const { token } = useAuth();
-  const { showError, showSuccess } = useToast();
+  const { showError, showSuccess, showInfo, dismissToast } = useToast();
   const [state, setState] = useState<BackgroundProgressState>(initialState);
   const tokenRef = useRef(token);
 
@@ -89,6 +122,7 @@ export function BackgroundProgressProvider({ children }: { children: ReactNode }
   }, []);
 
   const startFetch = useCallback((url: string) => {
+    showInfo("Fetching model...", { id: "models-fetch-info" });
     setState((prev) => ({
       ...prev,
       isFetching: true,
@@ -98,7 +132,7 @@ export function BackgroundProgressProvider({ children }: { children: ReactNode }
       fetchStartedAt: Date.now(),
       fetchUrl: url,
     }));
-  }, []);
+  }, [showInfo]);
 
   const cancelFetch = useCallback(() => {
     setState((prev) => {
@@ -112,6 +146,7 @@ export function BackgroundProgressProvider({ children }: { children: ReactNode }
           }).catch(() => {});
         }
       }
+      dismissToast("models-fetch-info");
       return {
         ...prev,
         isFetching: false,
@@ -122,9 +157,11 @@ export function BackgroundProgressProvider({ children }: { children: ReactNode }
         fetchUrl: "",
       };
     });
-  }, []);
+  }, [dismissToast]);
 
   const startUpload = useCallback((mode: "model" | "files", totalBytes: number) => {
+    const label = mode === "files" ? "Uploading files..." : "Uploading model...";
+    showInfo(label, { id: "models-upload-info" });
     setState((prev) => ({
       ...prev,
       isUploading: true,
@@ -134,7 +171,7 @@ export function BackgroundProgressProvider({ children }: { children: ReactNode }
       uploadClock: Date.now(),
       uploadMode: mode,
     }));
-  }, []);
+  }, [showInfo]);
 
   const completeUploadRequest = useCallback(() => {
     setState((prev) => ({
@@ -145,13 +182,16 @@ export function BackgroundProgressProvider({ children }: { children: ReactNode }
   }, []);
 
   const transitionToProcessing = useCallback(() => {
+    const label = state.uploadMode === "files" ? "Processing files..." : "Processing model...";
+    showInfo(label, { id: "models-upload-info" });
     setState((prev) => ({
       ...prev,
       isProcessingUpload: true,
     }));
-  }, []);
+  }, [showInfo, state.uploadMode]);
 
   const stopUpload = useCallback(() => {
+    dismissToast("models-upload-info");
     setState((prev) => ({
       ...prev,
       isUploading: false,
@@ -160,7 +200,7 @@ export function BackgroundProgressProvider({ children }: { children: ReactNode }
       uploadStartedAt: null,
       uploadClock: Date.now(),
     }));
-  }, []);
+  }, [dismissToast]);
 
   const startScan = useCallback(() => {
     setState((prev) => ({ ...prev, isScanning: true }));
@@ -213,9 +253,21 @@ export function BackgroundProgressProvider({ children }: { children: ReactNode }
         const response = await apiGet<FetchProgressRecord>(`/api/models/fetch/${state.fetchJobId}`, token);
         setState((prev) => {
           if (prev.fetchJobId !== state.fetchJobId) return prev;
+          const loaded = response.downloaded;
+          const total = response.total ?? 0;
+          const percent = formatPercent(loaded, total);
+          const etaSeconds = formatEtaFromStart(loaded, total, prev.fetchStartedAt);
+          let message = `Fetching model... ${percent}%`;
+          if (total > 0) {
+            message += ` (${formatBytes(loaded)} / ${formatBytes(total)})`;
+          }
+          if (etaSeconds != null) {
+            message += ` · ${formatEta(etaSeconds)} remaining`;
+          }
+          showInfo(message, { id: "models-fetch-info" });
           return {
             ...prev,
-            fetchProgress: { loaded: response.downloaded, total: response.total ?? 0 },
+            fetchProgress: { loaded, total },
             fetchFileName: response.file_name,
           };
         });
@@ -226,6 +278,7 @@ export function BackgroundProgressProvider({ children }: { children: ReactNode }
             if (response.model) {
               window.location.reload();
             }
+            dismissToast("models-fetch-info");
             showSuccess("Model fetched successfully.", { id: "models-fetch-success" });
             return {
               ...prev,
@@ -243,6 +296,7 @@ export function BackgroundProgressProvider({ children }: { children: ReactNode }
         } else if (response.status === "error") {
           setState((prev) => {
             if (prev.fetchJobId !== state.fetchJobId) return prev;
+            dismissToast("models-fetch-info");
             showError(response.error ?? "Fetch failed.", { id: "models-fetch-error" });
             return {
               ...prev,
@@ -258,6 +312,7 @@ export function BackgroundProgressProvider({ children }: { children: ReactNode }
       } catch {
         setState((prev) => {
           if (prev.fetchJobId !== state.fetchJobId) return prev;
+          dismissToast("models-fetch-info");
           showError("Fetch job not found or expired.", { id: "models-fetch-error" });
           return {
             ...prev,
@@ -301,6 +356,7 @@ export function BackgroundProgressProvider({ children }: { children: ReactNode }
         if (!uploadTask) {
           if (!successShown) {
             successShown = true;
+            dismissToast("models-upload-info");
             showSuccess("Model uploaded successfully.", { id: "models-success" });
           }
           setState((prev) => {
@@ -316,6 +372,7 @@ export function BackgroundProgressProvider({ children }: { children: ReactNode }
         if (uploadTask.status === "error") {
           if (!errorShown) {
             errorShown = true;
+            dismissToast("models-upload-info");
             showError(uploadTask.error ?? "Upload failed.", { id: "models-error" });
           }
           setState((prev) => {
@@ -349,12 +406,26 @@ export function BackgroundProgressProvider({ children }: { children: ReactNode }
 
     const intervalId = window.setInterval(() => {
       updateUploadClock(Date.now());
+      const loaded = state.uploadProgress.loaded;
+      const total = state.uploadProgress.total;
+      const percent = formatPercent(loaded, total);
+      let message = `Uploading ${state.uploadMode === "files" ? "files" : "model"}... ${percent}%`;
+      if (total > 0) {
+        message += ` (${formatBytes(loaded)} / ${formatBytes(total)})`;
+      }
+      const elapsedSeconds = Math.max(1, Math.floor((Date.now() - (state.uploadStartedAt || Date.now())) / 1000));
+      if (percent > 0 && percent < 100) {
+        const remainingPercent = 100 - percent;
+        const etaSeconds = Math.round((elapsedSeconds / percent) * remainingPercent);
+        message += ` · ${formatEta(etaSeconds)} remaining`;
+      }
+      showInfo(message, { id: "models-upload-info" });
     }, 1000);
 
     return () => {
       window.clearInterval(intervalId);
     };
-  }, [state.isUploading, updateUploadClock]);
+  }, [state.isUploading, state.uploadProgress, state.uploadStartedAt, state.uploadMode, updateUploadClock, showInfo]);
 
   const contextValue: BackgroundProgressContextType = {
     ...state,

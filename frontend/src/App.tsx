@@ -19,7 +19,6 @@ import { useToast } from "./context/ToastContext";
 import { BackgroundProgressProvider } from "./context/BackgroundProgressContext";
 import MobileNavDrawer, { type MobileNavItem } from "./components/ui/MobileNavDrawer";
 import ToastViewport from "./components/ui/ToastViewport";
-import GlobalProgressIndicator from "./components/GlobalProgressIndicator";
 import {
   apiGet,
   BACKEND_UNAVAILABLE_EVENT,
@@ -259,7 +258,6 @@ export default function App() {
  return (
     <BackgroundProgressProvider>
       <div className="app-background min-h-screen text-ink font-body" style={appBackgroundStyle}>
-        <GlobalProgressIndicator />
         <ToastViewport />
         <MobileNavProvider value={{ closeMobileNav: () => setIsMobileNavOpen(false), setMobileNavSection }}>
           <div className="mx-auto max-w-7xl px-4 py-6 md:px-8">
