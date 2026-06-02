@@ -126,12 +126,12 @@ function getSystemHealth(activeModels: number, memoryUsagePercent: number | null
     };
   }
 
-  if (memoryUsagePercent !== null && memoryUsagePercent > 80) {
+  if (memoryUsagePercent !== null && memoryUsagePercent > 90) {
     return {
       label: "Ready",
       iconClassName: "bi bi-exclamation-triangle-fill",
       iconColorClassName: "text-[#c98a13]",
-      detail: "AI memory usage is above 80%",
+      detail: "AI memory usage is above 90%",
     };
   }
 
