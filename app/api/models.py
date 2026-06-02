@@ -73,7 +73,7 @@ def _set_fetch_job_cancelled(job_id: str) -> None:
 
 async def _run_upload_job(
     task_id: str,
-    file: UploadFile,
+    file_content: bytes,
     file_name: str,
     model_dir_name: str,
     model_dir: Path,
@@ -82,14 +82,14 @@ async def _run_upload_job(
 ) -> None:
     db = SessionLocal()
     written = 0
+    offset = 0
 
     try:
         model_dir.mkdir(parents=True, exist_ok=False)
         with destination.open("wb") as output:
-            while True:
-                chunk = await file.read(UPLOAD_CHUNK_BYTES)
-                if not chunk:
-                    break
+            while offset < len(file_content):
+                chunk = file_content[offset:offset + UPLOAD_CHUNK_BYTES]
+                offset += len(chunk)
                 written += len(chunk)
                 if written > max_bytes:
                     _remove_model_dir(model_dir)
@@ -110,8 +110,6 @@ async def _run_upload_job(
         _remove_model_dir(model_dir)
         task_manager.fail_task(task_id, f"Failed to store uploaded model: {exc}")
         raise HTTPException(status_code=500, detail="Failed to store uploaded model") from exc
-    finally:
-        await file.close()
 
     try:
         model = ModelConfig(
@@ -324,8 +322,10 @@ async def upload_model(
     max_bytes = max(1, settings.max_upload_size_mb) * 1024 * 1024
     task_id = str(uuid.uuid4())
 
+    file_content = await file.read()
+
     upload_task = asyncio.create_task(
-        _run_upload_job(task_id, file, file_name, model_dir_name, model_dir, destination, max_bytes)
+        _run_upload_job(task_id, file_content, file_name, model_dir_name, model_dir, destination, max_bytes)
     )
     task_manager.add_task(
         task_id=task_id,
