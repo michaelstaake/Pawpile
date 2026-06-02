@@ -218,13 +218,13 @@ export function BackgroundProgressProvider({ children }: { children: ReactNode }
   }, []);
 
   const transitionToProcessing = useCallback(() => {
-    const title = state.uploadMode === "files" ? "Processing files" : "Processing model";
+    const title = state.uploadMode === "files" ? "Processing files" : "Processing model...";
     showInfo(title, {
       id: "models-upload-info",
       content: (
         <div className="flex flex-col gap-2">
           <p className="font-semibold">{title}</p>
-          <p className="text-sm text-blue-700/80">This could take several minutes...</p>
+          <p className="text-sm text-blue-700/80">This could take quite a long time, please be patient...</p>
           {state.uploadFileName ? (
             <div className="flex items-center gap-2 text-xs text-blue-700/70">
               <svg className="h-3.5 w-3.5 animate-spin text-blue-500" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
