@@ -336,7 +336,7 @@ export default function ChatPage() {
   const shouldShowTranscript = activeChatId !== null || messages.length > 0;
   const isNewChatEmptyState = activeChatId === null && messages.length === 0;
   const shouldShowNoModelsEmptyState = isNewChatEmptyState && !isLoadingModels && models.length === 0;
-  const newChatModelGridClassName = models.length >= 3 ? "grid gap-3 sm:grid-cols-2 xl:grid-cols-3" : models.length === 2 ? "grid gap-3 sm:grid-cols-2" : "grid max-w-xl place-items-center gap-3";
+  const newChatModelGridClassName = models.length >= 3 ? "grid gap-3 sm:grid-cols-2 xl:grid-cols-3" : models.length === 2 ? "grid gap-3 sm:grid-cols-2" : "mx-auto grid max-w-xl place-items-center gap-3";
 
   useEffect(() => {
     void loadModels();
