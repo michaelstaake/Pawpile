@@ -1,8 +1,17 @@
 import type { BackgroundImageMode } from "./session";
 
+export type KnowledgeBaseCategoryRecord = {
+  id: number;
+  user_id: number;
+  name: string;
+  is_default: boolean;
+  created_at: string | null;
+};
+
 export type KnowledgeBaseDocumentRecord = {
   id: number;
   user_id: number;
+  category_id: number | null;
   title: string;
   content: string;
   created_at: string | null;

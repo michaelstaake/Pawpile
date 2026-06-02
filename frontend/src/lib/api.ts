@@ -319,8 +319,9 @@ export async function setActiveWebSearchProvider<T>(providerType: string | null,
 }
 
 // Knowledge Base API functions
-export async function fetchKbDocuments<T>(token?: string): Promise<T> {
-  return apiGet<T>("/api/knowledge-base/documents", token);
+export async function fetchKbDocuments<T>(token?: string, categoryId?: number): Promise<T> {
+  const params = categoryId !== undefined ? `?category_id=${categoryId}` : "";
+  return apiGet<T>(`/api/knowledge-base/documents${params}`, token);
 }
 
 export async function createKbDocument<TRequest, TResponse>(payload: TRequest, token?: string): Promise<TResponse> {
@@ -335,8 +336,26 @@ export async function deleteKbDocument<TResponse>(docId: number, token?: string)
   return apiDelete<TResponse>(`/api/knowledge-base/documents/${docId}`, token);
 }
 
-export async function fetchKbRagContext<T>(query: string, token?: string): Promise<T> {
-  return apiGet<T>(`/api/knowledge-base/rag-context?query=${encodeURIComponent(query)}`, token);
+export async function fetchKbRagContext<T>(query: string, token?: string, categoryId?: number): Promise<T> {
+  const params = categoryId !== undefined ? `&category_id=${categoryId}` : "";
+  return apiGet<T>(`/api/knowledge-base/rag-context?query=${encodeURIComponent(query)}${params}`, token);
+}
+
+// Knowledge Base Category API functions
+export async function fetchKbCategories<T>(token?: string): Promise<T> {
+  return apiGet<T>("/api/knowledge-base/categories", token);
+}
+
+export async function createKbCategory<TRequest, TResponse>(payload: TRequest, token?: string): Promise<TResponse> {
+  return apiPost<TRequest, TResponse>("/api/knowledge-base/categories", payload, token);
+}
+
+export async function updateKbCategory<TRequest, TResponse>(catId: number, payload: TRequest, token?: string): Promise<TResponse> {
+  return apiPatch<TRequest, TResponse>(`/api/knowledge-base/categories/${catId}`, payload, token);
+}
+
+export async function deleteKbCategory<TResponse>(catId: number, token?: string): Promise<TResponse> {
+  return apiDelete<TResponse>(`/api/knowledge-base/categories/${catId}`, token);
 }
 
 export type RunningTaskRecord = {

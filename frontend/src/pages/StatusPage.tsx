@@ -445,6 +445,15 @@ export default function StatusPage() {
     <section className="grid gap-4 overflow-hidden rounded-[32px] border border-black/10 bg-[linear-gradient(180deg,rgba(255,255,255,0.88)_0%,rgba(245,240,226,0.78)_100%)] p-6 shadow-sm backdrop-blur">
       <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-12">
           <div className="rounded-2xl border border-black/10 bg-white/80 p-4 lg:col-span-3">
+            <p className="text-xs font-semibold uppercase tracking-[0.24em] text-black/45">System Health</p>
+            <div className="mt-2 flex items-center gap-3">
+              <i className={`${systemHealth.iconClassName} ${systemHealth.iconColorClassName} text-[28px] leading-none`} aria-hidden="true" />
+              <p className="font-display text-3xl text-ink">{systemHealth.label}</p>
+            </div>
+            <p className="mt-1 text-sm text-black/55">{systemHealth.detail}</p>
+          </div>
+
+          <div className="rounded-2xl border border-black/10 bg-white/80 p-4 lg:col-span-3">
             <p className="text-xs font-semibold uppercase tracking-[0.24em] text-black/45">Free Disk Space</p>
             <p className="mt-2 font-display text-3xl text-ink">{formatDiskSpace(systemDiskFreeBytes)}</p>
             <p className="mt-1 text-sm text-black/55">Available on /</p>
@@ -460,15 +469,6 @@ export default function StatusPage() {
             <p className="text-xs font-semibold uppercase tracking-[0.24em] text-black/45">AI Memory</p>
             <p className="mt-2 font-display text-3xl text-ink">{summary.memoryUsagePercent !== null ? `${summary.memoryUsagePercent.toFixed(1)}%` : "N/A"}</p>
             <p className="mt-1 text-sm text-black/55">{formatMemorySummary(summary.usedMemory, summary.totalMemory)}</p>
-          </div>
-
-          <div className="rounded-2xl border border-black/10 bg-white/80 p-4 lg:col-span-3">
-            <p className="text-xs font-semibold uppercase tracking-[0.24em] text-black/45">System Health</p>
-            <div className="mt-2 flex items-center gap-3">
-              <i className={`${systemHealth.iconClassName} ${systemHealth.iconColorClassName} text-[28px] leading-none`} aria-hidden="true" />
-              <p className="font-display text-3xl text-ink">{systemHealth.label}</p>
-            </div>
-            <p className="mt-1 text-sm text-black/55">{systemHealth.detail}</p>
           </div>
 
           {tokenCards.map((card) => (

@@ -457,19 +457,38 @@ class OpenAIChatRequest(BaseModel):
         return any(message.includes_vision() for message in self.messages)
 
 
+class KnowledgeBaseCategoryResponse(BaseModel):
+    id: int
+    user_id: int
+    name: str
+    is_default: bool
+    created_at: str | None = None
+
+
+class KnowledgeBaseCategoryCreateRequest(BaseModel):
+    name: str = Field(min_length=1, max_length=120)
+
+
+class KnowledgeBaseCategoryUpdateRequest(BaseModel):
+    name: str | None = Field(default=None, min_length=1, max_length=120)
+
+
 class KnowledgeBaseDocumentCreateRequest(BaseModel):
     title: str = Field(min_length=1, max_length=255)
     content: str = Field(min_length=1)
+    category_id: int | None = None
 
 
 class KnowledgeBaseDocumentUpdateRequest(BaseModel):
     title: str | None = Field(default=None, min_length=1, max_length=255)
     content: str | None = Field(default=None, min_length=1)
+    category_id: int | None = None
 
 
 class KnowledgeBaseDocumentResponse(BaseModel):
     id: int
     user_id: int
+    category_id: int | None = None
     title: str
     content: str
     created_at: str | None = None

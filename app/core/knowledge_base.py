@@ -44,19 +44,23 @@ def _bm25_score(query_tokens: list[str], doc_text: str, k1: float = 1.5, b: floa
     return score
 
 
-def retrieve_relevant_documents(db: Session, user_id: int, query: str, max_docs: int = MAX_RETRIEVAL_DOCS) -> list[KnowledgeBaseDocument]:
+def retrieve_relevant_documents(db: Session, user_id: int, query: str, max_docs: int = MAX_RETRIEVAL_DOCS, category_id: int | None = None) -> list[KnowledgeBaseDocument]:
     """Retrieve relevant documents for a query using BM25 keyword search."""
     query_tokens = _tokenize(query)
     if not query_tokens:
         return []
 
-    # Fetch all user documents (for small KBs this is fine; for larger ones, add SQL FTS)
-    docs = (
+    # Fetch user documents (for small KBs this is fine; for larger ones, add SQL FTS)
+    query = (
         db.query(KnowledgeBaseDocument)
         .filter(KnowledgeBaseDocument.user_id == user_id)
         .order_by(KnowledgeBaseDocument.updated_at.desc())
-        .all()
     )
+
+    if category_id is not None:
+        query = query.filter(KnowledgeBaseDocument.category_id == category_id)
+
+    docs = query.all()
 
     if not docs:
         return []
@@ -89,7 +93,8 @@ def build_rag_context(documents: list[KnowledgeBaseDocument], query: str) -> str
             break
 
         content = doc.content[:remaining] if remaining < len(doc.content) else doc.content
-        parts.append(f"\n## {i}. {doc.title}")
+        category_prefix = f"[{doc.category.name}] " if doc.category and doc.category.name else ""
+        parts.append(f"\n## {i}. {category_prefix}{doc.title}")
         parts.append(f"```markdown\n{content}\n```")
         total_chars += len(content) + 50  # approximate overhead
 
