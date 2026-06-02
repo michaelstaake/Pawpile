@@ -16,8 +16,7 @@ export default function CodeEditor({
   height = "19rem",
 }: CodeEditorProps) {
   return (
-    <div className="grid gap-1 rounded-2xl">
-      <div className="overflow-hidden rounded-2xl">
+    <div className="grid overflow-hidden rounded-2xl">
       <MonacoEditor
         height={height}
         value={value}
@@ -58,9 +57,8 @@ export default function CodeEditor({
           monaco.editor.setTheme("pawpile-dark");
         }}
       />
-      </div>
       {maxLength !== undefined && (
-        <p className="mt-1 rounded-b-2xl bg-[#0f0f0f] px-2 py-1.5 text-xs text-white/35">
+        <p className="bg-[#0f0f0f] px-2 py-1.5 text-xs text-white/35">
           {value.length} / {maxLength} characters
         </p>
       )}
