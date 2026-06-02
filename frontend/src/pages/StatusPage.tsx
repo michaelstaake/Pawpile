@@ -117,7 +117,7 @@ function getSystemHealth(activeModels: number, memoryUsagePercent: number | null
 
   if (memoryUsagePercent !== null && memoryUsagePercent > 80) {
     return {
-      label: "Warning",
+      label: "Ready",
       iconClassName: "bi bi-exclamation-triangle-fill",
       iconColorClassName: "text-[#c98a13]",
       detail: "AI memory usage is above 80%.",
@@ -128,7 +128,7 @@ function getSystemHealth(activeModels: number, memoryUsagePercent: number | null
     label: "Ready",
     iconClassName: "bi bi-check-circle-fill",
     iconColorClassName: "text-[#2f8f4e]",
-    detail: "Everything is awesome!",
+    detail: "Everything is awesome! *wags*",
   };
 }
 

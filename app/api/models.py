@@ -1,9 +1,14 @@
 import os
 import shutil
 import time
+import uuid
+from datetime import datetime, timezone
 from pathlib import Path
+from urllib.parse import urlparse
 
+import httpx
 from fastapi import APIRouter, Depends, File, HTTPException, UploadFile
+from pydantic import BaseModel, Field
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.orm import Session
 
@@ -26,6 +31,24 @@ router = APIRouter(prefix="/api/models", tags=["models"])
 ALLOWED_ASSIGNMENT_MODES = {"auto", "pinned", "pool"}
 UPLOAD_CHUNK_BYTES = 1024 * 1024
 ALLOWED_MODEL_ASSET_SUFFIXES = {".gguf", ".json", ".txt", ".yaml", ".yml", ".bin", ".safetensors"}
+FETCH_JOB_TTL_SECONDS = 30 * 60  # 30 minutes
+
+# In-memory store for fetch job progress: job_id -> progress dict
+_fetch_jobs: dict[str, dict] = {}
+
+
+class FetchModelRequest(BaseModel):
+    url: str = Field(..., min_length=1, max_length=2048)
+
+
+class FetchJobProgress(BaseModel):
+    job_id: str
+    status: str  # "downloading" | "processing" | "completed" | "error"
+    downloaded: int
+    total: int | None
+    percent: int
+    model: dict | None = None
+    error: str | None = None
 
 
 def scan_models_dir(db: Session) -> tuple[int, int]:
@@ -161,6 +184,197 @@ def scan_models(_: User = Depends(get_admin_user), db: Session = Depends(get_db)
     discovered, added = scan_models_dir(db)
     log_event(db, "model.scanned", details={"discovered": discovered, "added": added})
     return {"status": "ok", "discovered": discovered, "added": added}
+
+
+@router.post("/fetch")
+async def fetch_model(
+    payload: FetchModelRequest,
+    _: User = Depends(get_admin_user),
+    db: Session = Depends(get_db),
+) -> dict:
+    # Validate URL
+    try:
+        parsed = urlparse(payload.url)
+        if parsed.scheme not in ("http", "https"):
+            raise ValueError("URL must use http or https")
+        if not parsed.netloc:
+            raise ValueError("Invalid URL")
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+    # Validate .gguf extension
+    url_path = parsed.path.lower()
+    if not url_path.endswith(".gguf"):
+        raise HTTPException(status_code=400, detail="URL must point to a .gguf file")
+
+    job_id = str(uuid.uuid4())
+    _fetch_jobs[job_id] = {
+        "job_id": job_id,
+        "status": "downloading",
+        "downloaded": 0,
+        "total": None,
+        "percent": 0,
+        "model": None,
+        "error": None,
+        "created_at": datetime.now(timezone.utc),
+        "model_dir_name": model_dir_name,
+    }
+
+    settings = get_settings()
+    models_dir = Path(settings.models_dir)
+    models_dir.mkdir(parents=True, exist_ok=True)
+
+    file_name = Path(url_path).name
+    model_dir_name = _build_unique_model_dir_name(db, Path(file_name).stem)
+    model_dir = models_dir / model_dir_name
+
+    max_bytes = max(1, settings.max_upload_size_mb) * 1024 * 1024
+
+    try:
+        async with httpx.AsyncClient(follow_redirects=True, timeout=3600.0) as client:
+            async with client.stream("GET", payload.url) as response:
+                if response.status_code != 200:
+                    _fetch_jobs[job_id]["status"] = "error"
+                    _fetch_jobs[job_id]["error"] = f"Server returned status {response.status_code}"
+                    raise HTTPException(status_code=400, detail=_fetch_jobs[job_id]["error"])
+
+                _fetch_jobs[job_id]["total"] = int(response.headers.get("content-length", 0))
+
+                try:
+                    model_dir.mkdir(parents=True, exist_ok=False)
+                except FileExistsError:
+                    _fetch_jobs[job_id]["status"] = "error"
+                    _fetch_jobs[job_id]["error"] = "Model directory already exists"
+                    raise HTTPException(status_code=409, detail="A model with that name already exists")
+
+                destination = model_dir / file_name
+                written = 0
+
+                async for chunk in response.aiter_bytes(chunk_size=UPLOAD_CHUNK_BYTES):
+                    if not chunk:
+                        break
+                    destination.write_bytes(chunk)
+                    written += len(chunk)
+                    _fetch_jobs[job_id]["downloaded"] = written
+                    _fetch_jobs[job_id]["percent"] = (
+                        min(100, int((written / _fetch_jobs[job_id]["total"]) * 100))
+                        if _fetch_jobs[job_id]["total"] and _fetch_jobs[job_id]["total"] > 0
+                        else 0
+                    )
+
+                    if written > max_bytes:
+                        _remove_model_dir(model_dir)
+                        _fetch_jobs[job_id]["status"] = "error"
+                        _fetch_jobs[job_id]["error"] = f"Downloaded file exceeds the {settings.max_upload_size_mb} MB limit"
+                        raise HTTPException(
+                            status_code=413,
+                            detail=_fetch_jobs[job_id]["error"],
+                        )
+
+                _fetch_jobs[job_id]["downloaded"] = written
+                if _fetch_jobs[job_id]["total"] and _fetch_jobs[job_id]["total"] > 0:
+                    _fetch_jobs[job_id]["percent"] = min(100, int((written / _fetch_jobs[job_id]["total"]) * 100))
+                else:
+                    _fetch_jobs[job_id]["percent"] = 100
+
+    except HTTPException:
+        raise
+    except Exception as exc:
+        _remove_model_dir(model_dir)
+        _fetch_jobs[job_id]["status"] = "error"
+        _fetch_jobs[job_id]["error"] = str(exc)
+        raise HTTPException(status_code=400, detail=f"Failed to download file: {exc}")
+
+    # Mark as processing
+    _fetch_jobs[job_id]["status"] = "processing"
+
+    # Create model config (same as upload flow)
+    existing_model = db.query(ModelConfig).filter(ModelConfig.file_name == file_name).first()
+    if existing_model:
+        _remove_model_dir(model_dir)
+        _fetch_jobs[job_id]["status"] = "error"
+        _fetch_jobs[job_id]["error"] = "A model with that file name already exists"
+        raise HTTPException(status_code=409, detail="A model with that file name already exists")
+
+    model = ModelConfig(
+        priority=_next_model_priority(db),
+        file_name=file_name,
+        model_dir_name=model_dir_name,
+        file_path=str(destination.resolve()),
+        alias=_build_unique_alias(db, Path(file_name).stem),
+        context_length=settings.default_context_length,
+        gpu_layers=settings.default_gpu_layers,
+        threads=settings.default_threads,
+        temperature=settings.default_temperature,
+        top_p=settings.default_top_p,
+        top_k=settings.default_top_k,
+        presence_penalty=settings.default_presence_penalty,
+        repetition_penalty=settings.default_repetition_penalty,
+        mmproj_file_name=_detect_mmproj_file_name(model_dir, file_name),
+    )
+    try:
+        db.add(model)
+        db.commit()
+        db.refresh(model)
+    except SQLAlchemyError as exc:
+        db.rollback()
+        _remove_model_dir(model_dir)
+        _fetch_jobs[job_id]["status"] = "error"
+        _fetch_jobs[job_id]["error"] = "Fetched model could not be registered"
+        raise HTTPException(status_code=500, detail="Fetched model could not be registered") from exc
+
+    _fetch_jobs[job_id]["status"] = "completed"
+    _fetch_jobs[job_id]["model"] = _serialize_model(model)
+    _fetch_jobs[job_id]["model_id"] = model.id
+
+    log_event(db, "model.fetched", details={"file_name": file_name, "alias": model.alias, "url": payload.url})
+    return {"status": "ok", "model": _fetch_jobs[job_id]["model"], "job_id": job_id}
+
+
+@router.get("/fetch/{job_id}")
+def get_fetch_progress(job_id: str, _: User = Depends(get_admin_user)) -> dict:
+    job = _fetch_jobs.get(job_id)
+    if not job:
+        raise HTTPException(status_code=404, detail="Fetch job not found")
+
+    # TTL cleanup: remove jobs older than 30 minutes
+    if job.get("created_at"):
+        age = (datetime.now(timezone.utc) - job["created_at"]).total_seconds()
+        if age > FETCH_JOB_TTL_SECONDS:
+            # Clean up partial model directory if job failed
+            if job.get("status") in ("error", "downloading") and job.get("model_dir_name"):
+                settings = get_settings()
+                model_dir = Path(settings.models_dir) / job["model_dir_name"]
+                if model_dir.exists():
+                    shutil.rmtree(model_dir)
+            del _fetch_jobs[job_id]
+            raise HTTPException(status_code=404, detail="Fetch job expired")
+
+    return {
+        "job_id": job["job_id"],
+        "status": job["status"],
+        "downloaded": job["downloaded"],
+        "total": job["total"],
+        "percent": job["percent"],
+        "model": job.get("model"),
+        "error": job.get("error"),
+    }
+
+
+@router.delete("/fetch/{job_id}")
+def delete_fetch_job(job_id: str, _: User = Depends(get_admin_user), db: Session = Depends(get_db)) -> dict:
+    job = _fetch_jobs.pop(job_id, None)
+    if not job:
+        raise HTTPException(status_code=404, detail="Fetch job not found")
+
+    # Clean up partial model directory if job failed or was downloading
+    if job.get("status") in ("error", "downloading") and job.get("model_dir_name"):
+        settings = get_settings()
+        model_dir = Path(settings.models_dir) / job["model_dir_name"]
+        if model_dir.exists():
+            shutil.rmtree(model_dir)
+
+    return {"status": "ok"}
 
 
 @router.post("/{model_id}/files")

@@ -3,7 +3,7 @@ import { apiDelete, apiGet, apiPatch, apiPost, apiPostFormWithProgress } from ".
 import { useAuth } from "../context/AuthContext";
 import { useToast } from "../context/ToastContext";
 import { formatDeviceIdLabel } from "../lib/deviceIds";
-import { AssetUploadResponse, DeviceRecord, GpuPoolRecord, ModelActivationResponse, ModelRecord, ModelUpdateResponse, ScanResponse, UploadResponse } from "../lib/records";
+import { AssetUploadResponse, DeviceRecord, FetchProgressRecord, GpuPoolRecord, ModelActivationResponse, ModelRecord, ModelUpdateResponse, ScanResponse, UploadResponse } from "../lib/records";
 import Modal from "../components/ui/Modal";
 
 const AUTO_SAVE_DELAY_MS = 700;
@@ -216,6 +216,11 @@ export default function ModelsPage({ setupMode = false, onComplete }: ModelsPage
   const [isLoading, setIsLoading] = useState(false);
   const [isUploading, setIsUploading] = useState(false);
   const [isProcessingUpload, setIsProcessingUpload] = useState(false);
+  const [isFetching, setIsFetching] = useState(false);
+  const [fetchProgress, setFetchProgress] = useState<UploadProgressState>({ loaded: 0, total: 0 });
+  const [fetchJobId, setFetchJobId] = useState<string | null>(null);
+  const [fetchStartedAt, setFetchStartedAt] = useState<number | null>(null);
+  const [fetchUrl, setFetchUrl] = useState("");
   const [isScanning, setIsScanning] = useState(false);
   const [isReordering, setIsReordering] = useState(false);
   const [savingModelIds, setSavingModelIds] = useState<number[]>([]);
@@ -254,6 +259,51 @@ export default function ModelsPage({ setupMode = false, onComplete }: ModelsPage
       window.clearInterval(intervalId);
     };
   }, [isProcessingUpload, isUploading]);
+
+  useEffect(() => {
+    if (!isFetching || !fetchJobId || !token) {
+      return;
+    }
+
+    const pollIntervalId = window.setInterval(async () => {
+      try {
+        const response = await apiGet<FetchProgressRecord>(`/api/models/fetch/${fetchJobId}`, token);
+        setFetchProgress({ loaded: response.downloaded, total: response.total ?? 0 });
+
+        if (response.status === "completed") {
+          window.clearInterval(pollIntervalId);
+          setIsFetching(false);
+          setFetchJobId(null);
+          setFetchStartedAt(null);
+          setFetchUrl("");
+          if (response.model) {
+            const fetchedModel = response.model as unknown as ModelRecord;
+            applyUploadedModel(fetchedModel);
+          }
+          showSuccess("Model fetched successfully.", { id: "models-fetch-success" });
+          await refreshData(token);
+        } else if (response.status === "error") {
+          window.clearInterval(pollIntervalId);
+          setIsFetching(false);
+          setFetchJobId(null);
+          setFetchStartedAt(null);
+          setFetchUrl("");
+          showError(response.error ?? "Fetch failed.", { id: "models-fetch-error" });
+        }
+      } catch {
+        window.clearInterval(pollIntervalId);
+        setIsFetching(false);
+        setFetchJobId(null);
+        setFetchStartedAt(null);
+        setFetchUrl("");
+        showError("Fetch job not found or expired.", { id: "models-fetch-error" });
+      }
+    }, 1000);
+
+    return () => {
+      window.clearInterval(pollIntervalId);
+    };
+  }, [isFetching, fetchJobId, token]);
 
   async function refreshData(activeToken: string) {
     setIsLoading(true);
@@ -439,6 +489,41 @@ export default function ModelsPage({ setupMode = false, onComplete }: ModelsPage
       showError(error instanceof Error ? error.message : "Scan failed", { id: "models-error" });
     } finally {
       setIsScanning(false);
+    }
+  }
+
+  function openFetchModal() {
+    setFetchUrl("");
+    setFetchProgress({ loaded: 0, total: 0 });
+    setFetchJobId(null);
+    setFetchStartedAt(null);
+    setIsFetching(false);
+  }
+
+  async function handleFetch(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if (!token || !fetchUrl.trim()) {
+      return;
+    }
+
+    const url = fetchUrl.trim();
+    if (!url.endsWith(".gguf")) {
+      showError("URL must point to a .gguf file.", { id: "models-fetch-error" });
+      return;
+    }
+
+    setIsFetching(true);
+    setFetchStartedAt(Date.now());
+    setFetchProgress({ loaded: 0, total: 0 });
+
+    try {
+      const response = await apiPost<{ url: string }, { status: string; model: ModelRecord; job_id: string }>("/api/models/fetch", { url }, token);
+      setFetchJobId(response.job_id);
+      setFetchProgress({ loaded: 0, total: 0 });
+    } catch (error) {
+      setIsFetching(false);
+      setFetchUrl("");
+      showError(error instanceof Error ? error.message : "Failed to start fetch.", { id: "models-fetch-error" });
     }
   }
 
@@ -728,6 +813,15 @@ export default function ModelsPage({ setupMode = false, onComplete }: ModelsPage
           Math.ceil((((uploadTotal - uploadProgress.loaded) / uploadProgress.loaded) * Math.max(1, uploadClock - uploadStartedAt)) / 1000),
         )
       : null;
+  const fetchTotal = fetchProgress.total || 0;
+  const fetchPercent = fetchTotal > 0 ? Math.min(100, Math.round((fetchProgress.loaded / fetchTotal) * 100)) : 0;
+  const fetchEtaSeconds =
+    fetchStartedAt != null && fetchProgress.loaded > 0 && fetchTotal > 0 && fetchPercent >= 10 && fetchProgress.loaded < fetchTotal
+      ? Math.max(
+          1,
+          Math.ceil((((fetchTotal - fetchProgress.loaded) / fetchProgress.loaded) * Math.max(1, Date.now() - fetchStartedAt)) / 1000),
+        )
+      : null;
   const assignmentTargets = buildAssignmentTargets(devices, pools);
   const uploadContextModel = uploadTargetModelId != null ? models.find((model) => model.id === uploadTargetModelId) ?? null : null;
   const uploadSummaryLabel =
@@ -769,15 +863,23 @@ export default function ModelsPage({ setupMode = false, onComplete }: ModelsPage
               className="rounded-xl border border-black/15 px-4 py-2 text-sm font-semibold text-black transition hover:bg-black/5 disabled:cursor-not-allowed disabled:opacity-60"
               type="button"
               onClick={openModelUploadModal}
-              disabled={isUploading}
+              disabled={isUploading || isFetching}
             >
               {isUploading ? "Uploading..." : "Upload Model File"}
             </button>
             <button
               className="rounded-xl border border-black/15 px-4 py-2 text-sm font-semibold text-black transition hover:bg-black/5 disabled:cursor-not-allowed disabled:opacity-60"
               type="button"
+              onClick={openFetchModal}
+              disabled={isUploading || isFetching}
+            >
+              {isFetching ? "Fetching..." : "Fetch Model File"}
+            </button>
+            <button
+              className="rounded-xl border border-black/15 px-4 py-2 text-sm font-semibold text-black transition hover:bg-black/5 disabled:cursor-not-allowed disabled:opacity-60"
+              type="button"
               onClick={handleScan}
-              disabled={isScanning || isUploading}
+              disabled={isScanning || isUploading || isFetching}
             >
               {isScanning ? "Scanning..." : "Scan Models Folder"}
             </button>
@@ -808,6 +910,32 @@ export default function ModelsPage({ setupMode = false, onComplete }: ModelsPage
                 </div>
                 <p className="text-sm text-black/70">Estimated time remaining: {formatUploadEta(uploadEtaSeconds)}</p>
               </div>
+            ) : null}
+          </div>
+        ) : null}
+
+        {isFetching && fetchJobId ? (
+          <div className="mt-3 grid gap-3 rounded-2xl border border-dashed border-black/15 bg-sand/70 p-4">
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <h3 className="font-display text-base">Fetching file...</h3>
+              {fetchProgress.total ? <span className="text-sm text-black/60">{fetchProgress.loaded > 0 ? `${formatUploadSizeInWholeMb(fetchProgress.loaded)} / ${formatUploadSizeInWholeMb(fetchProgress.total)}` : "Downloading..."}</span> : null}
+            </div>
+            {isFetching && fetchProgress.total && fetchProgress.total > 0 ? (
+              <div className="grid gap-2 rounded-xl border border-black/10 bg-white/70 px-3 py-3">
+                <div className="flex items-center justify-between gap-3 text-sm text-black/70">
+                  <span>{fetchProgress.total > 0 ? Math.min(100, Math.round((fetchProgress.loaded / fetchProgress.total) * 100)) : 0}%</span>
+                  <span>{formatUploadSizeInWholeMb(fetchProgress.loaded)} / {formatUploadSizeInWholeMb(fetchProgress.total)}</span>
+                </div>
+                <div className="h-2 overflow-hidden rounded-full bg-black/10">
+                  <div className="h-full rounded-full bg-amber transition-[width] duration-150" style={{ width: `${fetchProgress.total > 0 ? Math.min(100, Math.round((fetchProgress.loaded / fetchProgress.total) * 100)) : 0}%` }} />
+                </div>
+                <p className="text-sm text-black/70">Estimated time remaining: {formatUploadEta(fetchEtaSeconds)}</p>
+              </div>
+            ) : null}
+            {isFetching && (!fetchProgress.total || fetchProgress.total === 0) ? (
+              <p className="rounded-xl border border-black/10 bg-white/70 px-3 py-3 text-sm text-black/70">
+                Downloading file... This could take several minutes for large models. Do not leave this page or close this tab!
+              </p>
             ) : null}
           </div>
         ) : null}
@@ -1202,6 +1330,62 @@ export default function ModelsPage({ setupMode = false, onComplete }: ModelsPage
               disabled={isUploading || selectedUploadFiles.length === 0}
             >
               {isUploading ? "Uploading..." : uploadMode === "files" ? "Add Files" : "Upload Model File"}
+            </button>
+          </div>
+        </form>
+      </Modal>
+
+      <Modal
+        open={isFetching || (fetchUrl && !isFetching)}
+        onClose={() => {
+          if (!isFetching) {
+            setFetchUrl("");
+          }
+        }}
+        labelledBy="model-fetch-modal-title"
+        panelClassName="w-full max-w-xl"
+      >
+        <form className="p-6" onSubmit={handleFetch}>
+          <h2 id="model-fetch-modal-title" className="font-display text-xl">Fetch Model File</h2>
+          <p className="mt-1 text-sm text-black/55">
+            Enter a URL to download a `.gguf` model file directly to the server.
+          </p>
+
+          <div className="mt-5 grid gap-3">
+            <label className="grid gap-1 text-sm text-black/70">
+              <span>Model URL</span>
+              <span className="text-xs text-black/45">Must point to a .gguf file.</span>
+              <input
+                className="rounded-xl border border-black/15 bg-white px-3 py-2 text-sm"
+                type="url"
+                placeholder="https://example.com/model.gguf"
+                value={fetchUrl}
+                onChange={(event) => setFetchUrl(event.target.value)}
+                disabled={isFetching}
+                required
+              />
+            </label>
+          </div>
+
+          <div className="mt-6 flex items-center justify-between gap-3 border-t border-black/10 pt-4">
+            <button
+              type="button"
+              className="rounded-xl border border-black/15 px-4 py-2 text-sm font-semibold text-black hover:bg-black/5 disabled:cursor-not-allowed disabled:opacity-60"
+              onClick={() => {
+                if (!isFetching) {
+                  setFetchUrl("");
+                }
+              }}
+              disabled={isFetching}
+            >
+              {isFetching ? "In Progress..." : "Cancel"}
+            </button>
+            <button
+              type="submit"
+              className="rounded-xl bg-amber px-4 py-2 text-sm font-semibold text-black disabled:cursor-not-allowed disabled:opacity-60"
+              disabled={isFetching || !fetchUrl.trim()}
+            >
+              {isFetching ? "Fetching..." : "Fetch Model File"}
             </button>
           </div>
         </form>

@@ -23,6 +23,16 @@ export type ActiveProviderRecord = {
   provider_type: string | null;
 };
 
+export type FetchProgressRecord = {
+  job_id: string;
+  status: "downloading" | "processing" | "completed" | "error";
+  downloaded: number;
+  total: number | null;
+  percent: number;
+  model: Record<string, unknown> | null;
+  error: string | null;
+};
+
 export type UserRecord = {
   id: number;
   username: string;
