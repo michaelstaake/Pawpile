@@ -5,7 +5,7 @@ from sqlalchemy import engine_from_config, pool
 
 from app.core.config import get_settings
 from app.core.db import Base
-from app.models import activity_log, api_key, app_settings, chat, device, gpu_pool, inference_job, model_config, user  # noqa: F401
+from app import models  # noqa: F401
 
 config = context.config
 settings = get_settings()
