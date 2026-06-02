@@ -208,6 +208,17 @@ async def fetch_model(
         raise HTTPException(status_code=400, detail="URL must point to a .gguf file")
 
     job_id = str(uuid.uuid4())
+
+    settings = get_settings()
+    models_dir = Path(settings.models_dir)
+    models_dir.mkdir(parents=True, exist_ok=True)
+
+    file_name = Path(url_path).name
+    model_dir_name = _build_unique_model_dir_name(db, Path(file_name).stem)
+    model_dir = models_dir / model_dir_name
+
+    max_bytes = max(1, settings.max_upload_size_mb) * 1024 * 1024
+
     _fetch_jobs[job_id] = {
         "job_id": job_id,
         "status": "downloading",
@@ -219,16 +230,6 @@ async def fetch_model(
         "created_at": datetime.now(timezone.utc),
         "model_dir_name": model_dir_name,
     }
-
-    settings = get_settings()
-    models_dir = Path(settings.models_dir)
-    models_dir.mkdir(parents=True, exist_ok=True)
-
-    file_name = Path(url_path).name
-    model_dir_name = _build_unique_model_dir_name(db, Path(file_name).stem)
-    model_dir = models_dir / model_dir_name
-
-    max_bytes = max(1, settings.max_upload_size_mb) * 1024 * 1024
 
     try:
         async with httpx.AsyncClient(follow_redirects=True, timeout=3600.0) as client:
