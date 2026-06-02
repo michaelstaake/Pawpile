@@ -44,6 +44,7 @@ def bootstrap_status(db: Session = Depends(get_db)) -> BootstrapStatusResponse:
         background_color=app_settings.background_color,
         background_image_path=app_settings.background_image_path,
         background_image_mode=app_settings.background_image_mode,
+        knowledge_base_enabled=app_settings.knowledge_base_enabled,
     )
 
 

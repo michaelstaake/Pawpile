@@ -15,6 +15,7 @@ type AuthContextValue = {
   backgroundColor: string;
   backgroundImagePath: string | null;
   backgroundImageMode: BackgroundImageMode;
+  knowledgeBaseEnabled: boolean;
   refreshAuthState: () => Promise<void>;
   refreshPublicSettings: () => Promise<void>;
   updateProfile: (payload: { email?: string; password?: string }) => Promise<CurrentUser>;
@@ -42,6 +43,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [backgroundColor, setBackgroundColor] = useState(DEFAULT_BACKGROUND_COLOR);
   const [backgroundImagePath, setBackgroundImagePath] = useState<string | null>(null);
   const [backgroundImageMode, setBackgroundImageMode] = useState<BackgroundImageMode>(DEFAULT_BACKGROUND_IMAGE_MODE);
+  const [knowledgeBaseEnabled, setKnowledgeBaseEnabled] = useState(false);
 
   useEffect(() => {
     const onStorage = (event: StorageEvent) => {
@@ -65,6 +67,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       setBackgroundColor(bootstrap.background_color || DEFAULT_BACKGROUND_COLOR);
       setBackgroundImagePath(bootstrap.background_image_path || null);
       setBackgroundImageMode(bootstrap.background_image_mode || DEFAULT_BACKGROUND_IMAGE_MODE);
+      setKnowledgeBaseEnabled(bootstrap.knowledge_base_enabled);
     } catch {
       // silently ignore — UI will retain previous values
     }
@@ -82,6 +85,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       setBackgroundColor(bootstrap.background_color || DEFAULT_BACKGROUND_COLOR);
       setBackgroundImagePath(bootstrap.background_image_path || null);
       setBackgroundImageMode(bootstrap.background_image_mode || DEFAULT_BACKGROUND_IMAGE_MODE);
+      setKnowledgeBaseEnabled(bootstrap.knowledge_base_enabled);
 
       if (!token) {
         setUser(null);
@@ -106,6 +110,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       setBackgroundColor(DEFAULT_BACKGROUND_COLOR);
       setBackgroundImagePath(null);
       setBackgroundImageMode(DEFAULT_BACKGROUND_IMAGE_MODE);
+      setKnowledgeBaseEnabled(false);
       setBootstrapError(error instanceof Error ? error.message : "Unable to load installation state");
     } finally {
       setIsBootstrapping(false);
@@ -146,6 +151,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       setBackgroundColor(bootstrap.background_color || DEFAULT_BACKGROUND_COLOR);
       setBackgroundImagePath(bootstrap.background_image_path || null);
       setBackgroundImageMode(bootstrap.background_image_mode || DEFAULT_BACKGROUND_IMAGE_MODE);
+      setKnowledgeBaseEnabled(bootstrap.knowledge_base_enabled);
       setBootstrapError(null);
     } finally {
       setIsAuthenticating(false);
@@ -163,6 +169,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       storeToken(response.access_token);
       setToken(response.access_token);
       const currentUser = await apiGet<CurrentUser>("/api/auth/me", response.access_token);
+      const bootstrap = await apiGet<BootstrapStatus>("/api/auth/bootstrap-status");
+      setKnowledgeBaseEnabled(bootstrap.knowledge_base_enabled);
       setBootstrapError(null);
       setUser(currentUser);
     } finally {
@@ -201,6 +209,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         backgroundColor,
         backgroundImagePath,
         backgroundImageMode,
+        knowledgeBaseEnabled,
         refreshAuthState,
         refreshPublicSettings,
         updateProfile,

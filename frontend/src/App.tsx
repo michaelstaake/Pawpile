@@ -39,12 +39,14 @@ type AppBackgroundStyle = CSSProperties & {
   "--app-background-size": string;
 };
 
-function getMainNavItems(user: CurrentUser | null): MobileNavItem[] {
+function getMainNavItems(user: CurrentUser | null, knowledgeBaseEnabled: boolean): MobileNavItem[] {
   const items: MobileNavItem[] = [];
 
   if (user) {
     items.push({ to: "/", end: true, iconClassName: "bi bi-house", label: "Chat" });
-    items.push({ to: "/kb", iconClassName: "bi bi-book-half", label: "KB" });
+    if (knowledgeBaseEnabled) {
+      items.push({ to: "/kb", iconClassName: "bi bi-book-half", label: "KB" });
+    }
     items.push({ to: "/apikeys", iconClassName: "bi bi-key", label: "API" });
     items.push({ to: "/status", iconClassName: "bi bi-activity", label: "Status" });
   }
@@ -170,14 +172,14 @@ function SetupRoute() {
 }
 
 export default function App() {
-  const { backgroundColor, backgroundImageMode, backgroundImagePath, bootstrapError, isBootstrapping, requiresSetup, user, sitename } = useAuth();
+  const { backgroundColor, backgroundImageMode, backgroundImagePath, bootstrapError, isBootstrapping, knowledgeBaseEnabled, requiresSetup, user, sitename } = useAuth();
   const { showError } = useToast();
   const location = useLocation();
   const [backendUnavailable, setBackendUnavailable] = useState(() => isBackendUnavailableLocked());
   const [isMobileNavOpen, setIsMobileNavOpen] = useState(false);
   const [mobileNavSection, setMobileNavSection] = useState<MobileNavSection>(null);
   const showMainNav = !isBootstrapping && !requiresSetup;
-  const mainNavItems = getMainNavItems(user);
+  const mainNavItems = getMainNavItems(user, knowledgeBaseEnabled);
 
   const pageTitle = ((): string => {
     const path = location.pathname;

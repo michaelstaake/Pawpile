@@ -442,7 +442,7 @@ export default function StatusPage() {
       },
       {
         label: "Top User 24h",
-        value: topUserLast24Hours?.username ?? "No usage yet",
+        value: topUserLast24Hours?.username ?? "N/A",
         title: formatTokenTooltip(topUserLast24Hours),
         detail: topUserLast24Hours ? formatWholePercent(topUserLast24HoursPercent) : "0%",
         className: "lg:col-span-3",

@@ -180,6 +180,7 @@ class BootstrapStatusResponse(BaseModel):
     background_color: str = "#efe8d2"
     background_image_path: str | None = None
     background_image_mode: Literal["fill", "stretch", "repeat"] = "fill"
+    knowledge_base_enabled: bool = False
 
     @field_validator("background_color", mode="before")
     @classmethod

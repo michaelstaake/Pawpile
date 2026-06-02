@@ -13,6 +13,7 @@ export type BootstrapStatus = {
   background_color: string;
   background_image_path: string | null;
   background_image_mode: BackgroundImageMode;
+  knowledge_base_enabled: boolean;
 };
 
 export type CurrentUser = {
