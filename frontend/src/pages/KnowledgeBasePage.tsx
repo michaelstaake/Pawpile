@@ -2,7 +2,6 @@ import { useEffect, useRef, useState, type FormEvent } from "react";
 import { useAuth } from "../context/AuthContext";
 import { useToast } from "../context/ToastContext";
 import Modal from "../components/ui/Modal";
-import MarkdownRenderer from "../components/ui/MarkdownRenderer";
 import CodeEditor from "../components/ui/CodeEditor";
 import {
   createKbDocument,
@@ -33,7 +32,6 @@ export default function KnowledgeBasePage() {
   const [draftCategoryId, setDraftCategoryId] = useState<number | null>(null);
   const [isSaving, setIsSaving] = useState(false);
   const [isDeleting, setIsDeleting] = useState<number | null>(null);
-  const [showPreview, setShowPreview] = useState(false);
   const [selectedCategoryId, setSelectedCategoryId] = useState<number | null>(null);
   const [isCategoryModalOpen, setIsCategoryModalOpen] = useState(false);
   const [isCategoryCreateModalOpen, setIsCategoryCreateModalOpen] = useState(false);
@@ -126,7 +124,6 @@ export default function KnowledgeBasePage() {
     setDraftContent("");
     setDraftCategoryId(null);
     setEditingId(null);
-    setShowPreview(false);
   }
 
   async function saveDraft(e: FormEvent) {
@@ -389,16 +386,6 @@ export default function KnowledgeBasePage() {
             <form onSubmit={saveDraft}>
               <div className="mb-3 flex items-center justify-between">
                 <h2 className="font-display text-lg">{draftMode === "creating" ? "Add Document" : "Edit Document"}</h2>
-                {draftContent && (
-                  <button
-                    type="button"
-                    onClick={() => setShowPreview(!showPreview)}
-                    className="inline-flex items-center gap-1.5 rounded-lg border border-black/15 px-3 py-1.5 text-xs font-medium text-black/70 transition hover:bg-black/5"
-                  >
-                    <i className={`bi bi-${showPreview ? "code-slash" : "eye"} text-[14px] leading-none`}></i>
-                    {showPreview ? "Edit" : "Preview"}
-                  </button>
-                )}
               </div>
               <div className="grid gap-3">
                 <div>
@@ -428,21 +415,12 @@ export default function KnowledgeBasePage() {
                     required
                   />
                 </div>
-                {showPreview ? (
-                  <div>
-                    <label className="mb-1 block text-sm font-medium text-black/70">Preview</label>
-                    <div className="markdown-content min-h-[200px] max-h-[400px] overflow-y-auto rounded-xl border border-black/15 bg-white p-4 text-sm">
-                      <MarkdownRenderer content={draftContent} />
-                    </div>
-                  </div>
-                ) : (
-                  <CodeEditor
-                    value={draftContent}
-                    onChange={setDraftContent}
-                    placeholder="Write your markdown content here..."
-                    maxLength={MAX_CONTENT_LENGTH}
-                  />
-                )}
+                <CodeEditor
+                  value={draftContent}
+                  onChange={setDraftContent}
+                  placeholder="Write your markdown content here..."
+                  maxLength={MAX_CONTENT_LENGTH}
+                />
                 <div className="flex gap-2">
                   <button
                     type="submit"
