@@ -26,9 +26,20 @@ COPY requirements.txt ./
 RUN python3 -m venv /opt/venv \
     && /opt/venv/bin/pip install --no-cache-dir -r requirements.txt
 
+<<<<<<< HEAD
 ARG LLAMA_CPP_TAG="b9470"
 RUN git clone --depth 1 --branch "${LLAMA_CPP_TAG}" https://github.com/ggml-org/llama.cpp.git /opt/llama.cpp \
     && cmake -S /opt/llama.cpp -B /opt/llama.cpp/build -DLLAMA_BUILD_SERVER=ON -DGGML_VULKAN=ON \
+=======
+ENV PATH=/opt/venv/bin:$PATH
+
+ARG LLAMA_CPP_TAG="b9297"
+RUN git clone --depth 1 --branch "${LLAMA_CPP_TAG}" https://github.com/ggml-org/llama.cpp.git /opt/llama.cpp \
+    && cmake -S /opt/llama.cpp -B /opt/llama.cpp/build \
+        -DLLAMA_BUILD_SERVER=ON \
+        -DGGML_VULKAN=ON \
+        -DCMAKE_BUILD_TYPE=Release \
+>>>>>>> parent of 67a5ef0 (update from llama cpp b9297 to b9470)
     && cmake --build /opt/llama.cpp/build --config Release --target llama-server -j2
 
 COPY app ./app
