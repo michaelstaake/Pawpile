@@ -511,7 +511,7 @@ export default function StatusPage() {
         </div>
       </article>
 
-      <Modal open={isManageCostOpen} onClose={() => setIsManageCostOpen(false)} labelledBy="manage-cost-modal-title">
+      <Modal open={isManageCostOpen} onClose={() => setIsManageCostOpen(false)} labelledBy="manage-cost-modal-title" panelClassName="max-w-lg">
         <div className="p-6">
           <h2 id="manage-cost-modal-title" className="font-display text-2xl text-ink">Manage Cost</h2>
           <p className="mt-1 text-sm text-black/55">Set the price per 1M tokens for input and output to estimate your savings.</p>
