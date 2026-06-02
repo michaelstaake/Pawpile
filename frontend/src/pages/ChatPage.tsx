@@ -285,12 +285,12 @@ function formatContextLength(value: number | null): string {
     return "Unknown Context";
   }
 
-  if (value >= 1_000_000) {
-    return `${Math.floor(value / 1_000_000)}M Context`;
+  if (value >= 1_048_576) {
+    return `${Math.floor(value / 1_048_576)}M Context`;
   }
 
-  if (value >= 1_000) {
-    return `${Math.floor(value / 1_000)}K Context`;
+  if (value >= 1_024) {
+    return `${Math.floor(value / 1_024)}K Context`;
   }
 
   return `${Math.floor(value)} Context`;
