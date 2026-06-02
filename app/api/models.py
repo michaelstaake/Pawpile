@@ -71,6 +71,14 @@ def _set_fetch_job_cancelled(job_id: str) -> None:
     task_manager.mark_cancelled(job_id)
 
 
+def _set_upload_job_error(task_id: str, error: str) -> None:
+    task_manager.fail_task(task_id, error)
+
+
+def _set_upload_job_cancelled(task_id: str) -> None:
+    task_manager.mark_cancelled(task_id)
+
+
 async def _run_upload_job(
     task_id: str,
     file_content: bytes,
@@ -93,23 +101,18 @@ async def _run_upload_job(
                 written += len(chunk)
                 if written > max_bytes:
                     _remove_model_dir(model_dir)
-                    task_manager.fail_task(task_id, f"Uploaded file exceeds the {get_settings().max_upload_size_mb} MB limit")
-                    raise HTTPException(
-                        status_code=413,
-                        detail=f"Uploaded file exceeds the {get_settings().max_upload_size_mb} MB limit",
-                    )
+                    _set_upload_job_error(task_id, f"Uploaded file exceeds the {get_settings().max_upload_size_mb} MB limit")
+                    return
                 output.write(chunk)
                 task_manager.update_task(task_id, progress=min(1.0, written / max_bytes))
     except asyncio.CancelledError:
         _remove_model_dir(model_dir)
-        task_manager.mark_cancelled(task_id)
-        raise
-    except HTTPException:
+        _set_upload_job_cancelled(task_id)
         raise
     except OSError as exc:
         _remove_model_dir(model_dir)
-        task_manager.fail_task(task_id, f"Failed to store uploaded model: {exc}")
-        raise HTTPException(status_code=500, detail="Failed to store uploaded model") from exc
+        _set_upload_job_error(task_id, f"Failed to store uploaded model: {exc}")
+        return
 
     try:
         model = ModelConfig(
@@ -135,8 +138,8 @@ async def _run_upload_job(
         except SQLAlchemyError as exc:
             db.rollback()
             _remove_model_dir(model_dir)
-            task_manager.fail_task(task_id, "Uploaded model could not be registered")
-            raise HTTPException(status_code=500, detail="Uploaded model could not be registered") from exc
+            _set_upload_job_error(task_id, "Uploaded model could not be registered")
+            return
 
         task_manager.complete_task(task_id)
         log_event(db, "model.uploaded", details={"file_name": file_name, "alias": model.alias})
@@ -388,16 +391,30 @@ async def upload_model(
         raise HTTPException(status_code=409, detail="A model with that file name already exists")
 
     max_bytes = max(1, settings.max_upload_size_mb) * 1024 * 1024
-    model = await _store_uploaded_model(
-        file,
-        db,
-        file_name,
-        model_dir_name,
-        model_dir,
-        destination,
-        max_bytes,
+
+    file_content = await file.read()
+    await file.seek(0)
+
+    upload_task_id = str(uuid.uuid4())
+    upload_task = asyncio.create_task(
+        _run_upload_job(
+            upload_task_id,
+            file_content,
+            file_name,
+            model_dir_name,
+            model_dir,
+            destination,
+            max_bytes,
+        )
     )
-    return {"status": "ok", "model": _serialize_model(model)}
+    task_manager.add_task(
+        task_id=upload_task_id,
+        task_type="model_upload",
+        description=f"Uploading model: {file_name}",
+        async_task=upload_task,
+        metadata={"file_name": file_name},
+    )
+    return {"status": "ok", "task_id": upload_task_id}
 
 
 @router.post("/scan")

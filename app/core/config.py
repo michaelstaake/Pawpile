@@ -54,7 +54,7 @@ class Settings(BaseSettings):
     inference_service_url: str = "http://localhost:8100"
     inference_runtime_urls: str = ""
     inference_service_timeout_seconds: int = 300
-    max_upload_size_mb: int = 50000
+    max_upload_size_mb: int = 102400
 
     def supported_device_list(self) -> list[str]:
         return [item.strip().lower() for item in self.supported_devices.split(",") if item.strip()]
