@@ -197,7 +197,7 @@ export type ScanResponse = {
 
 export type UploadResponse = {
   status: string;
-  model: ModelRecord;
+  task_id: string;
 };
 
 export type AssetUploadResponse = {

@@ -11,6 +11,14 @@ def list_tasks(_: object = Depends(get_admin_user)) -> list[dict]:
     return task_manager.get_tasks()
 
 
+@router.get("/{task_id}")
+def get_task(task_id: str, _: object = Depends(get_admin_user)) -> dict:
+    task = task_manager._tasks.get(task_id)
+    if not task:
+        raise HTTPException(status_code=404, detail="Task not found")
+    return task.to_dict()
+
+
 @router.delete("/{task_id}")
 def cancel_task(
     task_id: str,

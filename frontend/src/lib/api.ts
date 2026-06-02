@@ -395,20 +395,26 @@ export async function fetchTaskStatus(taskId: string, token?: string): Promise<T
 
 export async function pollUntilTaskComplete(taskId: string, token?: string, maxAttempts: number = 600, intervalMs: number = 1000): Promise<TaskStatusResponse> {
   for (let i = 0; i < maxAttempts; i++) {
-    const tasks = await apiGet<TaskStatusResponse[]>("/api/tasks", token);
-    const found = tasks.find(t => t.task_id === taskId);
-    if (!found) {
-      // Task is no longer in the running list, meaning it completed
-      return {
-        task_id: taskId,
-        task_type: "",
-        description: "",
-        status: "completed",
-        progress: 1,
-        metadata: {},
-        created_at: 0,
-        error: null,
-      } as TaskStatusResponse;
+    try {
+      const task = await apiGet<TaskStatusResponse>(`/api/tasks/${taskId}`, token);
+      if (task.status !== "running") {
+        return task;
+      }
+    } catch (error) {
+      // Task not found means it was cleaned up - treat as completed
+      if (error instanceof Error && error.message.includes("Task not found")) {
+        return {
+          task_id: taskId,
+          task_type: "",
+          description: "",
+          status: "completed",
+          progress: 1,
+          metadata: {},
+          created_at: 0,
+          error: null,
+        } as TaskStatusResponse;
+      }
+      throw error;
     }
     await new Promise(resolve => setTimeout(resolve, intervalMs));
   }

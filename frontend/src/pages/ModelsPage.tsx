@@ -1,5 +1,5 @@
 import { type DragEvent, type FormEvent, useEffect, useRef, useState } from "react";
-import { apiDelete, apiGet, apiPatch, apiPost, apiPostFormWithProgress } from "../lib/api";
+import { apiDelete, apiGet, apiPatch, apiPost, apiPostFormWithProgress, pollUntilTaskComplete } from "../lib/api";
 import { useAuth } from "../context/AuthContext";
 import { useToast } from "../context/ToastContext";
 import { useBackgroundProgress } from "../context/BackgroundProgressContext";
@@ -381,10 +381,25 @@ export default function ModelsPage({ setupMode = false, onComplete }: ModelsPage
             transitionToProcessing();
           },
         );
-        applyUploadedModel(response.model);
-        stopUpload();
-        resetUploadSelection();
-        showSuccess(`Uploaded ${response.model.alias}.`, { id: "models-success" });
+        try {
+          const taskResult = await pollUntilTaskComplete(response.task_id, token);
+          stopUpload();
+          resetUploadSelection();
+          if (taskResult.status === "error") {
+            showError(taskResult.error ?? "Upload processing failed", { id: "models-error" });
+          } else {
+            showSuccess(`Uploaded ${filesToUpload[0]?.name}.`, { id: "models-success" });
+            await refreshData(token);
+          }
+        } catch (pollError) {
+          stopUpload();
+          resetUploadSelection();
+          try {
+            await refreshData(token);
+          } catch {
+            showError(pollError instanceof Error ? pollError.message : "Upload processing failed", { id: "models-error" });
+          }
+        }
       } else {
         const response = await apiPostFormWithProgress<AssetUploadResponse>(
           `/api/models/${uploadTargetModelId}/files`,
