@@ -47,6 +47,11 @@ export default function KnowledgeBasePage() {
     void loadAll(token);
   }, [token]);
 
+  useEffect(() => {
+    if (!token) return;
+    void loadDocuments(token);
+  }, [selectedCategoryId, token]);
+
   async function loadAll(activeToken: string) {
     setIsLoading(true);
     try {
