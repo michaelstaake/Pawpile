@@ -232,7 +232,7 @@ function DeviceCard({ device, isPooled, modelColors }: { device: DeviceStatusRec
 }
 
 export default function StatusPage() {
-  const { token } = useAuth();
+  const { token, user } = useAuth();
   const { showError } = useToast();
   const [devices, setDevices] = useState<DeviceStatusRecord[]>([]);
   const [pools, setPools] = useState<GpuPoolRecord[]>([]);
@@ -490,14 +490,19 @@ export default function StatusPage() {
           <div className="rounded-2xl border border-black/10 bg-white/80 p-4 lg:col-span-3">
             <p className="text-xs font-semibold uppercase tracking-[0.24em] text-black/45">Estimated Savings</p>
             <p className="mt-2 font-display text-3xl text-ink">{appSettings ? `$${estimatedSavings.toFixed(2)}` : "N/A"}</p>
-            <p className="mt-1 text-sm">
-              <a href="#" className="text-blue-600 hover:underline" onClick={(e) => { e.preventDefault(); openManageCostModal(); }}>Manage Cost</a>
-            </p>
+            {user?.is_admin ? (
+              <p className="mt-1 text-sm">
+                <a href="#" className="text-blue-600 hover:underline" onClick={(e) => { e.preventDefault(); openManageCostModal(); }}>Manage Cost</a>
+              </p>
+            ) : appSettings ? (
+              <p className="mt-1 text-sm text-black/55">Based on ${appSettings.input_price_per_1m.toFixed(2)}/1M Input, ${appSettings.output_price_per_1m.toFixed(2)}/1M Output</p>
+            ) : null}
           </div>
         </div>
       </article>
 
-      <Modal open={isManageCostOpen} onClose={() => setIsManageCostOpen(false)} labelledBy="manage-cost-modal-title" panelClassName="max-w-lg">
+      {user?.is_admin && (
+        <Modal open={isManageCostOpen} onClose={() => setIsManageCostOpen(false)} labelledBy="manage-cost-modal-title" panelClassName="max-w-lg">
         <div className="p-6">
           <h2 id="manage-cost-modal-title" className="font-display text-2xl text-ink">Manage Cost</h2>
           <p className="mt-1 text-sm text-black/55">Set the price per 1M tokens for input and output to estimate your savings.</p>
@@ -548,6 +553,7 @@ export default function StatusPage() {
           </div>
         </div>
       </Modal>
+      )}
 
       {isLoading ? (
         <div className="rounded-2xl border border-black/10 bg-white/80 px-4 py-8 text-sm text-black/55 shadow-sm">Loading...</div>
