@@ -214,6 +214,7 @@ export default function ModelsPage({ setupMode = false, onComplete }: ModelsPage
   const [isLoading, setIsLoading] = useState(false);
   const [isScanning, setIsScanning] = useState(false);
   const [fetchUrlInput, setFetchUrlInput] = useState("");
+  const [isFetchModalOpen, setIsFetchModalOpen] = useState(false);
   const {
     isFetching,
     fetchJobId,
