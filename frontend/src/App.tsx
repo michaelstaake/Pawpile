@@ -54,7 +54,7 @@ function getMainNavItems(user: CurrentUser | null, knowledgeBaseEnabled: boolean
 
   if (user?.is_admin) {
     items.push({ to: "/devices", iconClassName: "bi bi-gpu-card", label: "Devices" });
-    items.push({ to: "/models", iconClassName: "bi bi-folder", label: "Models" });
+    items.push({ to: "/models", iconClassName: "bi bi-file-earmark", label: "Models" });
     items.push({ to: "/settings", iconClassName: "bi bi-gear", label: "Settings" });
   }
 
