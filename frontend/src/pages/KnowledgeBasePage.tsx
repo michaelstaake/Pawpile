@@ -239,7 +239,10 @@ export default function KnowledgeBasePage() {
 
         <button
           type="button"
-          onClick={() => setSelectedCategoryId(null)}
+          onClick={() => {
+            if (draftMode !== "idle") cancelDraft();
+            setSelectedCategoryId(null);
+          }}
           className={`mb-1 flex w-full items-center gap-2 rounded-lg px-2.5 py-2 text-left text-sm transition ${
             selectedCategoryId === null
               ? "bg-ink text-white"
@@ -267,7 +270,10 @@ export default function KnowledgeBasePage() {
               >
                 <button
                   type="button"
-                  onClick={() => setSelectedCategoryId(selectedCategoryId === cat.id ? null : cat.id)}
+                  onClick={() => {
+                    if (draftMode !== "idle") cancelDraft();
+                    setSelectedCategoryId(selectedCategoryId === cat.id ? null : cat.id);
+                  }}
                   className="flex flex-1 items-center gap-2 text-left"
                 >
                   <i className={`bi bi-folder text-[14px] ${
@@ -404,6 +410,7 @@ export default function KnowledgeBasePage() {
         )}
 
         {/* Document list */}
+        {draftMode === "idle" && (
         <article className="rounded-2xl border border-black/10 bg-white/80 p-5 shadow-sm backdrop-blur">
           <div className="mb-4 flex items-center justify-between">
             <div className="flex items-center gap-2 text-sm">
@@ -481,6 +488,7 @@ export default function KnowledgeBasePage() {
             </div>
           )}
         </article>
+        )}
       </div>
 
       {/* Edit category modal */}
