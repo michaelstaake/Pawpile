@@ -207,7 +207,6 @@ export default function ModelsPage({ setupMode = false, onComplete }: ModelsPage
     cancelFetch,
     startUpload,
     completeUploadRequest,
-    transitionToProcessing,
     stopUpload,
     startScan,
     stopScan,
@@ -363,23 +362,21 @@ export default function ModelsPage({ setupMode = false, onComplete }: ModelsPage
 
     try {
       if (uploadMode === "model") {
-        await apiPostFormWithProgress<{ task_id: string }>("/api/models/upload", formData, token, (progress) => {
+        const response = await apiPostFormWithProgress<UploadResponse>("/api/models/upload", formData, token, (progress) => {
           const total = progress.total || totalBytes;
           updateUploadProgress({ loaded: progress.loaded, total });
-          if (progress.loaded >= total) {
-            completeUploadRequest();
-            transitionToProcessing();
-          }
         });
+        completeUploadRequest();
+        applyUploadedModel(response.model);
+        stopUpload();
+        resetUploadSelection();
+        showSuccess(`Uploaded ${response.model.alias}.`, { id: "models-success" });
       } else {
         const response = await apiPostFormWithProgress<AssetUploadResponse>(`/api/models/${uploadTargetModelId}/files`, formData, token, (progress) => {
           const total = progress.total || totalBytes;
           updateUploadProgress({ loaded: progress.loaded, total });
-          if (progress.loaded >= total) {
-            completeUploadRequest();
-            transitionToProcessing();
-          }
         });
+        completeUploadRequest();
         applyUploadedModel(response.model);
         stopUpload();
         resetUploadSelection();
