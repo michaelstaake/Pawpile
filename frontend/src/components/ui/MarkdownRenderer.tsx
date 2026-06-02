@@ -1,4 +1,4 @@
-import { useRef, useState } from "react";
+import { useRef, useState, type ReactNode } from "react";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import rehypeHighlight from "rehype-highlight";
@@ -7,6 +7,17 @@ import type { Components } from "react-markdown";
 type MarkdownRendererProps = {
   content: string;
   className?: string;
+};
+
+type PreProps = {
+  children: ReactNode;
+  [key: string]: unknown;
+};
+
+type CodeProps = {
+  children: ReactNode;
+  className?: string;
+  [key: string]: unknown;
 };
 
 export default function MarkdownRenderer({ content, className }: MarkdownRendererProps) {
@@ -30,7 +41,7 @@ export default function MarkdownRenderer({ content, className }: MarkdownRendere
   };
 
   const components: Components = {
-    pre({ children, ...rest }) {
+    pre: ({ children, ...rest }: PreProps) => {
       const index = blockCounter++;
       return (
         <pre
@@ -60,7 +71,7 @@ export default function MarkdownRenderer({ content, className }: MarkdownRendere
         </pre>
       );
     },
-    code({ children, className, ...rest }) {
+    code: ({ children, className, ...rest }: CodeProps) => {
       return (
         <code className={className} {...rest}>
           {children}
