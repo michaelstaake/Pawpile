@@ -55,7 +55,9 @@ export default function MarkdownRenderer({ content, className }: MarkdownRendere
                 <span>{copyStates[index] === "copied" ? "Copied" : "Copy"}</span>
               </button>
             </div>
-            {children}
+            <pre className="max-w-full overflow-x-auto px-4 py-4 text-[13px] leading-6 text-sand/95">
+              {children}
+            </pre>
           </div>
         </pre>
       );
