@@ -1009,10 +1009,10 @@ export default function ChatPage() {
                       </div>
                       <span
                         className={`inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-full border ${
-                          isSelected ? "border-white/20 bg-white/10 text-white" : "border-black/10 bg-white text-black/55"
+                          isSelected ? "border-white/20 bg-white/10 text-white" : "border-transparent bg-transparent text-transparent"
                         }`}
                       >
-                        <i className={`bi ${isSelected ? "bi-check2" : "bi-arrow-up-right"} text-[18px] leading-none`} aria-hidden="true" />
+                        {isSelected && <i className="bi bi-check2 text-[18px] leading-none" aria-hidden="true" />}
                       </span>
                     </div>
                     <div className="mt-4 flex flex-wrap gap-2">
