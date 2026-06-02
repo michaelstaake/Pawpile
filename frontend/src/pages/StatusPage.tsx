@@ -121,7 +121,7 @@ function getSystemHealth(activeModels: number, memoryUsagePercent: number | null
       label: "Unready",
       iconClassName: "bi bi-x-octagon-fill",
       iconColorClassName: "text-[#c63f3f]",
-      detail: "No models are currently loaded.",
+      detail: "No models are currently loaded",
     };
   }
 
@@ -130,7 +130,7 @@ function getSystemHealth(activeModels: number, memoryUsagePercent: number | null
       label: "Ready",
       iconClassName: "bi bi-exclamation-triangle-fill",
       iconColorClassName: "text-[#c98a13]",
-      detail: "AI memory usage is above 80%.",
+      detail: "AI memory usage is above 80%",
     };
   }
 
