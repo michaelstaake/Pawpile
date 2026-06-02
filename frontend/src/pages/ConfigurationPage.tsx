@@ -19,6 +19,8 @@ export default function ConfigurationPage() {
     background_color: DEFAULT_BACKGROUND_COLOR,
     background_image_path: null,
     background_image_mode: "fill",
+    input_price_per_1m: 0,
+    output_price_per_1m: 0,
   });
   const [localSitename, setLocalSitename] = useState(DEFAULT_SITENAME);
   const [localBackgroundColor, setLocalBackgroundColor] = useState(DEFAULT_BACKGROUND_COLOR);
