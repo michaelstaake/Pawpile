@@ -130,10 +130,15 @@ function serializeModelConfig(model: ModelRecord) {
 }
 
 function mergeSavedModel(current: ModelRecord, sent: ModelRecord, saved: ModelRecord): ModelRecord {
-  const merged = { ...saved };
+  const merged: ModelRecord = { ...saved };
+
+  function assignField<K extends keyof ModelRecord>(key: K, value: ModelRecord[K]) {
+    merged[key] = value;
+  }
+
   for (const key of Object.keys(current) as Array<keyof ModelRecord>) {
     if (current[key] !== sent[key]) {
-      (merged as any)[key] = current[key];
+      assignField(key, current[key]);
     }
   }
   return merged;

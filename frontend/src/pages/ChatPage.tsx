@@ -1325,6 +1325,13 @@ async function streamCompletion(
   onStageChange: (phase: "thinking") => void,
   onDelta: (delta: string, type: "thinking" | "content") => void
 ): Promise<ChatCompletionStats> {
+  type StreamDelta = {
+    content?: string;
+    reasoning_content?: string;
+    reasoning?: string;
+    thought?: string;
+  };
+
   const token = getStoredToken() || undefined;
   const headers: Record<string, string> = { "Content-Type": "application/json" };
   if (token) {
@@ -1404,7 +1411,7 @@ async function streamCompletion(
           const parsed = JSON.parse(data) as {
             error?: { message?: string };
             model?: string;
-            choices?: { delta?: { content?: string } }[];
+            choices?: { delta?: StreamDelta }[];
             usage?: {
               prompt_tokens?: number;
               completion_tokens?: number;
@@ -1417,11 +1424,9 @@ async function streamCompletion(
           if (parsed.usage) {
             usage = parsed.usage;
           }
-          const deltaContent = (parsed.choices?.[0]?.delta as any)?.content;
-          const deltaThinking =
-            (parsed.choices?.[0]?.delta as any)?.reasoning_content ||
-            (parsed.choices?.[0]?.delta as any)?.reasoning ||
-            (parsed.choices?.[0]?.delta as any)?.thought;
+          const delta = parsed.choices?.[0]?.delta;
+          const deltaContent = delta?.content;
+          const deltaThinking = delta?.reasoning_content || delta?.reasoning || delta?.thought;
           if (deltaThinking) {
             onDelta(deltaThinking, "thinking");
           } else if (deltaContent) {
@@ -1456,7 +1461,7 @@ async function streamCompletion(
         const parsed = JSON.parse(data) as {
           error?: { message?: string };
           model?: string;
-          choices?: { delta?: { content?: string } }[];
+          choices?: { delta?: StreamDelta }[];
           usage?: {
             prompt_tokens?: number;
             completion_tokens?: number;
@@ -1469,11 +1474,9 @@ async function streamCompletion(
         if (parsed.usage) {
           usage = parsed.usage;
         }
-        const deltaContent = (parsed.choices?.[0]?.delta as any)?.content;
-        const deltaThinking =
-          (parsed.choices?.[0]?.delta as any)?.reasoning_content ||
-          (parsed.choices?.[0]?.delta as any)?.reasoning ||
-          (parsed.choices?.[0]?.delta as any)?.thought;
+        const delta = parsed.choices?.[0]?.delta;
+        const deltaContent = delta?.content;
+        const deltaThinking = delta?.reasoning_content || delta?.reasoning || delta?.thought;
         if (deltaThinking) {
           onDelta(deltaThinking, "thinking");
         } else if (deltaContent) {
