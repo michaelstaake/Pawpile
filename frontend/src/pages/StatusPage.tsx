@@ -61,6 +61,16 @@ function formatMemorySummary(memoryUsedMb: number, memoryTotalMb: number) {
   return `${formatMemory(memoryUsedMb)} of ${formatMemory(memoryTotalMb)}`;
 }
 
+function formatDiskSpace(bytes: number) {
+  if (bytes >= 1024 * 1024 * 1024 * 1024) {
+    return `${(bytes / (1024 * 1024 * 1024 * 1024)).toFixed(1)} TB`;
+  }
+  if (bytes >= 1024 * 1024 * 1024) {
+    return `${(bytes / (1024 * 1024 * 1024)).toFixed(1)} GB`;
+  }
+  return `${(bytes / (1024 * 1024)).toFixed(0)} MB`;
+}
+
 function colorForModel(index: number) {
   if (index < PRIMARY_MODEL_COLORS.length) {
     return PRIMARY_MODEL_COLORS[index];
@@ -240,6 +250,7 @@ export default function StatusPage() {
   const [devices, setDevices] = useState<DeviceStatusRecord[]>([]);
   const [pools, setPools] = useState<GpuPoolRecord[]>([]);
   const [systemCpuUsagePercent, setSystemCpuUsagePercent] = useState<number | null>(null);
+  const [systemDiskFreeBytes, setSystemDiskFreeBytes] = useState<number>(0);
   const [tokenUsage, setTokenUsage] = useState<TokenUsageSummaryRecord | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const lastErrorMessageRef = useRef<string | null>(null);
@@ -259,6 +270,7 @@ export default function StatusPage() {
         }
         setDevices(response.devices);
         setSystemCpuUsagePercent(response.system_cpu_usage_percent);
+        setSystemDiskFreeBytes(response.system_disk_free_bytes);
         setTokenUsage(response.token_usage);
         lastErrorMessageRef.current = null;
       } catch (error) {
@@ -266,6 +278,7 @@ export default function StatusPage() {
           return;
         }
         setSystemCpuUsagePercent(null);
+        setSystemDiskFreeBytes(0);
         setTokenUsage(null);
         const message = error instanceof Error ? error.message : "Failed to load status";
         if (lastErrorMessageRef.current !== message) {
@@ -400,6 +413,12 @@ export default function StatusPage() {
 
         <div className="mt-5 grid gap-3 sm:grid-cols-2 lg:grid-cols-12">
           <div className="rounded-2xl border border-black/10 bg-white/80 p-4 lg:col-span-3">
+            <p className="text-xs font-semibold uppercase tracking-[0.24em] text-black/45">Free Disk Space</p>
+            <p className="mt-2 font-display text-3xl text-ink">{formatDiskSpace(systemDiskFreeBytes)}</p>
+            <p className="mt-1 text-sm text-black/55">Available on /</p>
+          </div>
+
+          <div className="rounded-2xl border border-black/10 bg-white/80 p-4 lg:col-span-3">
             <p className="text-xs font-semibold uppercase tracking-[0.24em] text-black/45">Host CPU</p>
             <p className="mt-2 font-display text-3xl text-ink">{systemCpuUsagePercent !== null ? `${systemCpuUsagePercent.toFixed(1)}%` : "N/A"}</p>
             <p className="mt-1 text-sm text-black/55">Total utilization</p>
@@ -411,7 +430,7 @@ export default function StatusPage() {
             <p className="mt-1 text-sm text-black/55">{formatMemorySummary(summary.usedMemory, summary.totalMemory)}</p>
           </div>
 
-          <div className="rounded-2xl border border-black/10 bg-white/80 p-4 sm:col-span-2 lg:col-span-6">
+          <div className="rounded-2xl border border-black/10 bg-white/80 p-4 lg:col-span-3">
             <p className="text-xs font-semibold uppercase tracking-[0.24em] text-black/45">System Health</p>
             <div className="mt-2 flex items-center gap-3">
               <i className={`${systemHealth.iconClassName} ${systemHealth.iconColorClassName} text-[28px] leading-none`} aria-hidden="true" />

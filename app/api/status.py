@@ -1,6 +1,7 @@
 from datetime import datetime, timezone
 
 import httpx
+import psutil
 from fastapi import APIRouter, Depends
 from sqlalchemy.orm import Session
 
@@ -97,10 +98,12 @@ async def get_status(db: Session = Depends(get_db)) -> dict:
             }
         )
 
+    disk = psutil.disk_usage("/")
     return {
         "status": "ok",
         "refreshed_at": datetime.now(timezone.utc).isoformat(),
         "system_cpu_usage_percent": system_cpu_usage_percent,
+        "system_disk_free_bytes": disk.free,
         "input_tokens_processed": since_startup["input_tokens"],
         "output_tokens_processed": since_startup["output_tokens"],
         "tokens_processed": since_startup["total_tokens"],

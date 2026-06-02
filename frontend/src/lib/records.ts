@@ -165,6 +165,7 @@ export type StatusResponse = {
   status: string;
   refreshed_at: string;
   system_cpu_usage_percent: number | null;
+  system_disk_free_bytes: number;
   input_tokens_processed: number;
   output_tokens_processed: number;
   tokens_processed: number;
