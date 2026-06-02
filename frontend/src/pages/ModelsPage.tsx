@@ -220,6 +220,7 @@ export default function ModelsPage({ setupMode = false, onComplete }: ModelsPage
   const [isFetchModalOpen, setIsFetchModalOpen] = useState(false);
   const [fetchProgress, setFetchProgress] = useState<UploadProgressState>({ loaded: 0, total: 0 });
   const [fetchJobId, setFetchJobId] = useState<string | null>(null);
+  const [fetchFileName, setFetchFileName] = useState<string | null>(null);
   const [fetchStartedAt, setFetchStartedAt] = useState<number | null>(null);
   const [fetchUrl, setFetchUrl] = useState("");
   const [isScanning, setIsScanning] = useState(false);
@@ -270,11 +271,13 @@ export default function ModelsPage({ setupMode = false, onComplete }: ModelsPage
       try {
         const response = await apiGet<FetchProgressRecord>(`/api/models/fetch/${fetchJobId}`, token);
         setFetchProgress({ loaded: response.downloaded, total: response.total ?? 0 });
+        setFetchFileName(response.file_name);
 
         if (response.status === "completed") {
           window.clearInterval(pollIntervalId);
           setIsFetching(false);
           setFetchJobId(null);
+          setFetchFileName(null);
           setFetchStartedAt(null);
           setFetchUrl("");
           if (response.model) {
@@ -287,6 +290,7 @@ export default function ModelsPage({ setupMode = false, onComplete }: ModelsPage
           window.clearInterval(pollIntervalId);
           setIsFetching(false);
           setFetchJobId(null);
+          setFetchFileName(null);
           setFetchStartedAt(null);
           setFetchUrl("");
           showError(response.error ?? "Fetch failed.", { id: "models-fetch-error" });
@@ -295,6 +299,7 @@ export default function ModelsPage({ setupMode = false, onComplete }: ModelsPage
         window.clearInterval(pollIntervalId);
         setIsFetching(false);
         setFetchJobId(null);
+        setFetchFileName(null);
         setFetchStartedAt(null);
         setFetchUrl("");
         showError("Fetch job not found or expired.", { id: "models-fetch-error" });
@@ -497,6 +502,7 @@ export default function ModelsPage({ setupMode = false, onComplete }: ModelsPage
     setFetchUrl("");
     setFetchProgress({ loaded: 0, total: 0 });
     setFetchJobId(null);
+    setFetchFileName(null);
     setFetchStartedAt(null);
     setIsFetching(false);
     setIsFetchModalOpen(true);
@@ -921,7 +927,11 @@ export default function ModelsPage({ setupMode = false, onComplete }: ModelsPage
           <div className="mt-3 grid gap-3 rounded-2xl border border-dashed border-black/15 bg-sand/70 p-4">
             <div className="flex flex-wrap items-center justify-between gap-2">
               <h3 className="font-display text-base">Fetching file...</h3>
-              {fetchProgress.total ? <span className="text-sm text-black/60">{fetchProgress.loaded > 0 ? `${formatUploadSizeInWholeMb(fetchProgress.loaded)} / ${formatUploadSizeInWholeMb(fetchProgress.total)}` : "Downloading..."}</span> : null}
+              {fetchFileName ? (
+                <span className="max-w-xs truncate text-sm text-black/60" title={fetchFileName}>
+                  {fetchFileName}
+                </span>
+              ) : null}
             </div>
             {isFetching && fetchProgress.total && fetchProgress.total > 0 ? (
               <div className="grid gap-2 rounded-xl border border-black/10 bg-white/70 px-3 py-3">

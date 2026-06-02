@@ -48,6 +48,7 @@ class FetchJobProgress(BaseModel):
     downloaded: int
     total: int | None
     percent: int
+    file_name: str | None = None
     model: dict | None = None
     error: str | None = None
 
@@ -329,6 +330,7 @@ async def fetch_model(
         "downloaded": 0,
         "total": None,
         "percent": 0,
+        "file_name": file_name,
         "model": None,
         "error": None,
         "created_at": datetime.now(timezone.utc),
@@ -364,6 +366,7 @@ def get_fetch_progress(job_id: str, _: User = Depends(get_admin_user)) -> dict:
         "downloaded": job["downloaded"],
         "total": job["total"],
         "percent": job["percent"],
+        "file_name": job.get("file_name"),
         "model": job.get("model"),
         "error": job.get("error"),
     }

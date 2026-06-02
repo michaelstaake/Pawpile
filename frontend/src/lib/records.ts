@@ -29,6 +29,7 @@ export type FetchProgressRecord = {
   downloaded: number;
   total: number | null;
   percent: number;
+  file_name: string | null;
   model: Record<string, unknown> | null;
   error: string | null;
 };
