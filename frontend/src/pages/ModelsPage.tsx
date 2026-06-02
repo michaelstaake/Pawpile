@@ -357,8 +357,13 @@ export default function ModelsPage({ setupMode = false, onComplete }: ModelsPage
       filesToUpload.forEach((file) => formData.append("files", file));
     }
     const totalBytes = filesToUpload.reduce((total, file) => total + file.size, 0);
+    const uploadLabel = uploadMode === "model"
+      ? filesToUpload[0]?.name ?? null
+      : filesToUpload.length === 1
+        ? filesToUpload[0]?.name ?? null
+        : `${filesToUpload[0]?.name ?? "Files"} + ${filesToUpload.length - 1} more`;
 
-    startUpload(uploadMode, totalBytes);
+    startUpload(uploadMode, totalBytes, uploadLabel);
     setIsUploadModalOpen(false);
 
     try {

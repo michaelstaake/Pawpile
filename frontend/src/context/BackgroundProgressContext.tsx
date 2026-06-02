@@ -60,6 +60,7 @@ type BackgroundProgressState = {
   isUploading: boolean;
   isProcessingUpload: boolean;
   uploadProgress: UploadProgressState;
+  uploadFileName: string | null;
   uploadStartedAt: number | null;
   uploadClock: number;
   isScanning: boolean;
@@ -76,6 +77,7 @@ const initialState: BackgroundProgressState = {
   isUploading: false,
   isProcessingUpload: false,
   uploadProgress: { loaded: 0, total: 0 },
+  uploadFileName: null,
   uploadStartedAt: null,
   uploadClock: Date.now(),
   isScanning: false,
@@ -85,7 +87,7 @@ const initialState: BackgroundProgressState = {
 interface BackgroundProgressContextType extends BackgroundProgressState {
   startFetch: (url: string) => void;
   cancelFetch: () => void;
-  startUpload: (mode: "model" | "files", totalBytes: number) => void;
+  startUpload: (mode: "model" | "files", totalBytes: number, fileName?: string | null) => void;
   completeUploadRequest: () => void;
   transitionToProcessing: () => void;
   stopUpload: () => void;
@@ -173,13 +175,18 @@ export function BackgroundProgressProvider({ children }: { children: ReactNode }
     });
   }, [dismissToast]);
 
-  const startUpload = useCallback((mode: "model" | "files", totalBytes: number) => {
+  const startUpload = useCallback((mode: "model" | "files", totalBytes: number, fileName?: string | null) => {
     const title = mode === "files" ? "Uploading files..." : "Uploading model...";
     showInfo(title, {
       id: "models-upload-info",
       content: (
         <div className="flex flex-col gap-2">
           <p className="font-semibold">{title}</p>
+          {fileName ? (
+            <p className="truncate text-xs text-blue-700/60" title={fileName}>
+              {fileName}
+            </p>
+          ) : null}
           <div className="h-1.5 w-full overflow-hidden rounded-full bg-blue-200/60">
             <div className="h-full rounded-full bg-blue-500 transition-[width]" style={{ width: "0%" }} />
           </div>
@@ -195,6 +202,7 @@ export function BackgroundProgressProvider({ children }: { children: ReactNode }
       isUploading: true,
       isProcessingUpload: false,
       uploadProgress: { loaded: 0, total: totalBytes },
+      uploadFileName: fileName ?? null,
       uploadStartedAt: Date.now(),
       uploadClock: Date.now(),
       uploadMode: mode,
@@ -217,6 +225,11 @@ export function BackgroundProgressProvider({ children }: { children: ReactNode }
       content: (
         <div className="flex flex-col gap-2">
           <p className="font-semibold">{message}</p>
+          {state.uploadFileName ? (
+            <p className="truncate text-xs text-blue-700/60" title={state.uploadFileName}>
+              {state.uploadFileName}
+            </p>
+          ) : null}
           <div className="flex items-center gap-2 text-xs text-blue-700/70">
             <div className="h-1.5 w-24 animate-pulse rounded-full bg-blue-300" />
             <span>{message}</span>
@@ -229,7 +242,7 @@ export function BackgroundProgressProvider({ children }: { children: ReactNode }
       isUploading: false,
       isProcessingUpload: true,
     }));
-  }, [showInfo, state.uploadMode]);
+  }, [showInfo, state.uploadFileName, state.uploadMode]);
 
   const stopUpload = useCallback(() => {
     dismissToast("models-upload-info");
@@ -238,6 +251,7 @@ export function BackgroundProgressProvider({ children }: { children: ReactNode }
       isUploading: false,
       isProcessingUpload: false,
       uploadProgress: { loaded: 0, total: 0 },
+      uploadFileName: null,
       uploadStartedAt: null,
       uploadClock: Date.now(),
     }));
@@ -411,15 +425,34 @@ export function BackgroundProgressProvider({ children }: { children: ReactNode }
     const loaded = state.uploadProgress.loaded;
     const total = state.uploadProgress.total;
     const percent = formatPercent(loaded, total);
+    const isUploadBytesComplete = total > 0 && loaded >= total;
     const now = state.uploadClock || Date.now();
     const elapsedSeconds = Math.max(1, Math.floor((now - (state.uploadStartedAt || now)) / 1000));
     const etaSeconds = percent > 0 && percent < 100
       ? Math.round((elapsedSeconds / percent) * (100 - percent))
       : null;
     const title = state.uploadMode === "files" ? "Uploading files" : "Uploading model";
-    const progressContent = (
+    const progressContent = isUploadBytesComplete ? (
+      <div className="flex flex-col gap-2">
+        <p className="font-semibold">Processing... Please wait, this could take several minutes.</p>
+        {state.uploadFileName ? (
+          <p className="truncate text-xs text-blue-700/60" title={state.uploadFileName}>
+            {state.uploadFileName}
+          </p>
+        ) : null}
+        <div className="flex items-center gap-2 text-xs text-blue-700/70">
+          <div className="h-1.5 w-24 animate-pulse rounded-full bg-blue-300" />
+          <span>Processing...</span>
+        </div>
+      </div>
+    ) : (
       <div className="flex flex-col gap-2">
         <p className="font-semibold">{title}...</p>
+        {state.uploadFileName ? (
+          <p className="truncate text-xs text-blue-700/60" title={state.uploadFileName}>
+            {state.uploadFileName}
+          </p>
+        ) : null}
         <div className="h-1.5 w-full overflow-hidden rounded-full bg-blue-200/60">
           <div className="h-full rounded-full bg-blue-500 transition-[width]" style={{ width: `${percent}%` }} />
         </div>
@@ -433,7 +466,7 @@ export function BackgroundProgressProvider({ children }: { children: ReactNode }
       </div>
     );
     showInfo(title, { id: "models-upload-info", content: progressContent });
-  }, [state.isUploading, state.uploadClock, state.uploadProgress, state.uploadStartedAt, state.uploadMode, showInfo]);
+  }, [state.isUploading, state.uploadClock, state.uploadFileName, state.uploadProgress, state.uploadStartedAt, state.uploadMode, showInfo]);
 
   const contextValue: BackgroundProgressContextType = {
     ...state,
