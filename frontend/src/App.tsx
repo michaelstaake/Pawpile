@@ -44,7 +44,7 @@ function getMainNavItems(user: CurrentUser | null): MobileNavItem[] {
 
   if (user) {
     items.push({ to: "/", end: true, iconClassName: "bi bi-house", label: "Chat" });
-    items.push({ to: "/kb", iconClassName: "bi bi-book-half", label: "Knowledge Base" });
+    items.push({ to: "/kb", iconClassName: "bi bi-book-half", label: "KB" });
     items.push({ to: "/apikeys", iconClassName: "bi bi-key", label: "API" });
     items.push({ to: "/status", iconClassName: "bi bi-activity", label: "Status" });
   }
