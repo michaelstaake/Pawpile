@@ -122,7 +122,21 @@ export function BackgroundProgressProvider({ children }: { children: ReactNode }
   }, []);
 
   const startFetch = useCallback((url: string) => {
-    showInfo("Fetching model...", { id: "models-fetch-info" });
+    showInfo("Fetching model...", {
+      id: "models-fetch-info",
+      content: (
+        <div className="flex flex-col gap-2">
+          <p className="font-semibold">Fetching model...</p>
+          <div className="h-1.5 w-full overflow-hidden rounded-full bg-blue-200/60">
+            <div className="h-full rounded-full bg-blue-500 transition-[width]" style={{ width: "0%" }} />
+          </div>
+          <div className="flex items-center justify-between text-xs text-blue-700/70">
+            <span>0%</span>
+            <span>0 B / 0 B</span>
+          </div>
+        </div>
+      ),
+    });
     setState((prev) => ({
       ...prev,
       isFetching: true,
@@ -160,8 +174,22 @@ export function BackgroundProgressProvider({ children }: { children: ReactNode }
   }, [dismissToast]);
 
   const startUpload = useCallback((mode: "model" | "files", totalBytes: number) => {
-    const label = mode === "files" ? "Uploading files..." : "Uploading model...";
-    showInfo(label, { id: "models-upload-info" });
+    const title = mode === "files" ? "Uploading files..." : "Uploading model...";
+    showInfo(title, {
+      id: "models-upload-info",
+      content: (
+        <div className="flex flex-col gap-2">
+          <p className="font-semibold">{title}</p>
+          <div className="h-1.5 w-full overflow-hidden rounded-full bg-blue-200/60">
+            <div className="h-full rounded-full bg-blue-500 transition-[width]" style={{ width: "0%" }} />
+          </div>
+          <div className="flex items-center justify-between text-xs text-blue-700/70">
+            <span>0%</span>
+            <span>0 B / {formatBytes(totalBytes)}</span>
+          </div>
+        </div>
+      ),
+    });
     setState((prev) => ({
       ...prev,
       isUploading: true,
@@ -182,8 +210,19 @@ export function BackgroundProgressProvider({ children }: { children: ReactNode }
   }, []);
 
   const transitionToProcessing = useCallback(() => {
-    const label = state.uploadMode === "files" ? "Processing files..." : "Processing model...";
-    showInfo(label, { id: "models-upload-info" });
+    const title = state.uploadMode === "files" ? "Processing files" : "Processing model";
+    showInfo(title, {
+      id: "models-upload-info",
+      content: (
+        <div className="flex flex-col gap-2">
+          <p className="font-semibold">Processing model...</p>
+          <div className="flex items-center gap-2 text-xs text-blue-700/70">
+            <div className="h-1.5 w-24 animate-pulse rounded-full bg-blue-300" />
+            <span>This may take several minutes</span>
+          </div>
+        </div>
+      ),
+    });
     setState((prev) => ({
       ...prev,
       isProcessingUpload: true,
@@ -257,18 +296,32 @@ export function BackgroundProgressProvider({ children }: { children: ReactNode }
           const total = response.total ?? 0;
           const percent = formatPercent(loaded, total);
           const etaSeconds = formatEtaFromStart(loaded, total, prev.fetchStartedAt);
-          let message = `Fetching model... ${percent}%`;
-          if (total > 0) {
-            message += ` (${formatBytes(loaded)} / ${formatBytes(total)})`;
-          }
-          if (etaSeconds != null) {
-            message += ` · ${formatEta(etaSeconds)} remaining`;
-          }
-          showInfo(message, { id: "models-fetch-info" });
+          const fileName = response.file_name ?? prev.fetchFileName;
+          const progressContent = (
+            <div className="flex flex-col gap-2">
+              <p className="font-semibold">Fetching model...</p>
+              {fileName ? (
+                <p className="truncate text-xs text-blue-700/60" title={fileName}>
+                  {fileName}
+                </p>
+              ) : null}
+              <div className="h-1.5 w-full overflow-hidden rounded-full bg-blue-200/60">
+                <div className="h-full rounded-full bg-blue-500 transition-[width]" style={{ width: `${percent}%` }} />
+              </div>
+              <div className="flex items-center justify-between text-xs text-blue-700/70">
+                <span>{percent}%</span>
+                <span>
+                  {formatBytes(loaded)} / {formatBytes(total)}
+                  {etaSeconds != null ? ` · ${formatEta(etaSeconds)} remaining` : ""}
+                </span>
+              </div>
+            </div>
+          );
+          showInfo("Fetching model...", { id: "models-fetch-info", content: progressContent });
           return {
             ...prev,
             fetchProgress: { loaded, total },
-            fetchFileName: response.file_name,
+            fetchFileName: fileName,
           };
         });
 
@@ -409,17 +462,27 @@ export function BackgroundProgressProvider({ children }: { children: ReactNode }
       const loaded = state.uploadProgress.loaded;
       const total = state.uploadProgress.total;
       const percent = formatPercent(loaded, total);
-      let message = `Uploading ${state.uploadMode === "files" ? "files" : "model"}... ${percent}%`;
-      if (total > 0) {
-        message += ` (${formatBytes(loaded)} / ${formatBytes(total)})`;
-      }
       const elapsedSeconds = Math.max(1, Math.floor((Date.now() - (state.uploadStartedAt || Date.now())) / 1000));
-      if (percent > 0 && percent < 100) {
-        const remainingPercent = 100 - percent;
-        const etaSeconds = Math.round((elapsedSeconds / percent) * remainingPercent);
-        message += ` · ${formatEta(etaSeconds)} remaining`;
-      }
-      showInfo(message, { id: "models-upload-info" });
+      const etaSeconds = percent > 0 && percent < 100
+        ? Math.round((elapsedSeconds / percent) * (100 - percent))
+        : null;
+      const title = state.uploadMode === "files" ? "Uploading files" : "Uploading model";
+      const progressContent = (
+        <div className="flex flex-col gap-2">
+          <p className="font-semibold">{title}...</p>
+          <div className="h-1.5 w-full overflow-hidden rounded-full bg-blue-200/60">
+            <div className="h-full rounded-full bg-blue-500 transition-[width]" style={{ width: `${percent}%` }} />
+          </div>
+          <div className="flex items-center justify-between text-xs text-blue-700/70">
+            <span>{percent}%</span>
+            <span>
+              {formatBytes(loaded)} / {formatBytes(total)}
+              {etaSeconds != null ? ` · ${formatEta(etaSeconds)} remaining` : ""}
+            </span>
+          </div>
+        </div>
+      );
+      showInfo(title, { id: "models-upload-info", content: progressContent });
     }, 1000);
 
     return () => {

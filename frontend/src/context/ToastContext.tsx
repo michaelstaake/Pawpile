@@ -6,12 +6,14 @@ export type Toast = {
   id: string;
   kind: ToastKind;
   message: string;
+  content?: ReactNode;
   duration: number;
 };
 
 type ShowToastOptions = {
   id?: string;
   duration?: number;
+  content?: ReactNode;
 };
 
 type ToastContextValue = {
@@ -68,7 +70,7 @@ export function ToastProvider({ children }: { children: ReactNode }) {
     const duration = options?.duration ?? TOAST_DURATION_MS[kind];
 
     setToasts((currentToasts) => {
-      const nextToast: Toast = { id, kind, message, duration };
+      const nextToast: Toast = { id, kind, message, content: options?.content, duration };
       const filteredToasts = currentToasts.filter((toast) => toast.id !== id);
       return [...filteredToasts, nextToast].slice(-MAX_VISIBLE_TOASTS);
     });

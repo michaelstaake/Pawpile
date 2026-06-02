@@ -93,7 +93,7 @@ export default function ToastViewport() {
             aria-live={toast.kind === "error" ? "assertive" : "polite"}
             className={`pointer-events-none rounded-2xl border p-4 shadow-lg shadow-black/10 backdrop-blur transition duration-200 animate-[toast-in_180ms_ease-out] ${hoveredToastId === toast.id ? "opacity-55" : "opacity-85"} ${style.cardClassName}`}
           >
-            <p className="min-w-0 text-sm leading-6">{toast.message}</p>
+            {toast.content ?? <p className="min-w-0 text-sm leading-6">{toast.message}</p>}
           </section>
         );
       })}
