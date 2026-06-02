@@ -217,6 +217,7 @@ export default function ModelsPage({ setupMode = false, onComplete }: ModelsPage
   const [isUploading, setIsUploading] = useState(false);
   const [isProcessingUpload, setIsProcessingUpload] = useState(false);
   const [isFetching, setIsFetching] = useState(false);
+  const [isFetchModalOpen, setIsFetchModalOpen] = useState(false);
   const [fetchProgress, setFetchProgress] = useState<UploadProgressState>({ loaded: 0, total: 0 });
   const [fetchJobId, setFetchJobId] = useState<string | null>(null);
   const [fetchStartedAt, setFetchStartedAt] = useState<number | null>(null);
@@ -498,6 +499,7 @@ export default function ModelsPage({ setupMode = false, onComplete }: ModelsPage
     setFetchJobId(null);
     setFetchStartedAt(null);
     setIsFetching(false);
+    setIsFetchModalOpen(true);
   }
 
   async function handleFetch(event: FormEvent<HTMLFormElement>) {
@@ -1336,11 +1338,12 @@ export default function ModelsPage({ setupMode = false, onComplete }: ModelsPage
       </Modal>
 
       <Modal
-          open={isFetching || !!fetchUrl}
+          open={isFetchModalOpen}
         onClose={() => {
           if (!isFetching) {
             setFetchUrl("");
           }
+          setIsFetchModalOpen(false);
         }}
         labelledBy="model-fetch-modal-title"
         panelClassName="w-full max-w-xl"
