@@ -49,6 +49,7 @@ type ModelListResponse = {
     vision_enabled?: boolean;
     web_search_enabled?: boolean;
     web_search_available?: boolean;
+    rag_enabled?: boolean;
   }[];
 };
 
@@ -58,6 +59,7 @@ type ModelCardDetails = {
   toolCallingEnabled: boolean;
   webSearchEnabled: boolean;
   visionEnabled: boolean;
+  ragEnabled: boolean;
 };
 
 type ChatSummary = {
@@ -458,6 +460,7 @@ export default function ChatPage() {
           toolCallingEnabled: entry.tool_calling_enabled ?? false,
           webSearchEnabled: entry.web_search_enabled ?? false,
           visionEnabled: entry.vision_enabled ?? false,
+          ragEnabled: entry.rag_enabled ?? false,
         };
         visionDefaults[entry.id] = entry.vision_enabled ?? false;
         searchAvailability[entry.id] = entry.web_search_available ?? false;
@@ -1049,6 +1052,16 @@ export default function ChatPage() {
                         >
                           <i className="bi bi-image text-[13px] leading-none" aria-hidden="true" />
                           <span>Vision Capable</span>
+                        </span>
+                      ) : null}
+                      {details?.ragEnabled ? (
+                        <span
+                          className={`inline-flex items-center gap-2 rounded-full px-3 py-1.5 text-xs font-medium ${
+                            isSelected ? "bg-white/10 text-white/90" : "bg-black/5 text-black/70"
+                          }`}
+                        >
+                          <i className="bi bi-book-half text-[13px] leading-none" aria-hidden="true" />
+                          <span>RAG</span>
                         </span>
                       ) : null}
                     </div>
