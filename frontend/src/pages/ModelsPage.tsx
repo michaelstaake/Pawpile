@@ -118,6 +118,7 @@ function buildModelPayload(model: ModelRecord) {
     discourage_thinking: model.discourage_thinking,
     vision_enabled: model.vision_enabled,
     web_search_enabled: model.web_search_enabled,
+    rag_enabled: model.rag_enabled,
     assignment_mode: model.assignment_mode,
     pinned_device_id: model.assignment_mode === "pinned" ? model.pinned_device_id : null,
     pinned_pool_id: model.assignment_mode === "pool" ? model.pinned_pool_id : null,
@@ -972,6 +973,23 @@ export default function ModelsPage({ setupMode = false, onComplete }: ModelsPage
                       <span className="text-xs text-black/45">
                         {modalDraft.tool_calling_enabled
                           ? "Allows the model to search the web for current information via the active provider."
+                          : "Requires tool calling to be enabled first."}
+                      </span>
+                    </span>
+                  </label>
+                  <label className={`flex gap-3 rounded-xl border border-black/10 bg-white px-3 py-2 text-sm text-black/70 ${!modalDraft.tool_calling_enabled ? "opacity-50" : ""}`}>
+                    <input
+                      className="mt-1"
+                      type="checkbox"
+                      checked={modalDraft.rag_enabled}
+                      disabled={!modalDraft.tool_calling_enabled}
+                      onChange={(event) => updateModalDraft({ rag_enabled: event.target.checked })}
+                    />
+                    <span className="grid gap-0.5">
+                      <span className="text-sm text-black/70">Knowledge Base</span>
+                      <span className="text-xs text-black/45">
+                        {modalDraft.tool_calling_enabled
+                          ? "Allows the model to retrieve relevant documents from your knowledge base."
                           : "Requires tool calling to be enabled first."}
                       </span>
                     </span>

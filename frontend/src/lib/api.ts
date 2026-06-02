@@ -312,3 +312,24 @@ export async function fetchActiveWebSearchProvider<T>(token?: string): Promise<T
 export async function setActiveWebSearchProvider<T>(providerType: string | null, token?: string): Promise<T> {
   return apiPatch<{ provider_type: string | null }, T>("/api/admin/web-search/active", { provider_type: providerType }, token);
 }
+
+// Knowledge Base API functions
+export async function fetchKbDocuments<T>(token?: string): Promise<T> {
+  return apiGet<T>("/api/knowledge-base/documents", token);
+}
+
+export async function createKbDocument<TRequest, TResponse>(payload: TRequest, token?: string): Promise<TResponse> {
+  return apiPost<TRequest, TResponse>("/api/knowledge-base/documents", payload, token);
+}
+
+export async function updateKbDocument<TRequest, TResponse>(docId: number, payload: TRequest, token?: string): Promise<TResponse> {
+  return apiPatch<TRequest, TResponse>(`/api/knowledge-base/documents/${docId}`, payload, token);
+}
+
+export async function deleteKbDocument<TResponse>(docId: number, token?: string): Promise<TResponse> {
+  return apiDelete<TResponse>(`/api/knowledge-base/documents/${docId}`, token);
+}
+
+export async function fetchKbRagContext<T>(query: string, token?: string): Promise<T> {
+  return apiGet<T>(`/api/knowledge-base/rag-context?query=${encodeURIComponent(query)}`, token);
+}

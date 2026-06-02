@@ -12,9 +12,11 @@ from app.api.deps import require_api_access
 from app.core.activity_logger import log_event
 from app.core.db import get_db
 from app.core.inference_manager import InferenceManager
+from app.core.knowledge_base import build_rag_context, retrieve_relevant_documents
 from app.core.token_usage import record_token_usage
 from app.core.web_search import WEB_SEARCH_TOOL_DEFINITION, get_search_provider, parse_sse_chunks
 from app.models.app_settings import AppSettings
+from app.models.knowledge_base import KnowledgeBaseDocument
 from app.models.model_config import ModelConfig
 from app.models.user import User
 from app.models.web_search_provider import WebSearchProvider as WebSearchProviderModel
@@ -193,6 +195,19 @@ def _apply_thinking_controls(messages: list[dict], model: ModelConfig, enabled: 
     return [{"role": "system", "content": "\n".join(prefix_lines)}, *messages]
 
 
+def _prepend_rag_context(messages: list[dict], rag_context: str) -> list[dict]:
+    """Prepend RAG context as a system message at the beginning of the messages list."""
+    if not rag_context:
+        return messages
+
+    if messages and messages[0].get("role") == "system":
+        existing = messages[0].get("content") or ""
+        combined = f"{rag_context}\n\n{existing}"
+        return [{**messages[0], "content": combined}, *messages[1:]]
+
+    return [{"role": "system", "content": rag_context}, *messages]
+
+
 def _get_active_web_search_provider(db: Session) -> Any | None:
     """Return an active, configured WebSearchProvider instance, or None."""
     settings = db.query(AppSettings).filter(AppSettings.id == 1).first()
@@ -333,6 +348,7 @@ async def _stream_with_web_search(
 @router.get("/models")
 def v1_models(_: User = Depends(require_api_access), db: Session = Depends(get_db)) -> dict:
     active_web_search_provider = _get_active_web_search_provider(db)
+    app_settings = db.query(AppSettings).filter(AppSettings.id == 1).first()
     models = (
         db.query(ModelConfig)
         .filter(ModelConfig.activated.is_(True))
@@ -354,6 +370,8 @@ def v1_models(_: User = Depends(require_api_access), db: Session = Depends(get_d
                 "vision_enabled": m.vision_enabled,
                 "web_search_enabled": m.web_search_enabled,
                 "web_search_available": m.web_search_enabled and m.tool_calling_enabled and active_web_search_provider is not None,
+                "rag_enabled": m.rag_enabled,
+                "rag_available": m.rag_enabled and m.tool_calling_enabled and app_settings and app_settings.knowledge_base_enabled,
             }
             for m in models
         ],
@@ -436,6 +454,26 @@ async def v1_chat_completions(payload: OpenAIChatRequest, current_user: User = D
         model,
         bool(request_payload.get("enable_thinking", True)),
     )
+
+    # RAG: retrieve relevant documents and inject as context if enabled
+    rag_context = ""
+    rag_enabled = payload.model_extra.get("rag_enabled", False) if payload.model_extra else False
+    rag_enabled = rag_enabled or model.rag_enabled
+    app_settings = db.query(AppSettings).filter(AppSettings.id == 1).first()
+    if rag_enabled and app_settings and app_settings.knowledge_base_enabled:
+        # Get the last user message as the query
+        last_user_message = ""
+        for msg in reversed(payload.messages):
+            if msg.role == "user":
+                last_user_message = msg.content if isinstance(msg.content, str) else ""
+                break
+        if last_user_message:
+            docs = retrieve_relevant_documents(db, current_user.id, last_user_message)
+            rag_context = build_rag_context(docs, last_user_message)
+
+    # Inject RAG context into system prompt if available
+    if rag_context:
+        request_payload["messages"] = _prepend_rag_context(request_payload["messages"], rag_context)
 
     # Web search: inject the web_search tool and run the agentic loop if enabled
     active_web_search_provider = _get_active_web_search_provider(db) if web_search_requested else None

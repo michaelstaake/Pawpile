@@ -15,3 +15,4 @@ class AppSettings(Base):
     background_image_path: Mapped[str | None] = mapped_column(String(255), nullable=True)
     background_image_mode: Mapped[str] = mapped_column(String(16), default="fill", nullable=False)
     active_web_search_provider_id: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    knowledge_base_enabled: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)

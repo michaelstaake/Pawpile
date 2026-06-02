@@ -38,6 +38,8 @@ def update_settings(payload: AppSettingsUpdateRequest, admin_user: User = Depend
         app_settings.background_color = payload.background_color
     if payload.background_image_mode is not None:
         app_settings.background_image_mode = payload.background_image_mode
+    if payload.knowledge_base_enabled is not None:
+        app_settings.knowledge_base_enabled = payload.knowledge_base_enabled
 
     db.add(app_settings)
     db.commit()
@@ -225,6 +227,7 @@ def _serialize_app_settings(app_settings) -> AppSettingsResponse:
         background_color=app_settings.background_color,
         background_image_path=app_settings.background_image_path,
         background_image_mode=app_settings.background_image_mode,
+        knowledge_base_enabled=app_settings.knowledge_base_enabled,
     )
 
 

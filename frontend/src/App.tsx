@@ -12,6 +12,7 @@ import DevicesPage from "./pages/DevicesPage";
 import ModelsPage from "./pages/ModelsPage";
 import NotFoundPage from "./pages/NotFoundPage";
 import ForbiddenPage from "./pages/ForbiddenPage";
+import KnowledgeBasePage from "./pages/KnowledgeBasePage";
 import { useAuth } from "./context/AuthContext";
 import { MobileNavProvider, type MobileNavSection } from "./context/MobileNavContext";
 import { useToast } from "./context/ToastContext";
@@ -43,6 +44,7 @@ function getMainNavItems(user: CurrentUser | null): MobileNavItem[] {
 
   if (user) {
     items.push({ to: "/", end: true, iconClassName: "bi bi-house", label: "Chat" });
+    items.push({ to: "/kb", iconClassName: "bi bi-book-half", label: "Knowledge Base" });
     items.push({ to: "/apikeys", iconClassName: "bi bi-key", label: "API" });
     items.push({ to: "/status", iconClassName: "bi bi-activity", label: "Status" });
   }
@@ -189,6 +191,7 @@ export default function App() {
     if (path === "/login" || path === "/auth") return "Login";
     if (path === "/register") return "Register";
     if (path === "/setup") return "Setup";
+    if (path === "/kb") return "Knowledge Base";
     if (path === "/403") return "Forbidden";
     if (path === "/404") return "Not Found";
     return "";
@@ -294,6 +297,7 @@ export default function App() {
             <Route path="/profile" element={<RequireUser><ProfilePage /></RequireUser>} />
             <Route path="/api" element={<Navigate to="/apikeys" replace />} />
             <Route path="/apikeys" element={<RequireUser><ApiPage /></RequireUser>} />
+            <Route path="/kb" element={<RequireUser><KnowledgeBasePage /></RequireUser>} />
             <Route path="/setup" element={<SetupRoute />} />
             <Route path="/403" element={<ForbiddenPage />} />
             <Route path="/404" element={<NotFoundPage />} />

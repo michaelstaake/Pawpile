@@ -1,5 +1,14 @@
 import type { BackgroundImageMode } from "./session";
 
+export type KnowledgeBaseDocumentRecord = {
+  id: number;
+  user_id: number;
+  title: string;
+  content: string;
+  created_at: string | null;
+  updated_at: string | null;
+};
+
 export type WebSearchProviderRecord = {
   id: number;
   provider_type: string;
@@ -56,6 +65,7 @@ export type ModelRecord = {
   discourage_thinking: boolean;
   vision_enabled: boolean;
   web_search_enabled: boolean;
+  rag_enabled: boolean;
   mmproj_file_name: string | null;
   assignment_mode: string;
   pinned_device_id: number | null;

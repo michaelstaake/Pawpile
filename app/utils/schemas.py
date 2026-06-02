@@ -205,6 +205,7 @@ class AppSettingsResponse(BaseModel):
     background_color: str = "#efe8d2"
     background_image_path: str | None = None
     background_image_mode: Literal["fill", "stretch", "repeat"] = "fill"
+    knowledge_base_enabled: bool = False
 
     @field_validator("background_color", mode="before")
     @classmethod
@@ -217,6 +218,7 @@ class AppSettingsUpdateRequest(BaseModel):
     sitename: str | None = None
     background_color: str | None = None
     background_image_mode: Literal["fill", "stretch", "repeat"] | None = None
+    knowledge_base_enabled: bool | None = None
 
     @field_validator("background_color", mode="before")
     @classmethod
@@ -325,6 +327,7 @@ class ModelUpdateRequest(BaseModel):
     discourage_thinking: bool | None = None
     vision_enabled: bool | None = None
     web_search_enabled: bool | None = None
+    rag_enabled: bool | None = None
     assignment_mode: str | None = None
     pinned_device_id: int | None = None
     pinned_pool_id: int | None = None
@@ -447,3 +450,27 @@ class OpenAIChatRequest(BaseModel):
 
     def requests_vision(self) -> bool:
         return any(message.includes_vision() for message in self.messages)
+
+
+class KnowledgeBaseDocumentCreateRequest(BaseModel):
+    title: str = Field(min_length=1, max_length=255)
+    content: str = Field(min_length=1)
+
+
+class KnowledgeBaseDocumentUpdateRequest(BaseModel):
+    title: str | None = Field(default=None, min_length=1, max_length=255)
+    content: str | None = Field(default=None, min_length=1)
+
+
+class KnowledgeBaseDocumentResponse(BaseModel):
+    id: int
+    user_id: int
+    title: str
+    content: str
+    created_at: str | None = None
+    updated_at: str | None = None
+
+
+class KnowledgeBaseRagContextResponse(BaseModel):
+    context: str
+    document_count: int
