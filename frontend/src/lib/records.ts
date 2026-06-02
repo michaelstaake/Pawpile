@@ -140,6 +140,8 @@ export type DeviceStatusRecord = {
   max_threads: number;
   memory_total_mb: number;
   memory_used_mb: number;
+  gpu_usage_percent: number | null;
+  gpu_usage_source: string;
   usage_percent: number | null;
   usage_source: string;
   memory_source: string;

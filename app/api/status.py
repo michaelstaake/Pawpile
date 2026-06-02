@@ -75,6 +75,9 @@ async def get_status(db: Session = Depends(get_db)) -> dict:
         usage_percent = _coalesce_float(runtime_device.get("usage_percent"))
         usage_source = runtime_device.get("usage_source") if usage_percent is not None else None
 
+        gpu_usage_percent = _coalesce_float(runtime_device.get("gpu_usage_percent"))
+        gpu_usage_source = runtime_device.get("gpu_usage_source") if gpu_usage_percent is not None else None
+
         serialized_devices.append(
             {
                 "id": device.id,
@@ -91,6 +94,8 @@ async def get_status(db: Session = Depends(get_db)) -> dict:
                 "max_threads": device.max_threads,
                 "memory_total_mb": _coalesce_int(runtime_device.get("memory_total_mb")) or device.memory_mb,
                 "memory_used_mb": memory_used_mb,
+                "gpu_usage_percent": gpu_usage_percent,
+                "gpu_usage_source": gpu_usage_source or "unavailable",
                 "usage_percent": usage_percent,
                 "usage_source": usage_source or "unavailable",
                 "memory_source": runtime_device.get("memory_source") or "processes",

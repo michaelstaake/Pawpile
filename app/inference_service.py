@@ -299,6 +299,9 @@ class InferenceRuntime:
             usage_percent = hardware_metrics.get("usage_percent")
             usage_source = hardware_metrics.get("usage_source") if usage_percent is not None else "unavailable"
 
+            gpu_usage_percent = hardware_metrics.get("usage_percent") if device.device_type.lower() != "cpu" else None
+            gpu_usage_source = hardware_metrics.get("usage_source") if gpu_usage_percent is not None else "unavailable"
+
             devices.append(
                 {
                     "hardware_id": device.hardware_id,
@@ -309,6 +312,8 @@ class InferenceRuntime:
                     "device_type": device.device_type,
                     "memory_total_mb": hardware_metrics.get("memory_total_mb") or device.memory_mb,
                     "memory_used_mb": memory_used_mb,
+                    "gpu_usage_percent": gpu_usage_percent,
+                    "gpu_usage_source": gpu_usage_source,
                     "usage_percent": usage_percent,
                     "usage_source": usage_source,
                     "memory_source": hardware_metrics.get("memory_source", "processes"),
