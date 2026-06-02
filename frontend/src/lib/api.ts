@@ -236,6 +236,7 @@ export async function apiPostFormWithProgress<TResponse>(
   formData: FormData,
   token?: string,
   onProgress?: (progress: UploadProgress) => void,
+  onUploadComplete?: () => void,
 ): Promise<TResponse> {
   ensureBackendAvailable();
 
@@ -257,6 +258,10 @@ export async function apiPostFormWithProgress<TResponse>(
         loaded: event.loaded,
         total: event.lengthComputable ? event.total : 0,
       });
+    });
+
+    request.upload.addEventListener("load", () => {
+      onUploadComplete?.();
     });
 
     request.addEventListener("load", () => {

@@ -8,7 +8,7 @@ import {
   type ReactNode,
 } from "react";
 import { useAuth } from "./AuthContext";
-import { apiGet, pollUntilTaskComplete, type RunningTaskRecord } from "../lib/api";
+import { apiGet } from "../lib/api";
 import { useToast } from "./ToastContext";
 import { type FetchProgressRecord } from "../lib/records";
 
@@ -211,20 +211,22 @@ export function BackgroundProgressProvider({ children }: { children: ReactNode }
 
   const transitionToProcessing = useCallback(() => {
     const title = state.uploadMode === "files" ? "Processing files" : "Processing model";
+    const message = "Processing... Please wait, this could take several minutes.";
     showInfo(title, {
       id: "models-upload-info",
       content: (
         <div className="flex flex-col gap-2">
-          <p className="font-semibold">Processing model...</p>
+          <p className="font-semibold">{message}</p>
           <div className="flex items-center gap-2 text-xs text-blue-700/70">
             <div className="h-1.5 w-24 animate-pulse rounded-full bg-blue-300" />
-            <span>This may take several minutes</span>
+            <span>{message}</span>
           </div>
         </div>
       ),
     });
     setState((prev) => ({
       ...prev,
+      isUploading: false,
       isProcessingUpload: true,
     }));
   }, [showInfo, state.uploadMode]);
@@ -385,71 +387,6 @@ export function BackgroundProgressProvider({ children }: { children: ReactNode }
       window.clearInterval(intervalId);
     };
   }, [state.isFetching, state.fetchJobId, token]);
-
-  // Upload task polling (when processing)
-  useEffect(() => {
-    if (!state.isProcessingUpload || !token) {
-      return;
-    }
-
-    let active = true;
-    let pollTimeoutId: number | null = null;
-    let successShown = false;
-    let errorShown = false;
-
-    const pollTasks = async () => {
-      if (!active || !tokenRef.current) return;
-
-      try {
-        const tasks = await apiGet<RunningTaskRecord[]>("/api/tasks", tokenRef.current);
-        const uploadTask = tasks.find((t) => t.task_type === "model_upload");
-
-        if (!active) return;
-
-        if (!uploadTask) {
-          if (!successShown) {
-            successShown = true;
-            dismissToast("models-upload-info");
-            showSuccess("Model uploaded successfully.", { id: "models-success" });
-          }
-          setState((prev) => {
-            if (!prev.isProcessingUpload || prev.uploadMode !== state.uploadMode) return prev;
-            return { ...prev, isProcessingUpload: false };
-          });
-          if (tokenRef.current) {
-            setTimeout(() => refreshData(tokenRef.current), 500);
-          }
-          return;
-        }
-
-        if (uploadTask.status === "error") {
-          if (!errorShown) {
-            errorShown = true;
-            dismissToast("models-upload-info");
-            showError(uploadTask.error ?? "Upload failed.", { id: "models-error" });
-          }
-          setState((prev) => {
-            if (!prev.isProcessingUpload || prev.uploadMode !== state.uploadMode) return prev;
-            return { ...prev, isProcessingUpload: false };
-          });
-          return;
-        }
-      } catch {
-        // Silently handle poll errors
-      }
-
-      pollTimeoutId = window.setTimeout(pollTasks, 1500);
-    };
-
-    pollTimeoutId = window.setTimeout(pollTasks, 1500);
-
-    return () => {
-      active = false;
-      if (pollTimeoutId) {
-        window.clearTimeout(pollTimeoutId);
-      }
-    };
-  }, [state.isProcessingUpload, state.uploadMode, token, showSuccess, showError, refreshData]);
 
   // Upload clock timer
   useEffect(() => {
