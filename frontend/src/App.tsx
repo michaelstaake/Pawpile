@@ -16,8 +16,10 @@ import KnowledgeBasePage from "./pages/KnowledgeBasePage";
 import { useAuth } from "./context/AuthContext";
 import { MobileNavProvider, type MobileNavSection } from "./context/MobileNavContext";
 import { useToast } from "./context/ToastContext";
+import { BackgroundProgressProvider } from "./context/BackgroundProgressContext";
 import MobileNavDrawer, { type MobileNavItem } from "./components/ui/MobileNavDrawer";
 import ToastViewport from "./components/ui/ToastViewport";
+import GlobalProgressIndicator from "./components/GlobalProgressIndicator";
 import {
   apiGet,
   BACKEND_UNAVAILABLE_EVENT,
@@ -255,10 +257,12 @@ export default function App() {
   const appBackgroundStyle = buildAppBackgroundStyle(backgroundColor, backgroundImagePath, backgroundImageMode);
 
   return (
-    <div className="app-background min-h-screen text-ink font-body" style={appBackgroundStyle}>
-      <ToastViewport />
-      <MobileNavProvider value={{ closeMobileNav: () => setIsMobileNavOpen(false), setMobileNavSection }}>
-        <div className="mx-auto max-w-7xl px-4 py-6 md:px-8">
+    <BackgroundProgressProvider>
+      <div className="app-background min-h-screen text-ink font-body" style={appBackgroundStyle}>
+        <GlobalProgressIndicator />
+        <ToastViewport />
+        <MobileNavProvider value={{ closeMobileNav: () => setIsMobileNavOpen(false), setMobileNavSection }}>
+          <div className="mx-auto max-w-7xl px-4 py-6 md:px-8">
           <header className="relative z-50 mb-6 flex items-center justify-between gap-4 overflow-visible rounded-2xl border border-black/10 bg-white/80 p-4 shadow-sm backdrop-blur isolate">
             <NavLink to="/" className="inline-flex items-baseline gap-3 rounded-lg focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ink/30">
               <h1 className="font-display text-2xl font-semibold tracking-tight">{sitename}</h1>
@@ -314,8 +318,10 @@ export default function App() {
             extraSection={mobileNavSection}
           />
         </div>
-      </MobileNavProvider>
-    </div>
+         </MobileNavProvider>
+        </div>
+      </div>
+    </BackgroundProgressProvider>
   );
 }
 

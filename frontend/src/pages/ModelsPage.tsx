@@ -1,9 +1,10 @@
 import { type DragEvent, type FormEvent, useEffect, useRef, useState } from "react";
-import { apiDelete, apiGet, apiPatch, apiPost, apiPostFormWithProgress, pollUntilTaskComplete } from "../lib/api";
+import { apiDelete, apiGet, apiPatch, apiPost, apiPostFormWithProgress } from "../lib/api";
 import { useAuth } from "../context/AuthContext";
 import { useToast } from "../context/ToastContext";
+import { useBackgroundProgress } from "../context/BackgroundProgressContext";
 import { formatDeviceIdLabel } from "../lib/deviceIds";
-import { AssetUploadResponse, DeviceRecord, FetchProgressRecord, GpuPoolRecord, ModelActivationResponse, ModelRecord, ModelUpdateResponse, ScanResponse, UploadResponse } from "../lib/records";
+import { AssetUploadResponse, DeviceRecord, GpuPoolRecord, ModelActivationResponse, ModelRecord, ModelUpdateResponse, ScanResponse, UploadResponse } from "../lib/records";
 import Modal from "../components/ui/Modal";
 
 const AUTO_SAVE_DELAY_MS = 700;
@@ -91,11 +92,6 @@ function buildAssignmentUpdate(targetValue: string): Pick<ModelRecord, "assignme
 type ModelsPageProps = {
   setupMode?: boolean;
   onComplete?: () => void;
-};
-
-type UploadProgressState = {
-  loaded: number;
-  total: number;
 };
 
 type UploadModalMode = "model" | "files";
@@ -213,23 +209,39 @@ export default function ModelsPage({ setupMode = false, onComplete }: ModelsPage
   const [isDeletingModal, setIsDeletingModal] = useState(false);
   const [draggedModelId, setDraggedModelId] = useState<number | null>(null);
   const [isUploadModalOpen, setIsUploadModalOpen] = useState(false);
-  const [uploadMode, setUploadMode] = useState<UploadModalMode>("model");
   const [uploadTargetModelId, setUploadTargetModelId] = useState<number | null>(null);
   const [selectedUploadFiles, setSelectedUploadFiles] = useState<File[]>([]);
-  const [uploadProgress, setUploadProgress] = useState<UploadProgressState>({ loaded: 0, total: 0 });
-  const [uploadStartedAt, setUploadStartedAt] = useState<number | null>(null);
-  const [uploadClock, setUploadClock] = useState(() => Date.now());
   const [isLoading, setIsLoading] = useState(false);
-  const [isUploading, setIsUploading] = useState(false);
-  const [isProcessingUpload, setIsProcessingUpload] = useState(false);
-  const [isFetching, setIsFetching] = useState(false);
-  const [isFetchModalOpen, setIsFetchModalOpen] = useState(false);
-  const [fetchProgress, setFetchProgress] = useState<UploadProgressState>({ loaded: 0, total: 0 });
-  const [fetchJobId, setFetchJobId] = useState<string | null>(null);
-  const [fetchFileName, setFetchFileName] = useState<string | null>(null);
-  const [fetchStartedAt, setFetchStartedAt] = useState<number | null>(null);
-  const [fetchUrl, setFetchUrl] = useState("");
   const [isScanning, setIsScanning] = useState(false);
+  const [fetchUrlInput, setFetchUrlInput] = useState("");
+  const {
+    isFetching,
+    fetchJobId,
+    fetchProgress,
+    fetchFileName,
+    fetchStartedAt,
+    isUploading,
+    isProcessingUpload,
+    uploadProgress,
+    uploadStartedAt,
+    uploadClock,
+    uploadMode,
+    isScanning: contextIsScanning,
+    startFetch,
+    cancelFetch,
+    startUpload,
+    completeUploadRequest,
+    transitionToProcessing,
+    stopUpload,
+    startScan,
+    stopScan,
+    updateUploadProgress,
+    updateUploadClock: contextUpdateUploadClock,
+    resetFetch,
+    setFetchJobId: contextSetFetchJobId,
+    setFetchFileName: contextSetFetchFileName,
+    setUploadMode: contextSetUploadMode,
+  } = useBackgroundProgress();
   const [isReordering, setIsReordering] = useState(false);
   const [savingModelIds, setSavingModelIds] = useState<number[]>([]);
   const [pendingModelIds, setPendingModelIds] = useState<number[]>([]);
@@ -253,69 +265,6 @@ export default function ModelsPage({ setupMode = false, onComplete }: ModelsPage
     }
     void refreshData(token);
   }, [token]);
-
-  useEffect(() => {
-    if (!isUploading || isProcessingUpload) {
-      return;
-    }
-
-    const intervalId = window.setInterval(() => {
-      setUploadClock(Date.now());
-    }, 1000);
-
-    return () => {
-      window.clearInterval(intervalId);
-    };
-  }, [isProcessingUpload, isUploading]);
-
-  useEffect(() => {
-    if (!isFetching || !fetchJobId || !token) {
-      return;
-    }
-
-    const pollIntervalId = window.setInterval(async () => {
-      try {
-        const response = await apiGet<FetchProgressRecord>(`/api/models/fetch/${fetchJobId}`, token);
-        setFetchProgress({ loaded: response.downloaded, total: response.total ?? 0 });
-        setFetchFileName(response.file_name);
-
-        if (response.status === "completed") {
-          window.clearInterval(pollIntervalId);
-          setIsFetching(false);
-          setFetchJobId(null);
-          setFetchFileName(null);
-          setFetchStartedAt(null);
-          setFetchUrl("");
-          if (response.model) {
-            const fetchedModel = response.model as unknown as ModelRecord;
-            applyUploadedModel(fetchedModel);
-          }
-          showSuccess("Model fetched successfully.", { id: "models-fetch-success" });
-          await refreshData(token);
-        } else if (response.status === "error") {
-          window.clearInterval(pollIntervalId);
-          setIsFetching(false);
-          setFetchJobId(null);
-          setFetchFileName(null);
-          setFetchStartedAt(null);
-          setFetchUrl("");
-          showError(response.error ?? "Fetch failed.", { id: "models-fetch-error" });
-        }
-      } catch {
-        window.clearInterval(pollIntervalId);
-        setIsFetching(false);
-        setFetchJobId(null);
-        setFetchFileName(null);
-        setFetchStartedAt(null);
-        setFetchUrl("");
-        showError("Fetch job not found or expired.", { id: "models-fetch-error" });
-      }
-    }, 1000);
-
-    return () => {
-      window.clearInterval(pollIntervalId);
-    };
-  }, [isFetching, fetchJobId, token]);
 
   async function refreshData(activeToken: string) {
     setIsLoading(true);
@@ -366,23 +315,20 @@ export default function ModelsPage({ setupMode = false, onComplete }: ModelsPage
 
   function resetUploadSelection() {
     setSelectedUploadFiles([]);
-    setUploadProgress({ loaded: 0, total: 0 });
-    setUploadStartedAt(null);
-    setUploadClock(Date.now());
     if (uploadInputRef.current) {
       uploadInputRef.current.value = "";
     }
   }
 
   function openModelUploadModal() {
-    setUploadMode("model");
+    contextSetUploadMode("model");
     setUploadTargetModelId(null);
     resetUploadSelection();
     setIsUploadModalOpen(true);
   }
 
   function openAssetUploadModal(modelId: number) {
-    setUploadMode("files");
+    contextSetUploadMode("files");
     setUploadTargetModelId(modelId);
     resetUploadSelection();
     setIsUploadModalOpen(true);
@@ -438,53 +384,36 @@ export default function ModelsPage({ setupMode = false, onComplete }: ModelsPage
     }
     const totalBytes = filesToUpload.reduce((total, file) => total + file.size, 0);
 
-    setIsUploading(true);
-    setIsProcessingUpload(false);
+    startUpload(uploadMode, totalBytes);
     setIsUploadModalOpen(false);
-    setUploadStartedAt(Date.now());
-    setUploadClock(Date.now());
-    setUploadProgress({ loaded: 0, total: totalBytes });
 
     try {
       if (uploadMode === "model") {
-        const uploadResponse = await apiPostFormWithProgress<{ task_id: string }>("/api/models/upload", formData, token, (progress) => {
+        await apiPostFormWithProgress<{ task_id: string }>("/api/models/upload", formData, token, (progress) => {
           const total = progress.total || totalBytes;
-          setUploadProgress({
-            loaded: progress.loaded,
-            total,
-          });
+          updateUploadProgress({ loaded: progress.loaded, total });
           if (progress.loaded >= total) {
-            setIsProcessingUpload(true);
+            completeUploadRequest();
+            transitionToProcessing();
           }
         });
-        const taskId = uploadResponse.task_id;
-        await pollUntilTaskComplete(taskId, token);
-        await refreshData(token);
-        resetUploadSelection();
-        setUploadProgress({ loaded: totalBytes, total: totalBytes });
-        showSuccess(`Uploaded ${filesToUpload[0].name}.`, { id: "models-success" });
       } else {
         const response = await apiPostFormWithProgress<AssetUploadResponse>(`/api/models/${uploadTargetModelId}/files`, formData, token, (progress) => {
           const total = progress.total || totalBytes;
-          setUploadProgress({
-            loaded: progress.loaded,
-            total,
-          });
+          updateUploadProgress({ loaded: progress.loaded, total });
           if (progress.loaded >= total) {
-            setIsProcessingUpload(true);
+            completeUploadRequest();
+            transitionToProcessing();
           }
         });
         applyUploadedModel(response.model);
+        stopUpload();
         resetUploadSelection();
-        setUploadProgress({ loaded: totalBytes, total: totalBytes });
         showSuccess(`Uploaded ${response.uploaded.length} file${response.uploaded.length === 1 ? "" : "s"} to ${response.model.alias}.`, { id: "models-success" });
       }
     } catch (error) {
       showError(error instanceof Error ? error.message : uploadMode === "model" ? "Upload failed" : "File upload failed", { id: "models-error" });
-    } finally {
-      setIsUploading(false);
-      setIsProcessingUpload(false);
-      setUploadStartedAt(null);
+      stopUpload();
     }
   }
 
@@ -493,7 +422,7 @@ export default function ModelsPage({ setupMode = false, onComplete }: ModelsPage
       return;
     }
 
-    setIsScanning(true);
+    startScan();
 
     try {
       const response = await apiPost<Record<string, never>, ScanResponse>("/api/models/scan", {}, token);
@@ -502,44 +431,36 @@ export default function ModelsPage({ setupMode = false, onComplete }: ModelsPage
     } catch (error) {
       showError(error instanceof Error ? error.message : "Scan failed", { id: "models-error" });
     } finally {
-      setIsScanning(false);
+      stopScan();
     }
   }
 
   function openFetchModal() {
-    setFetchUrl("");
-    setFetchProgress({ loaded: 0, total: 0 });
-    setFetchJobId(null);
-    setFetchFileName(null);
-    setFetchStartedAt(null);
-    setIsFetching(false);
+    resetFetch();
     setIsFetchModalOpen(true);
   }
 
   async function handleFetch(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    if (!token || !fetchUrl.trim()) {
+    if (!token || !fetchUrlInput.trim()) {
       return;
     }
 
-    const url = fetchUrl.trim();
+    const url = fetchUrlInput.trim();
     if (!url.endsWith(".gguf")) {
       showError("URL must point to a .gguf file.", { id: "models-fetch-error" });
       return;
     }
 
-    setIsFetching(true);
+    startFetch(url);
     setIsFetchModalOpen(false);
-    setFetchStartedAt(Date.now());
-    setFetchProgress({ loaded: 0, total: 0 });
 
     try {
       const response = await apiPost<{ url: string }, { status: string; job_id: string }>("/api/models/fetch", { url }, token);
-      setFetchJobId(response.job_id);
-      setFetchProgress({ loaded: 0, total: 0 });
+      contextSetFetchJobId(response.job_id);
     } catch (error) {
-      setIsFetching(false);
-      setFetchUrl("");
+      resetFetch();
+      setFetchUrlInput("");
       showError(error instanceof Error ? error.message : "Failed to start fetch.", { id: "models-fetch-error" });
     }
   }
@@ -864,7 +785,7 @@ export default function ModelsPage({ setupMode = false, onComplete }: ModelsPage
     if (uploadMode === "files") {
       setUploadTargetModelId(null);
     }
-    setUploadMode("model");
+    contextSetUploadMode("model");
     resetUploadSelection();
   }
 
@@ -896,9 +817,9 @@ export default function ModelsPage({ setupMode = false, onComplete }: ModelsPage
               className="rounded-xl border border-black/15 px-4 py-2 text-sm font-semibold text-black transition hover:bg-black/5 disabled:cursor-not-allowed disabled:opacity-60"
               type="button"
               onClick={handleScan}
-              disabled={isScanning || isUploading || isFetching}
+              disabled={contextIsScanning || isUploading || isFetching}
             >
-              {isScanning ? "Scanning..." : "Scan Models Folder"}
+              {contextIsScanning ? "Scanning..." : "Scan Models Folder"}
             </button>
           </div>
         </div>
@@ -913,7 +834,7 @@ export default function ModelsPage({ setupMode = false, onComplete }: ModelsPage
             </div>
             {isUploading && isProcessingUpload ? (
               <p className="rounded-xl border border-black/10 bg-white/70 px-3 py-3 text-sm text-black/70">
-                This could take several minutes, especially with large files. If you aren't using an SSD with fast sustained writes, you may even want to go make some coffee or take a walk if staring at this message isn't your preferred pastime. Do not leave this page or close this tab! You will be notified with a success or error message once this process either completes or fails.
+                This could take several minutes, especially with large files. If you aren't using an SSD with fast sustained writes, you may even want to go make some coffee or take a walk if staring at this message isn't your preferred pastime. You can safely navigate away from this page - you will be notified with a success or error message once this process either completes or fails.
               </p>
             ) : null}
             {isUploading && uploadTotal > 0 && !isProcessingUpload ? (
@@ -955,7 +876,7 @@ export default function ModelsPage({ setupMode = false, onComplete }: ModelsPage
             ) : null}
             {isFetching && (!fetchProgress.total || fetchProgress.total === 0) ? (
               <p className="rounded-xl border border-black/10 bg-white/70 px-3 py-3 text-sm text-black/70">
-                Downloading file... This could take several minutes for large models. Do not leave this page or close this tab!
+                Downloading file... This could take several minutes for large models. You can safely navigate away from this page - you will be notified with a success or error message once this process either completes or fails.
               </p>
             ) : null}
           </div>
@@ -1360,7 +1281,7 @@ export default function ModelsPage({ setupMode = false, onComplete }: ModelsPage
           open={isFetchModalOpen}
         onClose={() => {
           if (!isFetching) {
-            setFetchUrl("");
+            setFetchUrlInput("");
           }
           setIsFetchModalOpen(false);
         }}
@@ -1381,8 +1302,8 @@ export default function ModelsPage({ setupMode = false, onComplete }: ModelsPage
                 className="rounded-xl border border-black/15 bg-white px-3 py-2 text-sm"
                 type="url"
                 placeholder="https://example.com/model.gguf"
-                value={fetchUrl}
-                onChange={(event) => setFetchUrl(event.target.value)}
+                value={fetchUrlInput}
+                onChange={(event) => setFetchUrlInput(event.target.value)}
                 disabled={isFetching}
                 required
               />
@@ -1395,7 +1316,7 @@ export default function ModelsPage({ setupMode = false, onComplete }: ModelsPage
               className="rounded-xl border border-black/15 px-4 py-2 text-sm font-semibold text-black hover:bg-black/5 disabled:cursor-not-allowed disabled:opacity-60"
               onClick={() => {
                 if (!isFetching) {
-                  setFetchUrl("");
+                  setFetchUrlInput("");
                 }
               }}
               disabled={isFetching}
@@ -1405,7 +1326,7 @@ export default function ModelsPage({ setupMode = false, onComplete }: ModelsPage
             <button
               type="submit"
               className="rounded-xl bg-amber px-4 py-2 text-sm font-semibold text-black disabled:cursor-not-allowed disabled:opacity-60"
-              disabled={isFetching || !fetchUrl.trim()}
+              disabled={isFetching || !fetchUrlInput.trim()}
             >
               {isFetching ? "Fetching..." : "Fetch Model File"}
             </button>
