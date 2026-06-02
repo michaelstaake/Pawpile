@@ -1336,7 +1336,7 @@ export default function ModelsPage({ setupMode = false, onComplete }: ModelsPage
       </Modal>
 
       <Modal
-        open={isFetching || (fetchUrl && !isFetching)}
+          open={isFetching || !!fetchUrl}
         onClose={() => {
           if (!isFetching) {
             setFetchUrl("");
