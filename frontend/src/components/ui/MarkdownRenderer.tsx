@@ -10,12 +10,12 @@ type MarkdownRendererProps = {
 };
 
 type PreProps = {
-  children: ReactNode;
+  children?: ReactNode;
   [key: string]: unknown;
 };
 
 type CodeProps = {
-  children: ReactNode;
+  children?: ReactNode;
   className?: string;
   [key: string]: unknown;
 };
