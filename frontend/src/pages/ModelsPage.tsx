@@ -181,6 +181,12 @@ function formatUploadEta(seconds: number | null): string {
     return "Calculating...";
   }
 
+  if (seconds >= 60) {
+    const minutes = Math.floor(seconds / 60);
+    const remainingSeconds = seconds % 60;
+    return `${minutes} minute${minutes === 1 ? "" : "s"} ${remainingSeconds} second${remainingSeconds === 1 ? "" : "s"}`;
+  }
+
   return `${seconds} second${seconds === 1 ? "" : "s"}`;
 }
 
@@ -816,7 +822,7 @@ export default function ModelsPage({ setupMode = false, onComplete }: ModelsPage
   const uploadTotal = uploadProgress.total || selectedUploadBytes || 0;
   const uploadPercent = uploadTotal > 0 ? Math.min(100, Math.round((uploadProgress.loaded / uploadTotal) * 100)) : 0;
   const uploadEtaSeconds =
-    uploadStartedAt != null && uploadProgress.loaded > 0 && uploadTotal > 0 && uploadPercent >= 10 && uploadProgress.loaded < uploadTotal
+    uploadStartedAt != null && uploadProgress.loaded > 0 && uploadTotal > 0 && uploadPercent >= 5 && uploadProgress.loaded < uploadTotal
       ? Math.max(
           1,
           Math.ceil((((uploadTotal - uploadProgress.loaded) / uploadProgress.loaded) * Math.max(1, uploadClock - uploadStartedAt)) / 1000),
@@ -825,7 +831,7 @@ export default function ModelsPage({ setupMode = false, onComplete }: ModelsPage
   const fetchTotal = fetchProgress.total || 0;
   const fetchPercent = fetchTotal > 0 ? Math.min(100, Math.round((fetchProgress.loaded / fetchTotal) * 100)) : 0;
   const fetchEtaSeconds =
-    fetchStartedAt != null && fetchProgress.loaded > 0 && fetchTotal > 0 && fetchPercent >= 10 && fetchProgress.loaded < fetchTotal
+    fetchStartedAt != null && fetchProgress.loaded > 0 && fetchTotal > 0 && fetchPercent >= 5 && fetchProgress.loaded < fetchTotal
       ? Math.max(
           1,
           Math.ceil((((fetchTotal - fetchProgress.loaded) / fetchProgress.loaded) * Math.max(1, Date.now() - fetchStartedAt)) / 1000),
