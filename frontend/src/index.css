@@ -119,7 +119,7 @@ body {
 .markdown-content .hljs {
   background-color: #101820;
   color: #f5f2e8;
-  padding: 0;
+  padding: 1rem;
   border-radius: 0;
 }
 
