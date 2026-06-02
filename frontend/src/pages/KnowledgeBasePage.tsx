@@ -315,7 +315,6 @@ export default function KnowledgeBasePage() {
                     onClick={() => {
                       if (draftMode !== "idle") cancelDraft();
                       setSelectedCategoryId(selectedCategoryId === cat.id ? null : cat.id);
-                      setOpenMenuId(`cat-${cat.id}`);
                     }}
                     className="flex w-full items-center justify-between gap-2 rounded-lg px-2.5 py-2 text-left text-sm"
                   >
@@ -332,13 +331,13 @@ export default function KnowledgeBasePage() {
                         }`}>Default</span>
                       )}
                     </div>
-                    <button
-                      type="button"
-                      onClick={(e) => { e.stopPropagation(); setOpenMenuId(openMenuId === `cat-${cat.id}` ? null : `cat-${cat.id}`); }}
-                      className="rounded p-1 transition hover:bg-white/20"
-                    >
-                      <i className="bi bi-three-dots-vertical text-[14px]"></i>
-                    </button>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={(e) => { e.stopPropagation(); setOpenMenuId(openMenuId === `cat-${cat.id}` ? null : `cat-${cat.id}`); }}
+                    className="absolute right-2 top-1/2 -translate-y-1/2 rounded p-1 transition hover:bg-white/20"
+                  >
+                    <i className="bi bi-three-dots-vertical text-[14px]"></i>
                   </button>
 
                   {openMenuId === `cat-${cat.id}` && (
