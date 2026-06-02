@@ -406,7 +406,17 @@ export default function KnowledgeBasePage() {
         {/* Document list */}
         <article className="rounded-2xl border border-black/10 bg-white/80 p-5 shadow-sm backdrop-blur">
           <div className="mb-4 flex items-center justify-between">
-            <h2 className="font-display text-lg">Documents</h2>
+            <div className="flex items-center gap-2 text-sm">
+              <span className="font-display text-base">Documents</span>
+              {selectedCategoryId !== null && (
+                <>
+                  <i className="bi bi-chevron-right text-[10px] text-black/30"></i>
+                  <span className="font-medium text-black/70">
+                    {categories.find((c) => c.id === selectedCategoryId)?.name}
+                  </span>
+                </>
+              )}
+            </div>
             {draftMode === "idle" && (
               <button
                 type="button"
