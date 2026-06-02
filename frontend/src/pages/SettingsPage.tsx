@@ -2,13 +2,15 @@ import { useState } from "react";
 import ConfigurationPage from "./ConfigurationPage";
 import KnowledgeBaseSettings from "./KnowledgeBaseSettings";
 import LogsPage from "./LogsPage";
+import RunningTasksPage from "./RunningTasksPage";
 import UsersPage from "./UsersPage";
 import WebSearchPage from "./WebSearchPage";
 
-type SettingsTab = "general" | "users" | "web_search" | "kb_settings" | "logs";
+type SettingsTab = "general" | "running_tasks" | "users" | "web_search" | "kb_settings" | "logs";
 
 const tabs: { id: SettingsTab; label: string }[] = [
   { id: "general", label: "Configuration" },
+  { id: "running_tasks", label: "Running Tasks" },
   { id: "users", label: "Users" },
   { id: "web_search", label: "Web Search" },
   { id: "kb_settings", label: "Knowledge Base" },
@@ -34,6 +36,7 @@ export default function SettingsPage() {
       </div>
 
       {activeTab === "general" && <ConfigurationPage />}
+  {activeTab === "running_tasks" && <RunningTasksPage />}
       {activeTab === "users" && <UsersPage />}
       {activeTab === "web_search" && <WebSearchPage />}
       {activeTab === "kb_settings" && <KnowledgeBaseSettings />}

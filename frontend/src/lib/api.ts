@@ -333,3 +333,22 @@ export async function deleteKbDocument<TResponse>(docId: number, token?: string)
 export async function fetchKbRagContext<T>(query: string, token?: string): Promise<T> {
   return apiGet<T>(`/api/knowledge-base/rag-context?query=${encodeURIComponent(query)}`, token);
 }
+
+export type RunningTaskRecord = {
+  task_id: string;
+  task_type: string;
+  description: string;
+  status: string;
+  progress: number;
+  metadata: Record<string, string | number | boolean | null>;
+  created_at: number;
+  error: string | null;
+};
+
+export async function fetchRunningTasks(token?: string): Promise<RunningTaskRecord[]> {
+  return apiGet<RunningTaskRecord[]>("/api/tasks", token);
+}
+
+export async function cancelRunningTask(taskId: string, token?: string): Promise<{ status: string; message: string }> {
+  return apiDelete<{ status: string; message: string }>(`/api/tasks/${taskId}`, token);
+}

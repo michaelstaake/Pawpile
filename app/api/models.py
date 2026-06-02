@@ -25,6 +25,7 @@ from app.models.device import Device
 from app.models.gpu_pool import GpuPool, GpuPoolDevice
 from app.models.model_config import ModelConfig
 from app.models.user import User
+from app.core.task_manager import task_manager
 from app.utils.schemas import ModelReorderRequest, ModelUpdateRequest
 
 router = APIRouter(prefix="/api/models", tags=["models"])
@@ -36,7 +37,6 @@ FETCH_JOB_TTL_SECONDS = 30 * 60  # 30 minutes
 
 # In-memory store for fetch job progress: job_id -> progress dict
 _fetch_jobs: dict[str, dict] = {}
-
 
 class FetchModelRequest(BaseModel):
     url: str = Field(..., min_length=1, max_length=2048)
@@ -59,6 +59,16 @@ def _set_fetch_job_error(job_id: str, error: str) -> None:
         return
     job["status"] = "error"
     job["error"] = error
+    task_manager.fail_task(job_id, error)
+
+
+def _set_fetch_job_cancelled(job_id: str) -> None:
+    job = _fetch_jobs.get(job_id)
+    if not job:
+        return
+    job["status"] = "cancelled"
+    job["error"] = None
+    task_manager.mark_cancelled(job_id)
 
 
 async def _run_fetch_job(
@@ -100,6 +110,7 @@ async def _run_fetch_job(
                         written += len(chunk)
                         _fetch_jobs[job_id]["downloaded"] = written
                         _fetch_jobs[job_id]["percent"] = min(100, int((written / total) * 100)) if total > 0 else 0
+                        task_manager.update_task(job_id, progress=min(1.0, written / total) if total > 0 else 0.0)
 
                         if written > max_bytes:
                             _remove_model_dir(model_dir)
@@ -146,8 +157,13 @@ async def _run_fetch_job(
         _fetch_jobs[job_id]["status"] = "completed"
         _fetch_jobs[job_id]["model"] = _serialize_model(model)
         _fetch_jobs[job_id]["model_id"] = model.id
+        task_manager.complete_task(job_id)
 
         log_event(db, "model.fetched", details={"file_name": file_name, "alias": model.alias, "url": url})
+    except asyncio.CancelledError:
+        _remove_model_dir(model_dir)
+        _set_fetch_job_cancelled(job_id)
+        raise
     except Exception as exc:
         _remove_model_dir(model_dir)
         _set_fetch_job_error(job_id, f"Failed to download file: {exc}")
@@ -208,7 +224,7 @@ def reorder_models(payload: ModelReorderRequest, _: User = Depends(get_admin_use
 
 
 @router.post("/upload")
-def upload_model(
+async def upload_model(
     file: UploadFile = File(...),
     _: User = Depends(get_admin_user),
     db: Session = Depends(get_db),
@@ -232,27 +248,42 @@ def upload_model(
 
     max_bytes = max(1, settings.max_upload_size_mb) * 1024 * 1024
     written = 0
+    task_id = str(uuid.uuid4())
+    task_manager.add_task(
+        task_id=task_id,
+        task_type="model_upload",
+        description=f"Uploading model: {file_name}",
+        async_task=asyncio.current_task(),
+        metadata={"file_name": file_name},
+    )
+
     try:
         model_dir.mkdir(parents=True, exist_ok=False)
         with destination.open("wb") as output:
             while True:
-                chunk = file.file.read(UPLOAD_CHUNK_BYTES)
+                chunk = await file.read(UPLOAD_CHUNK_BYTES)
                 if not chunk:
                     break
                 written += len(chunk)
                 if written > max_bytes:
-                    output.close()
                     _remove_model_dir(model_dir)
+                    task_manager.fail_task(task_id, f"Uploaded file exceeds the {settings.max_upload_size_mb} MB limit")
                     raise HTTPException(
                         status_code=413,
                         detail=f"Uploaded file exceeds the {settings.max_upload_size_mb} MB limit",
                     )
                 output.write(chunk)
+                task_manager.update_task(task_id, progress=min(1.0, written / max_bytes))
+    except asyncio.CancelledError:
+        _remove_model_dir(model_dir)
+        task_manager.mark_cancelled(task_id)
+        raise
     except OSError as exc:
         _remove_model_dir(model_dir)
+        task_manager.complete_task(task_id, error=f"Failed to store uploaded model: {exc}")
         raise HTTPException(status_code=500, detail="Failed to store uploaded model") from exc
     finally:
-        file.file.close()
+        await file.close()
 
     model = ModelConfig(
         priority=_next_model_priority(db),
@@ -277,8 +308,10 @@ def upload_model(
     except SQLAlchemyError as exc:
         db.rollback()
         _remove_model_dir(model_dir)
+        task_manager.fail_task(task_id, "Uploaded model could not be registered")
         raise HTTPException(status_code=500, detail="Uploaded model could not be registered") from exc
 
+    task_manager.complete_task(task_id)
     log_event(db, "model.uploaded", details={"file_name": file_name, "alias": model.alias})
     return {"status": "ok", "model": _serialize_model(model)}
 
@@ -337,7 +370,14 @@ async def fetch_model(
         "model_dir_name": model_dir_name,
     }
 
-    asyncio.create_task(_run_fetch_job(job_id, payload.url, file_name, model_dir_name, model_dir, destination, max_bytes))
+    fetch_task = asyncio.create_task(_run_fetch_job(job_id, payload.url, file_name, model_dir_name, model_dir, destination, max_bytes))
+    task_manager.add_task(
+        task_id=job_id,
+        task_type="model_fetch",
+        description=f"Fetching model: {file_name}",
+        async_task=fetch_task,
+        metadata={"file_name": file_name, "url": payload.url},
+    )
     return {"status": "ok", "job_id": job_id}
 
 

@@ -246,15 +246,18 @@ class InferenceManager:
             raise RuntimeError("Model is not active")
 
         url = f"{running.base_url}/runtime/models/{model_id}/chat/completions"
-        async with httpx.AsyncClient(timeout=self.settings.llama_request_timeout_seconds) as client:
-            async with client.stream("POST", url, json=payload) as response:
-                if response.is_error:
-                    await response.aread()
-                    raise RuntimeError(_runtime_error_detail(response))
+        try:
+            async with httpx.AsyncClient(timeout=self.settings.llama_request_timeout_seconds) as client:
+                async with client.stream("POST", url, json=payload) as response:
+                    if response.is_error:
+                        await response.aread()
+                        raise RuntimeError(_runtime_error_detail(response))
 
-                async for chunk in response.aiter_bytes():
-                    if chunk:
-                        yield chunk
+                    async for chunk in response.aiter_bytes():
+                        if chunk:
+                            yield chunk
+        except httpx.HTTPError as exc:
+            raise RuntimeError(f"Inference stream error: {exc}") from exc
 
 
 def _resolve_mmproj_path(model: ModelConfig) -> str | None:

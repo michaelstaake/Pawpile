@@ -18,7 +18,7 @@ from app.core.inference_manager import InferenceManager, PoolActivationTarget
 from app.core.logging import configure_logging
 from app.core import token_usage as _token_usage
 from app.models.model_config import ModelConfig
-
+from app.api import tasks
 settings = get_settings()
 Path(settings.data_dir).mkdir(parents=True, exist_ok=True)
 Path(settings.data_dir, "backgrounds").mkdir(parents=True, exist_ok=True)
@@ -98,7 +98,7 @@ async def lifespan(_: FastAPI):
     pruning_task.cancel()
 
     for model_id in list(inference_manager._running.keys()):
-        inference_manager.deactivate_model(model_id)
+        await inference_manager.deactivate_model(model_id)
 
 
 app = FastAPI(title=settings.app_name, lifespan=lifespan)
@@ -128,6 +128,7 @@ app.include_router(knowledge_base.router)
 app.include_router(logs.router)
 app.include_router(openai_compat.router)
 app.include_router(status.router)
+app.include_router(tasks.router)
 
 
 @app.get("/health")

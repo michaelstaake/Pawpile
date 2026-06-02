@@ -14,6 +14,7 @@ from app.core.db import get_db
 from app.core.inference_manager import InferenceManager
 from app.core.knowledge_base import build_rag_context, retrieve_relevant_documents
 from app.core.token_usage import record_token_usage
+from app.core.task_manager import task_manager
 from app.core.web_search import WEB_SEARCH_TOOL_DEFINITION, get_search_provider, parse_sse_chunks
 from app.models.app_settings import AppSettings
 from app.models.knowledge_base import KnowledgeBaseDocument
@@ -482,6 +483,19 @@ async def v1_chat_completions(payload: OpenAIChatRequest, current_user: User = D
             detail="No active web search provider is configured. Select one in Settings > Web Search before requesting search.",
         )
 
+    task_id = str(uuid.uuid4())
+    task_manager.add_task(
+        task_id=task_id,
+        task_type="chat",
+        description=f"Chat request: {model.alias}",
+        metadata={
+            "model": model.alias,
+            "user_id": current_user_id,
+            "username": current_user.username,
+            "stream": payload.stream,
+        },
+    )
+
     if active_web_search_provider is not None:
         existing_tools = list(request_payload.get("tools") or [])
         already_has_web_search = any(
@@ -495,19 +509,36 @@ async def v1_chat_completions(payload: OpenAIChatRequest, current_user: User = D
         if payload.stream:
             async def web_search_event_stream():
                 usage_recorded = False
+                current_task = asyncio.current_task()
+                if current_task is not None:
+                    task_manager.attach_async_task(task_id, current_task)
                 try:
                     async for chunk in _stream_with_web_search(inference, model.id, request_payload, active_web_search_provider):
                         if not usage_recorded:
                             usage_recorded = _record_usage_from_sse_chunk(chunk, db=db, user_id=current_user_id)
                         yield chunk
+                    task_manager.complete_task(task_id)
+                except asyncio.CancelledError:
+                    task_manager.mark_cancelled(task_id)
+                    raise
                 except RuntimeError as exc:
+                    task_manager.fail_task(task_id, str(exc))
                     err_msg = str(exc).replace("\\", "\\\\").replace('"', '\\"')
                     yield f'data: {{"error": {{"message": "{err_msg}"}}}}\n\n'
                     yield "data: [DONE]\n\n"
 
             return StreamingResponse(web_search_event_stream(), media_type="text/event-stream")
 
-        result = await _run_web_search_non_streaming(inference, model.id, request_payload, active_web_search_provider)
+        task_manager.attach_async_task(task_id, asyncio.current_task())
+        try:
+            result = await _run_web_search_non_streaming(inference, model.id, request_payload, active_web_search_provider)
+        except asyncio.CancelledError:
+            task_manager.mark_cancelled(task_id)
+            raise
+        except RuntimeError as exc:
+            task_manager.fail_task(task_id, str(exc))
+            raise
+        task_manager.complete_task(task_id)
         _record_usage(result.get("usage"), db=db, user_id=current_user_id)
         return {
             "id": f"chatcmpl-{uuid.uuid4().hex}",
@@ -521,6 +552,9 @@ async def v1_chat_completions(payload: OpenAIChatRequest, current_user: User = D
     if payload.stream:
         async def event_stream():
             usage_recorded = False
+            current_task = asyncio.current_task()
+            if current_task is not None:
+                task_manager.attach_async_task(task_id, current_task)
             try:
                 async for chunk in inference.stream_chat_completion(model.id, {
                     **request_payload,
@@ -529,14 +563,28 @@ async def v1_chat_completions(payload: OpenAIChatRequest, current_user: User = D
                     if not usage_recorded:
                         usage_recorded = _record_usage_from_sse_chunk(chunk, db=db, user_id=current_user_id)
                     yield chunk
+                task_manager.complete_task(task_id)
+            except asyncio.CancelledError:
+                task_manager.mark_cancelled(task_id)
+                raise
             except RuntimeError as exc:
+                task_manager.fail_task(task_id, str(exc))
                 message = str(exc).replace("\\", "\\\\").replace('"', '\\"')
                 yield f'data: {{"error": {{"message": "{message}"}}}}\n\n'
                 yield "data: [DONE]\n\n"
 
         return StreamingResponse(event_stream(), media_type="text/event-stream")
 
-    result = await inference.chat_completion(model.id, request_payload)
+    task_manager.attach_async_task(task_id, asyncio.current_task())
+    try:
+        result = await inference.chat_completion(model.id, request_payload)
+    except asyncio.CancelledError:
+        task_manager.mark_cancelled(task_id)
+        raise
+    except RuntimeError as exc:
+        task_manager.fail_task(task_id, str(exc))
+        raise
+    task_manager.complete_task(task_id)
     _record_usage(result.get("usage"), db=db, user_id=current_user_id)
     return {
         "id": f"chatcmpl-{uuid.uuid4().hex}",
