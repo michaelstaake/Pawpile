@@ -515,11 +515,12 @@ export default function ModelsPage({ setupMode = false, onComplete }: ModelsPage
     }
 
     setIsFetching(true);
+    setIsFetchModalOpen(false);
     setFetchStartedAt(Date.now());
     setFetchProgress({ loaded: 0, total: 0 });
 
     try {
-      const response = await apiPost<{ url: string }, { status: string; model: ModelRecord; job_id: string }>("/api/models/fetch", { url }, token);
+      const response = await apiPost<{ url: string }, { status: string; job_id: string }>("/api/models/fetch", { url }, token);
       setFetchJobId(response.job_id);
       setFetchProgress({ loaded: 0, total: 0 });
     } catch (error) {
