@@ -44,7 +44,13 @@ def main() -> None:
     prepare_database()
 
     settings = get_settings()
-    uvicorn.run("app.main:app", host=settings.app_host, port=settings.app_port)
+    uvicorn.run(
+        "app.main:app",
+        host=settings.app_host,
+        port=settings.app_port,
+        ssl_certfile=settings.ssl_certfile,
+        ssl_keyfile=settings.ssl_keyfile,
+    )
 
 
 if __name__ == "__main__":

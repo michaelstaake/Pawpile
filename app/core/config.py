@@ -49,7 +49,9 @@ class Settings(BaseSettings):
     queue_max_size: int = 1000
     queue_poll_interval_ms: int = 100
 
-    frontend_origin: str = "http://localhost:8443"
+    frontend_origin: str = "https://localhost:8443"
+    ssl_certfile: str = "./certs/server.crt"
+    ssl_keyfile: str = "./certs/server.key"
     supported_devices: str = ""
     inference_service_url: str = "http://localhost:8100"
     inference_runtime_urls: str = ""
