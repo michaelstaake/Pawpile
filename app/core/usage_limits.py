@@ -16,6 +16,14 @@ USAGE_PERIOD_SPECS: tuple[tuple[str, str, timedelta], ...] = (
 )
 
 
+def _as_utc_aware(value: datetime | None) -> datetime | None:
+    if value is None:
+        return None
+    if value.tzinfo is None:
+        return value.replace(tzinfo=timezone.utc)
+    return value.astimezone(timezone.utc)
+
+
 @dataclass(frozen=True)
 class UsageLimitCheckResult:
     allowed: bool
@@ -168,43 +176,40 @@ def build_account_usage_status(db: Session, *, user: User, app_settings: AppSett
     if not user_id or user_id <= 0:
         return None
 
-    try:
-        now = datetime.now(timezone.utc)
-        usage = get_user_token_usage_by_period(db, user_id=user_id)
-        oldest = get_user_oldest_token_timestamp_by_period(db, user_id=user_id)
-        period_labels = {
-            "60_minutes": "60 Minutes",
-            "24_hours": "24 Hours",
-            "7_days": "7 Days",
-            "30_days": "30 Days",
-        }
-        periods = []
-        for period_id, limit in enabled_limits.items():
-            used = usage[period_id]
-            percent = min(100.0, (used / limit) * 100) if limit > 0 else 0.0
-            _, _, window = next(s for s in USAGE_PERIOD_SPECS if s[0] == period_id)
-            oldest_ts = oldest[period_id]
-            if oldest_ts is not None:
-                resets_in = int((oldest_ts + window - now).total_seconds())
-                resets_in = max(0, resets_in)
-            else:
-                resets_in = None
-            periods.append(
-                {
-                    "id": period_id,
-                    "label": period_labels[period_id],
-                    "limit_tokens": limit,
-                    "used_tokens": used,
-                    "percent": round(percent, 1),
-                    "resets_in_seconds": resets_in,
-                }
-            )
+    now = datetime.now(timezone.utc)
+    usage = get_user_token_usage_by_period(db, user_id=user_id)
+    oldest = get_user_oldest_token_timestamp_by_period(db, user_id=user_id)
+    period_labels = {
+        "60_minutes": "60 Minutes",
+        "24_hours": "24 Hours",
+        "7_days": "7 Days",
+        "30_days": "30 Days",
+    }
+    periods = []
+    for period_id, limit in enabled_limits.items():
+        used = usage[period_id]
+        percent = min(100.0, (used / limit) * 100) if limit > 0 else 0.0
+        _, _, window = next(s for s in USAGE_PERIOD_SPECS if s[0] == period_id)
+        oldest_ts = _as_utc_aware(oldest[period_id])
+        if oldest_ts is not None:
+            resets_in = int((oldest_ts + window - now).total_seconds())
+            resets_in = max(0, resets_in)
+        else:
+            resets_in = None
+        periods.append(
+            {
+                "id": period_id,
+                "label": period_labels[period_id],
+                "limit_tokens": limit,
+                "used_tokens": used,
+                "percent": round(percent, 1),
+                "resets_in_seconds": resets_in,
+            }
+        )
 
-        return {
-            "enabled": True,
-            "fallback_model_alias": app_settings.usage_fallback_model_alias,
-            "at_limit": is_user_over_usage_limit(db, user_id=user_id, app_settings=app_settings),
-            "periods": periods,
-        }
-    except Exception:
-        return None
+    return {
+        "enabled": True,
+        "fallback_model_alias": app_settings.usage_fallback_model_alias,
+        "at_limit": is_user_over_usage_limit(db, user_id=user_id, app_settings=app_settings),
+        "periods": periods,
+    }
