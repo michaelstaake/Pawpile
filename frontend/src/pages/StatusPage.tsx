@@ -154,7 +154,7 @@ function getSystemHealth(activeModels: number, memoryUsagePercent: number | null
   };
 }
 
-function DeviceCard({ device, poolName, modelColors }: { device: DeviceStatusRecord; poolName: string | null; modelColors: Map<number, string> }) {
+function DeviceCard({ device, poolName, modelColors, isAdmin }: { device: DeviceStatusRecord; poolName: string | null; modelColors: Map<number, string>; isAdmin: boolean }) {
   const isCpuDevice = device.device_type.toLowerCase() === "cpu" || device.vendor.toLowerCase() === "cpu";
   const isPooled = poolName !== null;
   const gpuUsagePercent = clampPercent(device.gpu_usage_percent);
@@ -272,7 +272,7 @@ function DeviceCard({ device, poolName, modelColors }: { device: DeviceStatusRec
               <div key={`${device.id}-legend-${model.model_id}`} className="flex items-center gap-1.5">
                 <span className="h-2.5 w-2.5 shrink-0 rounded-full" style={{ backgroundColor: getModelColor(modelColors, model.model_id) }} />
                 <span className="text-sm font-semibold text-ink">{model.alias}</span>
-                <span className="text-xs text-black/50">{model.file_name}</span>
+                {isAdmin && <span className="text-xs text-black/50">{model.file_name}</span>}
               </div>
             ))}
           </div>
@@ -641,7 +641,7 @@ export default function StatusPage() {
         <div className="rounded-2xl border border-black/10 bg-white/80 px-4 py-8 text-sm text-black/55 shadow-sm">Loading...</div>
       ) : visibleDevices.length > 0 ? (
         <div className="grid gap-4">
-          {visibleDevices.map((device) => <DeviceCard key={device.id} device={device} poolName={poolNamesByDeviceId.get(device.id) ?? null} modelColors={modelColors} />)}
+          {visibleDevices.map((device) => <DeviceCard key={device.id} device={device} poolName={poolNamesByDeviceId.get(device.id) ?? null} modelColors={modelColors} isAdmin={user?.is_admin ?? false} />)}
         </div>
       ) : (
         <div className="rounded-2xl border border-dashed border-black/15 bg-white/60 px-4 py-8 text-sm text-black/55 shadow-sm">No ready devices are available.</div>
