@@ -158,7 +158,7 @@ def update_ssl_settings(
     return _build_ssl_status(app_settings)
 
 
-def _start_ssl_task(
+async def _start_ssl_task(
     *,
     renew_only: bool,
     admin_user: User,
@@ -187,16 +187,16 @@ def _start_ssl_task(
 
 
 @router.post("/letsencrypt")
-def obtain_letsencrypt_certificate(
+async def obtain_letsencrypt_certificate(
     admin_user: User = Depends(get_admin_user),
     db: Session = Depends(get_db),
 ) -> dict:
-    return _start_ssl_task(renew_only=False, admin_user=admin_user, db=db)
+    return await _start_ssl_task(renew_only=False, admin_user=admin_user, db=db)
 
 
 @router.post("/renew")
-def renew_letsencrypt_certificate(
+async def renew_letsencrypt_certificate(
     admin_user: User = Depends(get_admin_user),
     db: Session = Depends(get_db),
 ) -> dict:
-    return _start_ssl_task(renew_only=True, admin_user=admin_user, db=db)
+    return await _start_ssl_task(renew_only=True, admin_user=admin_user, db=db)

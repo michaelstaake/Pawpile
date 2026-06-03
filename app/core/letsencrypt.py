@@ -85,9 +85,7 @@ def read_cert_status(cert_path: Path, key_path: Path, expected_domain: str | Non
     except x509.ExtensionNotFound:
         pass
 
-    not_after = certificate.not_valid_after
-    if not_after.tzinfo is None:
-        not_after = not_after.replace(tzinfo=timezone.utc)
+    not_after = certificate.not_valid_after_utc
     now = datetime.now(timezone.utc)
     days_remaining = max(0, (not_after - now).days)
     is_self_signed = certificate.issuer == certificate.subject
