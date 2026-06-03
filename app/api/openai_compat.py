@@ -31,8 +31,8 @@ _WEB_SEARCH_MAX_ITERATIONS = 5
 router = APIRouter(prefix="/v1", tags=["openai"])
 
 
-THINKING_DISABLED_PROMPT = "Pawpile thinking mode: off. Do not include reasoning, chain-of-thought, or thought process. Reply with only the final answer."
-THINKING_ENABLED_PROMPT = "Pawpile thinking mode: on. Include your reasoning before the final answer when the model supports it."
+THINKING_DISABLED_PROMPT = "Thinking mode: off. Do not include reasoning, chain-of-thought, or thought process. Reply with only the final answer."
+THINKING_ENABLED_PROMPT = "Thinking mode: on. Include your reasoning before the final answer when the model supports it."
 THINKING_CONTROL_RULES = {
     "qwen": {
         True: ["/think", THINKING_ENABLED_PROMPT],
