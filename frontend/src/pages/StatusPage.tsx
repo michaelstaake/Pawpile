@@ -198,15 +198,13 @@ function DeviceCard({ device, poolName, modelColors }: { device: DeviceStatusRec
           <div className="flex flex-wrap items-center gap-2">
             <h3 className="font-display text-xl text-ink">{device.name}</h3>
             {isPooled && (
-              <span className="rounded-full border border-violet-200 bg-violet-100 px-2 py-0.5 text-xs font-semibold text-violet-700">Pooled</span>
+              <span className="rounded-full border border-violet-200 bg-violet-100 px-2 py-0.5 text-xs font-semibold text-violet-700">Pooled: {poolName}</span>
             )}
           </div>
           <p className="mt-2 text-sm text-black/65">
             {device.device_type.toUpperCase()} {device.display_suffix}
           </p>
-          {poolName && (
-            <p className="mt-1 text-xs text-black/55">Part of pool {poolName}. This card shows this GPU only.</p>
-          )}
+ 
         </div>
       </div>
 
@@ -643,44 +641,6 @@ export default function StatusPage() {
         <div className="rounded-2xl border border-black/10 bg-white/80 px-4 py-8 text-sm text-black/55 shadow-sm">Loading...</div>
       ) : visibleDevices.length > 0 ? (
         <div className="grid gap-4">
-          {visiblePoolSummaries.length > 0 && (
-            <div className="grid gap-4 lg:grid-cols-2">
-              {visiblePoolSummaries.map((pool) => (
-                <article key={pool.id} className="overflow-hidden rounded-[28px] border border-violet-200 bg-[linear-gradient(180deg,rgba(245,232,255,0.9)_0%,rgba(255,255,255,0.85)_100%)] p-5 shadow-sm backdrop-blur">
-                  <div className="flex flex-wrap items-start justify-between gap-3">
-                    <div>
-                      <div className="flex flex-wrap items-center gap-2">
-                        <h3 className="font-display text-xl text-ink">{pool.name}</h3>
-                        <span className="rounded-full border border-violet-200 bg-violet-100 px-2 py-0.5 text-xs font-semibold uppercase tracking-[0.18em] text-violet-700">{pool.vendor} pool</span>
-                      </div>
-                      <p className="mt-2 text-sm text-black/65">{pool.memberLabel}</p>
-                    </div>
-                    <div className="text-right">
-                      <p className="text-xs font-semibold uppercase tracking-[0.24em] text-black/45">Combined Memory</p>
-                      <p className="mt-1 font-display text-2xl text-ink">{pool.memoryPercent !== null ? `${pool.memoryPercent.toFixed(1)}%` : "N/A"}</p>
-                    </div>
-                  </div>
-                  <div className="mt-4 rounded-2xl border border-black/10 bg-white/70 p-4">
-                    <p className="text-xs font-semibold uppercase tracking-[0.24em] text-black/45">Pool Capacity</p>
-                    <p className="mt-1 text-sm text-black/65">{formatCombinedMemorySummary(pool.memoryUsedMb, pool.memoryTotalMb, pool.hasUnknownCapacity)}</p>
-                    <div className="mt-4 h-4 overflow-hidden rounded-full bg-black/10">
-                      {pool.memoryPercent !== null ? (
-                        <div className="h-full rounded-full bg-violet-600" style={{ width: `${pool.memoryPercent}%` }} />
-                      ) : (
-                        <div className="h-full rounded-full bg-violet-300" title="Combined pool capacity unavailable" />
-                      )}
-                    </div>
-                    {pool.hasUnknownCapacity && (
-                      <p className="mt-3 text-xs text-black/50">One or more member GPUs did not report a reliable total capacity.</p>
-                    )}
-                  </div>
-                  {pool.loadedModels.length > 0 && (
-                    <p className="mt-4 text-sm text-black/60">Loaded models: {pool.loadedModels.join(", ")}</p>
-                  )}
-                </article>
-              ))}
-            </div>
-          )}
           {visibleDevices.map((device) => <DeviceCard key={device.id} device={device} poolName={poolNamesByDeviceId.get(device.id) ?? null} modelColors={modelColors} />)}
         </div>
       ) : (
