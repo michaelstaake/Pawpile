@@ -111,7 +111,7 @@ export default function SecurityPage() {
 
     const previousSettings = settings;
     setSettings({ ...settings, cloudflare_turnstile_secret_key_set: nextValue !== "" });
-    setIsSaving("cloudflare_turnstile_secret_key");
+    setIsSaving("cloudflare_turnstile_secret_key_set");
 
     try {
       const response = await apiPatch<{ cloudflare_turnstile_secret_key: string }, AppSettingsRecord>("/api/admin/settings", { cloudflare_turnstile_secret_key: nextValue }, token);
@@ -244,7 +244,7 @@ export default function SecurityPage() {
                       }
                     }
                   }}
-                  disabled={isLoading || isSaving === "cloudflare_turnstile_secret_key"}
+                  disabled={isLoading || isSaving === "cloudflare_turnstile_secret_key_set"}
                   autoComplete="off"
                   placeholder={settings.cloudflare_turnstile_secret_key_set ? "••••••••" : "Cloudflare Turnstile secret key"}
                 />
@@ -257,7 +257,7 @@ export default function SecurityPage() {
                   onClick={() => {
                     if (!token) return;
                     void (async () => {
-                      setIsSaving("cloudflare_turnstile_secret_key");
+                      setIsSaving("cloudflare_turnstile_secret_key_set");
                       try {
                         const response = await apiPatch<{ cloudflare_turnstile_secret_key: string }, AppSettingsRecord>(
                           "/api/admin/settings",
@@ -275,7 +275,7 @@ export default function SecurityPage() {
                       }
                     })();
                   }}
-                  disabled={isLoading || isSaving === "cloudflare_turnstile_secret_key"}
+                  disabled={isLoading || isSaving === "cloudflare_turnstile_secret_key_set"}
                 >
                   Clear secret key
                 </button>

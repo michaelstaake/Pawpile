@@ -57,7 +57,7 @@ export default function ConfigurationPage() {
     public_url: "",
     cloudflare_turnstile_enabled: false,
     cloudflare_turnstile_site_key: null,
-    cloudflare_turnstile_secret_key: null,
+    cloudflare_turnstile_secret_key_set: false,
     two_factor_enabled: false,
   });
   const [localSitename, setLocalSitename] = useState(DEFAULT_SITENAME);
