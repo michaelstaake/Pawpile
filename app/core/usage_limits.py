@@ -165,6 +165,7 @@ def build_account_usage_status(db: Session, *, user: User, app_settings: AppSett
     for period_id, limit in enabled_limits.items():
         used = usage[period_id]
         percent = min(100.0, (used / limit) * 100) if limit > 0 else 0.0
+        _, _, window = next(s for s in USAGE_PERIOD_SPECS if s[0] == period_id)
         periods.append(
             {
                 "id": period_id,
@@ -172,6 +173,7 @@ def build_account_usage_status(db: Session, *, user: User, app_settings: AppSett
                 "limit_tokens": limit,
                 "used_tokens": used,
                 "percent": round(percent, 1),
+                "resets_in_seconds": int(window.total_seconds()),
             }
         )
 

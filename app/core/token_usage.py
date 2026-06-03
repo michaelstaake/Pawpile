@@ -130,6 +130,8 @@ def get_user_token_usage(db: Session, *, user_ids: list[int], input_price_per_1m
     periods = {
         "last_60_minutes": now - timedelta(hours=1),
         "last_24_hours": now - timedelta(hours=24),
+        "last_7_days": now - timedelta(days=7),
+        "last_30_days": now - timedelta(days=30),
         "forever": None,
     }
 
@@ -152,6 +154,8 @@ def get_user_token_usage(db: Session, *, user_ids: list[int], input_price_per_1m
             "username": user.username,
             "last_60_minutes": {"total_tokens": 0, "input_tokens": 0, "output_tokens": 0},
             "last_24_hours": {"total_tokens": 0, "input_tokens": 0, "output_tokens": 0},
+            "last_7_days": {"total_tokens": 0, "input_tokens": 0, "output_tokens": 0},
+            "last_30_days": {"total_tokens": 0, "input_tokens": 0, "output_tokens": 0},
             "forever": {"total_tokens": 0, "input_tokens": 0, "output_tokens": 0},
         }
 

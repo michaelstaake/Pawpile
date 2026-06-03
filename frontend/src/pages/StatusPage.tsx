@@ -127,6 +127,31 @@ function formatWholePercent(value: number) {
   return `${Math.round(clampPercent(value))}%`;
 }
 
+function formatResetIn(seconds: number) {
+  if (seconds < 0) return null;
+  const days = Math.floor(seconds / (60 * 60 * 24));
+  if (days > 0) {
+    const remainingHours = Math.floor((seconds % (60 * 60 * 24)) / (60 * 60));
+    if (remainingHours > 0) {
+      return `${days} day${days !== 1 ? "s" : ""}, ${remainingHours} hour${remainingHours !== 1 ? "s" : ""}`;
+    }
+    return `${days} day${days !== 1 ? "s" : ""}`;
+  }
+  const hours = Math.floor(seconds / (60 * 60));
+  if (hours > 0) {
+    const remainingMinutes = Math.floor((seconds % (60 * 60)) / 60);
+    if (remainingMinutes > 0) {
+      return `${hours} hour${hours !== 1 ? "s" : ""}, ${remainingMinutes} minute${remainingMinutes !== 1 ? "s" : ""}`;
+    }
+    return `${hours} hour${hours !== 1 ? "s" : ""}`;
+  }
+  const minutes = Math.floor(seconds / 60);
+  if (minutes > 0) {
+    return `${minutes} minute${minutes !== 1 ? "s" : ""}`;
+  }
+  return null;
+}
+
 function getSystemHealth(activeModels: number, memoryUsagePercent: number | null) {
   if (activeModels === 0) {
     return {
@@ -548,7 +573,7 @@ export default function StatusPage() {
                 {accountUsage.at_limit
                   ? accountUsage.fallback_model_alias
                     ? `You have reached a usage limit. You can still use ${accountUsage.fallback_model_alias} until your usage resets.`
-                    : "You have reached a usage limit. Chat is paused until your usage resets."
+                    : "You have reached a usage limit. Please try again later."
                   : "Token usage against your account limits."}
               </p>
             </div>
@@ -562,6 +587,7 @@ export default function StatusPage() {
                 <p className="mt-1 text-sm text-black/55">
                   {numberFormatter.format(period.used_tokens)} / {numberFormatter.format(period.limit_tokens)} tokens
                 </p>
+                {(() => { const reset = formatResetIn(period.resets_in_seconds); return reset ? <p className="mt-1 text-xs text-black/40">Resets in {reset}</p> : null; })()}
                 <div className="mt-3 h-2 overflow-hidden rounded-full bg-black/10">
                   <div
                     className={`h-full rounded-full ${period.percent >= 100 ? "bg-[#c63f3f]" : period.percent >= 80 ? "bg-[#c98a13]" : "bg-[#2f8f4e]"}`}

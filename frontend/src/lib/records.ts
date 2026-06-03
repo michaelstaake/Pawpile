@@ -57,6 +57,8 @@ export type UserTokenUsageRecord = {
   username: string;
   last_60_minutes: TokenUsageMetricRecord;
   last_24_hours: TokenUsageMetricRecord;
+  last_7_days: TokenUsageMetricRecord;
+  last_30_days: TokenUsageMetricRecord;
   forever: TokenUsageMetricRecord;
   estimated_cost: number;
 };
@@ -188,6 +190,7 @@ export type AccountUsagePeriodRecord = {
   limit_tokens: number;
   used_tokens: number;
   percent: number;
+  resets_in_seconds: number;
 };
 
 export type AccountUsageStatusRecord = {

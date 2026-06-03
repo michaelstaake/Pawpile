@@ -208,7 +208,7 @@ export default function UsersPage() {
                           ${usage.estimated_cost.toFixed(4)}
                         </span>
                       </div>
-                      <div className="grid grid-cols-3 gap-3">
+                      <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-5">
                         <div className="rounded-lg bg-sand/60 px-2 py-1.5 text-center">
                           <div className="text-[10px] uppercase tracking-wide text-black/50">60 min</div>
                           <div className="text-sm font-semibold text-black">{formatTokens(usage.last_60_minutes.total_tokens)}</div>
@@ -221,6 +221,20 @@ export default function UsersPage() {
                           <div className="text-sm font-semibold text-black">{formatTokens(usage.last_24_hours.total_tokens)}</div>
                           <div className="text-[10px] text-black/50">
                             {formatTokens(usage.last_24_hours.input_tokens)} / {formatTokens(usage.last_24_hours.output_tokens)}
+                          </div>
+                        </div>
+                        <div className="rounded-lg bg-sand/60 px-2 py-1.5 text-center">
+                          <div className="text-[10px] uppercase tracking-wide text-black/50">7 days</div>
+                          <div className="text-sm font-semibold text-black">{formatTokens(usage.last_7_days.total_tokens)}</div>
+                          <div className="text-[10px] text-black/50">
+                            {formatTokens(usage.last_7_days.input_tokens)} / {formatTokens(usage.last_7_days.output_tokens)}
+                          </div>
+                        </div>
+                        <div className="rounded-lg bg-sand/60 px-2 py-1.5 text-center">
+                          <div className="text-[10px] uppercase tracking-wide text-black/50">30 days</div>
+                          <div className="text-sm font-semibold text-black">{formatTokens(usage.last_30_days.total_tokens)}</div>
+                          <div className="text-[10px] text-black/50">
+                            {formatTokens(usage.last_30_days.input_tokens)} / {formatTokens(usage.last_30_days.output_tokens)}
                           </div>
                         </div>
                         <div className="rounded-lg bg-sand/60 px-2 py-1.5 text-center">
