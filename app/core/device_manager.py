@@ -93,7 +93,8 @@ class DeviceManager:
             else:
                 row.stable_hardware_id = d.stable_hardware_id
                 row.stable_hardware_id_source = d.stable_hardware_id_source
-                row.name = d.name
+                if row.name == d.name:
+                    row.name = d.name
                 row.vendor = d.vendor
                 row.device_type = d.device_type
                 row.memory_mb = d.memory_mb
