@@ -51,14 +51,16 @@ async def verify_cloudflare_turnstile(secret_key: str, token: str) -> bool:
                     "response": token,
                 },
             )
-            data = response.json()
-        except Exception:
-            logger.exception("Failed to parse Cloudflare Turnstile verification response")
-            return False
+     data = response.json()
+    except Exception:
+      logger.exception("Failed to parse Cloudflare Turnstile verification response")
+      return False
 
-        success = data.get("success", False)
-        score = data.get("score", 0)
-        error_codes = data.get("error-codes", [])
+    logger.info("Cloudflare Turnstile response: %s", data)
+
+    success = data.get("success", False)
+    score = data.get("score")
+    error_codes = data.get("error-codes", [])
 
         if not success:
             logger.warning(
@@ -68,7 +70,7 @@ async def verify_cloudflare_turnstile(secret_key: str, token: str) -> bool:
             )
             return False
 
-        if score is not None and score < 0.2:
+        if "score" in data and score < 0.2:
             logger.info(
                 "Cloudflare Turnstile score below explicit widget threshold (0.2): %s",
                 score,
