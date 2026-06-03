@@ -1,19 +1,31 @@
 import { FormEvent, useEffect, useState } from "react";
+import { apiGet } from "../lib/api";
+import { AccountUsageStatusRecord } from "../lib/records";
 import { useAuth } from "../context/AuthContext";
 import { useToast } from "../context/ToastContext";
 
 export default function ProfilePage() {
-  const { logout, updateProfile, user } = useAuth();
+  const { token, logout, updateProfile, user } = useAuth();
   const { showError, showSuccess } = useToast();
   const [email, setEmail] = useState(user?.email ?? "");
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
   const [isSavingEmail, setIsSavingEmail] = useState(false);
   const [isSavingPassword, setIsSavingPassword] = useState(false);
+  const [accountUsage, setAccountUsage] = useState<AccountUsageStatusRecord | null>(null);
 
   useEffect(() => {
     setEmail(user?.email ?? "");
   }, [user?.email]);
+
+  useEffect(() => {
+    if (!token) {
+      return;
+    }
+    apiGet<unknown>("/api/status", token).then((response) => {
+      setAccountUsage((response as { account_usage: AccountUsageStatusRecord | null }).account_usage ?? null);
+    }).catch(() => {});
+  }, [token]);
 
   async function handleEmailSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -76,6 +88,44 @@ export default function ProfilePage() {
   }
 
   const roleLabel = user?.is_admin ? "Admin" : "Standard";
+  const showAccountUsage = !user?.is_admin && accountUsage?.enabled;
+  const numberFormatter = new Intl.NumberFormat();
+
+  function clampPercent(value: number | null | undefined) {
+    if (value === null || value === undefined || Number.isNaN(value)) {
+      return 0;
+    }
+    return Math.max(0, Math.min(100, value));
+  }
+
+  function formatWholePercent(value: number) {
+    return `${Math.round(clampPercent(value))}%`;
+  }
+
+  function formatResetIn(seconds: number | null) {
+    if (seconds === null || seconds < 0) return null;
+    const days = Math.floor(seconds / (60 * 60 * 24));
+    if (days > 0) {
+      const remainingHours = Math.floor((seconds % (60 * 60 * 24)) / (60 * 60));
+      if (remainingHours > 0) {
+        return `${days} day${days !== 1 ? "s" : ""}, ${remainingHours} hour${remainingHours !== 1 ? "s" : ""}`;
+      }
+      return `${days} day${days !== 1 ? "s" : ""}`;
+    }
+    const hours = Math.floor(seconds / (60 * 60));
+    if (hours > 0) {
+      const remainingMinutes = Math.floor((seconds % (60 * 60)) / 60);
+      if (remainingMinutes > 0) {
+        return `${hours} hour${hours !== 1 ? "s" : ""}, ${remainingMinutes} minute${remainingMinutes !== 1 ? "s" : ""}`;
+      }
+      return `${hours} hour${hours !== 1 ? "s" : ""}`;
+    }
+    const minutes = Math.floor(seconds / 60);
+    if (minutes > 0) {
+      return `${minutes} minute${minutes !== 1 ? "s" : ""}`;
+    }
+    return null;
+  }
 
   return (
     <section className="grid gap-4">
@@ -97,6 +147,36 @@ export default function ProfilePage() {
           </button>
         </div>
       </article>
+
+      {showAccountUsage && (
+        <article className="rounded-3xl border border-black/10 bg-white/85 p-5 shadow-sm backdrop-blur">
+          <p className="text-xs font-semibold uppercase tracking-[0.18em] text-black/45">Your Usage</p>
+          <p className="mt-1 text-sm text-black/60">
+            {accountUsage.at_limit
+              ? "You have reached a usage limit. Chat and API access are unavailable until your usage resets."
+              : "Token usage against your account limits."}
+          </p>
+
+          <div className="mt-4 grid gap-3 sm:grid-cols-2">
+            {accountUsage.periods.map((period) => (
+              <div key={period.id} className="rounded-2xl border border-black/10 bg-white/80 p-4">
+                <p className="text-xs font-semibold uppercase tracking-[0.24em] text-black/45">{period.label}</p>
+                <p className="mt-2 font-display text-3xl text-ink">{formatWholePercent(period.percent)}</p>
+                <p className="mt-1 text-sm text-black/55">
+                  {numberFormatter.format(period.used_tokens)} / {numberFormatter.format(period.limit_tokens)} tokens
+                </p>
+                {(() => { const reset = formatResetIn(period.resets_in_seconds); return reset ? <p className="mt-1 text-xs text-black/40">Resets in {reset}</p> : null; })()}
+                <div className="mt-3 h-2 overflow-hidden rounded-full bg-black/10">
+                  <div
+                    className={`h-full rounded-full ${period.percent >= 100 ? "bg-[#c63f3f]" : period.percent >= 80 ? "bg-[#c98a13]" : "bg-[#2f8f4e]"}`}
+                    style={{ width: `${clampPercent(period.percent)}%` }}
+                  />
+                </div>
+              </div>
+            ))}
+          </div>
+        </article>
+      )}
 
       <div className="grid gap-4 xl:grid-cols-2">
         <article className="rounded-2xl border border-black/10 bg-white/80 p-5 shadow-sm backdrop-blur">

@@ -560,44 +560,8 @@ export default function StatusPage() {
     [summary.activeModels, summary.memoryUsagePercent],
   );
 
-  const showAccountUsage = !user?.is_admin && accountUsage?.enabled;
-
   return (
     <section className="grid gap-4 overflow-hidden rounded-[32px] border border-black/10 bg-[linear-gradient(180deg,rgba(255,255,255,0.88)_0%,rgba(245,240,226,0.78)_100%)] p-6 shadow-sm backdrop-blur">
-      {showAccountUsage ? (
-        <section className="rounded-[28px] border border-black/10 bg-white/85 p-5 shadow-sm">
-          <div className="flex flex-wrap items-start justify-between gap-3">
-            <div>
-              <p className="text-xs font-semibold uppercase tracking-[0.24em] text-black/45">Your Usage</p>
-              <p className="mt-1 text-sm text-black/60">
-                {accountUsage.at_limit
-                  ? "You have reached a usage limit. Chat and API access are unavailable until your usage resets."
-                  : "Token usage against your account limits."}
-              </p>
-            </div>
-          </div>
-
-          <div className="mt-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-            {accountUsage.periods.map((period) => (
-              <div key={period.id} className="rounded-2xl border border-black/10 bg-white/80 p-4">
-                <p className="text-xs font-semibold uppercase tracking-[0.24em] text-black/45">{period.label}</p>
-                <p className="mt-2 font-display text-3xl text-ink">{formatWholePercent(period.percent)}</p>
-                <p className="mt-1 text-sm text-black/55">
-                  {numberFormatter.format(period.used_tokens)} / {numberFormatter.format(period.limit_tokens)} tokens
-                </p>
-                {(() => { const reset = formatResetIn(period.resets_in_seconds); return reset ? <p className="mt-1 text-xs text-black/40">Resets in {reset}</p> : null; })()}
-                <div className="mt-3 h-2 overflow-hidden rounded-full bg-black/10">
-                  <div
-                    className={`h-full rounded-full ${period.percent >= 100 ? "bg-[#c63f3f]" : period.percent >= 80 ? "bg-[#c98a13]" : "bg-[#2f8f4e]"}`}
-                    style={{ width: `${clampPercent(period.percent)}%` }}
-                  />
-                </div>
-              </div>
-            ))}
-          </div>
-        </section>
-      ) : null}
-
       <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-12">
           <div className="rounded-2xl border border-black/10 bg-white/80 p-4 lg:col-span-3">
             <p className="text-xs font-semibold uppercase tracking-[0.24em] text-black/45">System Health</p>
