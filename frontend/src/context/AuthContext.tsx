@@ -130,7 +130,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   async function login(username: string, password: string, turnstileResponse?: string) {
     setIsAuthenticating(true);
     try {
-      const response = await apiPost<{ username: string; password: string; turnstile_response?: string }, LoginResponse>("/api/auth/login", { username, password, turnstile_response });
+      const response = await apiPost<{ username: string; password: string; turnstile_response?: string }, LoginResponse>("/api/auth/login", { username, password, turnstile_response: turnstileResponse });
       storeToken(response.access_token);
       setToken(response.access_token);
       const currentUser = await apiGet<CurrentUser>("/api/auth/me", response.access_token);
@@ -177,7 +177,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         username,
         email,
         password,
-        turnstile_response,
+        turnstile_response: turnstileResponse,
       });
       storeToken(response.access_token);
       setToken(response.access_token);

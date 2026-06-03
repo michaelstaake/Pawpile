@@ -21,7 +21,7 @@ export default function AuthPage() {
   const [loginUsername, setLoginUsername] = useState("");
   const [loginPassword, setLoginPassword] = useState("");
   const [turnstileWidgetId, setTurnstileWidgetId] = useState<string | null>(null);
-  const turnstileRef = useRef<string | null>(null);
+  const turnstileRef = useRef<HTMLDivElement | null>(null);
 
   useEffect(() => {
     if (!cloudflareTurnstileEnabled || !cloudflareTurnstileSiteKey) {
