@@ -247,6 +247,11 @@ class AppSettingsResponse(BaseModel):
     cloudflare_turnstile_site_key: str | None = None
     cloudflare_turnstile_secret_key_set: bool = False
     two_factor_enabled: bool = False
+    usage_limit_tokens_60_minutes: int = 0
+    usage_limit_tokens_24_hours: int = 0
+    usage_limit_tokens_7_days: int = 0
+    usage_limit_tokens_30_days: int = 0
+    usage_fallback_model_alias: str | None = None
 
     @field_validator("background_color", mode="before")
     @classmethod
@@ -257,6 +262,14 @@ class AppSettingsResponse(BaseModel):
     @classmethod
     def validate_public_url(cls, value: str | None) -> str:
         return normalize_public_url(value)
+
+    @field_validator("usage_fallback_model_alias", mode="before")
+    @classmethod
+    def normalize_usage_fallback_model_alias(cls, value: str | None) -> str | None:
+        if value is None:
+            return None
+        normalized = value.strip()
+        return normalized or None
 
 
 class AppSettingsUpdateRequest(BaseModel):
@@ -272,6 +285,11 @@ class AppSettingsUpdateRequest(BaseModel):
     cloudflare_turnstile_site_key: str | None = None
     cloudflare_turnstile_secret_key: str | None = None
     two_factor_enabled: bool | None = None
+    usage_limit_tokens_60_minutes: int | None = None
+    usage_limit_tokens_24_hours: int | None = None
+    usage_limit_tokens_7_days: int | None = None
+    usage_limit_tokens_30_days: int | None = None
+    usage_fallback_model_alias: str | None = None
 
     @field_validator("background_color", mode="before")
     @classmethod
@@ -286,6 +304,14 @@ class AppSettingsUpdateRequest(BaseModel):
         if value is None:
             return None
         return normalize_public_url(value)
+
+    @field_validator("usage_fallback_model_alias", mode="before")
+    @classmethod
+    def normalize_usage_fallback_model_alias(cls, value: str | None) -> str | None:
+        if value is None:
+            return None
+        normalized = value.strip()
+        return normalized or None
 
 
 class SslStatusResponse(BaseModel):

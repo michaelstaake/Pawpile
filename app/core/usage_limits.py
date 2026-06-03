@@ -1,0 +1,183 @@
+from dataclasses import dataclass
+from datetime import datetime, timedelta, timezone
+
+from sqlalchemy import func
+from sqlalchemy.orm import Session
+
+from app.models.app_settings import AppSettings
+from app.models.token_usage import TokenUsage
+from app.models.user import User
+
+USAGE_PERIOD_SPECS: tuple[tuple[str, str, timedelta], ...] = (
+    ("60_minutes", "usage_limit_tokens_60_minutes", timedelta(minutes=60)),
+    ("24_hours", "usage_limit_tokens_24_hours", timedelta(hours=24)),
+    ("7_days", "usage_limit_tokens_7_days", timedelta(days=7)),
+    ("30_days", "usage_limit_tokens_30_days", timedelta(days=30)),
+)
+
+
+@dataclass(frozen=True)
+class UsageLimitCheckResult:
+    allowed: bool
+    at_limit: bool
+    detail: str | None = None
+
+
+def get_usage_limit_values(app_settings: AppSettings) -> dict[str, int]:
+    return {
+        period_id: max(0, int(getattr(app_settings, limit_attr, 0) or 0))
+        for period_id, limit_attr, _ in USAGE_PERIOD_SPECS
+    }
+
+
+def are_usage_limits_enabled(app_settings: AppSettings) -> bool:
+    return any(value > 0 for value in get_usage_limit_values(app_settings).values())
+
+
+def validate_usage_limit_values(
+    *,
+    usage_limit_tokens_60_minutes: int,
+    usage_limit_tokens_24_hours: int,
+    usage_limit_tokens_7_days: int,
+    usage_limit_tokens_30_days: int,
+) -> None:
+    values = {
+        "60_minutes": usage_limit_tokens_60_minutes,
+        "24_hours": usage_limit_tokens_24_hours,
+        "7_days": usage_limit_tokens_7_days,
+        "30_days": usage_limit_tokens_30_days,
+    }
+
+    for period_id, value in values.items():
+        if value < 0:
+            raise ValueError(f"Usage limit for {period_id.replace('_', ' ')} must be zero or greater")
+
+    enabled_periods = [(period_id, limit_attr, window) for period_id, limit_attr, window in USAGE_PERIOD_SPECS if values[period_id] > 0]
+    for shorter_index in range(len(enabled_periods)):
+        shorter_id, _, _ = enabled_periods[shorter_index]
+        shorter_limit = values[shorter_id]
+        for longer_index in range(shorter_index + 1, len(enabled_periods)):
+            longer_id, _, _ = enabled_periods[longer_index]
+            longer_limit = values[longer_id]
+            if longer_limit < shorter_limit:
+                shorter_label = shorter_id.replace("_", " ")
+                longer_label = longer_id.replace("_", " ")
+                raise ValueError(
+                    f"The {longer_label} token limit cannot be lower than the {shorter_label} limit when both are enabled"
+                )
+
+
+def get_user_token_usage_by_period(db: Session, *, user_id: int) -> dict[str, int]:
+    now = datetime.now(timezone.utc)
+    usage: dict[str, int] = {}
+    for period_id, _, window in USAGE_PERIOD_SPECS:
+        since = now - window
+        total_tokens, _, _ = (
+            db.query(
+                func.coalesce(func.sum(TokenUsage.total_tokens), 0),
+                func.coalesce(func.sum(TokenUsage.input_tokens), 0),
+                func.coalesce(func.sum(TokenUsage.output_tokens), 0),
+            )
+            .filter(TokenUsage.user_id == user_id, TokenUsage.created_at >= since)
+            .one()
+        )
+        usage[period_id] = int(total_tokens or 0)
+    return usage
+
+
+def is_user_over_usage_limit(db: Session, *, user_id: int, app_settings: AppSettings) -> bool:
+    limits = get_usage_limit_values(app_settings)
+    if not any(limit > 0 for limit in limits.values()):
+        return False
+
+    usage = get_user_token_usage_by_period(db, user_id=user_id)
+    for period_id, limit in limits.items():
+        if limit > 0 and usage[period_id] >= limit:
+            return True
+    return False
+
+
+def check_usage_limit_for_request(
+    db: Session,
+    *,
+    user: User,
+    app_settings: AppSettings,
+    requested_model_alias: str,
+) -> UsageLimitCheckResult:
+    if user.is_admin:
+        return UsageLimitCheckResult(allowed=True, at_limit=False)
+
+    user_id = getattr(user, "id", None)
+    if not user_id or user_id <= 0:
+        return UsageLimitCheckResult(allowed=True, at_limit=False)
+
+    limits = get_usage_limit_values(app_settings)
+    if not any(limit > 0 for limit in limits.values()):
+        return UsageLimitCheckResult(allowed=True, at_limit=False)
+
+    usage = get_user_token_usage_by_period(db, user_id=user_id)
+    exceeded_periods = [period_id for period_id, limit in limits.items() if limit > 0 and usage[period_id] >= limit]
+    if not exceeded_periods:
+        return UsageLimitCheckResult(allowed=True, at_limit=False)
+
+    fallback_alias = (app_settings.usage_fallback_model_alias or "").strip()
+    if fallback_alias and requested_model_alias == fallback_alias:
+        return UsageLimitCheckResult(allowed=True, at_limit=True)
+
+    if fallback_alias:
+        return UsageLimitCheckResult(
+            allowed=False,
+            at_limit=True,
+            detail=(
+                f"Token usage limit reached. You can continue using the fallback model ({fallback_alias}) "
+                "until your usage resets."
+            ),
+        )
+
+    return UsageLimitCheckResult(
+        allowed=False,
+        at_limit=True,
+        detail="Token usage limit reached. Try again after your usage resets.",
+    )
+
+
+def build_account_usage_status(db: Session, *, user: User, app_settings: AppSettings) -> dict | None:
+    if user.is_admin:
+        return None
+
+    limits = get_usage_limit_values(app_settings)
+    enabled_limits = {period_id: limit for period_id, limit in limits.items() if limit > 0}
+    if not enabled_limits:
+        return None
+
+    user_id = getattr(user, "id", None)
+    if not user_id or user_id <= 0:
+        return None
+
+    usage = get_user_token_usage_by_period(db, user_id=user_id)
+    period_labels = {
+        "60_minutes": "60 Minutes",
+        "24_hours": "24 Hours",
+        "7_days": "7 Days",
+        "30_days": "30 Days",
+    }
+    periods = []
+    for period_id, limit in enabled_limits.items():
+        used = usage[period_id]
+        percent = min(100.0, (used / limit) * 100) if limit > 0 else 0.0
+        periods.append(
+            {
+                "id": period_id,
+                "label": period_labels[period_id],
+                "limit_tokens": limit,
+                "used_tokens": used,
+                "percent": round(percent, 1),
+            }
+        )
+
+    return {
+        "enabled": True,
+        "fallback_model_alias": app_settings.usage_fallback_model_alias,
+        "at_limit": is_user_over_usage_limit(db, user_id=user_id, app_settings=app_settings),
+        "periods": periods,
+    }

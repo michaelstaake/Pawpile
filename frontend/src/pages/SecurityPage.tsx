@@ -22,6 +22,11 @@ export default function SecurityPage() {
     cloudflare_turnstile_site_key: null,
     cloudflare_turnstile_secret_key_set: false,
     two_factor_enabled: false,
+    usage_limit_tokens_60_minutes: 0,
+    usage_limit_tokens_24_hours: 0,
+    usage_limit_tokens_7_days: 0,
+    usage_limit_tokens_30_days: 0,
+    usage_fallback_model_alias: null,
   });
   const [localSiteKey, setLocalSiteKey] = useState("");
   const [localSecretKey, setLocalSecretKey] = useState("");

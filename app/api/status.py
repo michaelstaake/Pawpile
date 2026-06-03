@@ -5,7 +5,11 @@ import psutil
 from fastapi import APIRouter, Depends
 from sqlalchemy.orm import Session
 
+from app.api.deps import get_optional_current_user
+from app.core.app_settings import get_or_create_app_settings
 from app.core.config import get_settings
+from app.core.usage_limits import build_account_usage_status
+from app.models.user import User
 from app.core.device_manager import build_device_display_suffix
 from app.core.db import get_db
 from app.core.inference_manager import InferenceManager
@@ -17,7 +21,10 @@ router = APIRouter(prefix="/api/status", tags=["status"])
 
 
 @router.get("")
-async def get_status(db: Session = Depends(get_db)) -> dict:
+async def get_status(
+    db: Session = Depends(get_db),
+    current_user: User | None = Depends(get_optional_current_user),
+) -> dict:
     inference: InferenceManager = router.inference_manager  # type: ignore[attr-defined]
     settings = get_settings()
     token_usage = build_token_usage_summary(db)
@@ -104,6 +111,11 @@ async def get_status(db: Session = Depends(get_db)) -> dict:
         )
 
     disk = psutil.disk_usage("/")
+    account_usage = None
+    if current_user is not None:
+        app_settings = get_or_create_app_settings(db)
+        account_usage = build_account_usage_status(db, user=current_user, app_settings=app_settings)
+
     return {
         "status": "ok",
         "refreshed_at": datetime.now(timezone.utc).isoformat(),
@@ -113,6 +125,7 @@ async def get_status(db: Session = Depends(get_db)) -> dict:
         "output_tokens_processed": since_startup["output_tokens"],
         "tokens_processed": since_startup["total_tokens"],
         "token_usage": token_usage,
+        "account_usage": account_usage,
         "devices": serialized_devices,
         "runtime_errors": runtime_errors,
     }

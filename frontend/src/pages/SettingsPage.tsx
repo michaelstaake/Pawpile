@@ -7,12 +7,14 @@ import UsersPage from "./UsersPage";
 import SslPage from "./SslPage";
 import WebSearchPage from "./WebSearchPage";
 import SecurityPage from "./SecurityPage";
+import UsageLimitsPage from "./UsageLimitsPage";
 
-type SettingsTab = "general" | "security" | "running_tasks" | "users" | "web_search" | "kb_settings" | "ssl" | "logs";
+type SettingsTab = "general" | "security" | "usage_limits" | "running_tasks" | "users" | "web_search" | "kb_settings" | "ssl" | "logs";
 
 const tabs: { id: SettingsTab; label: string }[] = [
   { id: "general", label: "Configuration" },
   { id: "security", label: "Security" },
+  { id: "usage_limits", label: "Usage Limits" },
   { id: "running_tasks", label: "Running Tasks" },
   { id: "users", label: "Users" },
   { id: "web_search", label: "Web Search" },
@@ -41,7 +43,8 @@ export default function SettingsPage() {
 
       {activeTab === "general" && <ConfigurationPage />}
       {activeTab === "security" && <SecurityPage />}
-  {activeTab === "running_tasks" && <RunningTasksPage />}
+      {activeTab === "usage_limits" && <UsageLimitsPage />}
+      {activeTab === "running_tasks" && <RunningTasksPage />}
       {activeTab === "users" && <UsersPage />}
       {activeTab === "web_search" && <WebSearchPage />}
       {activeTab === "kb_settings" && <KnowledgeBaseSettings />}

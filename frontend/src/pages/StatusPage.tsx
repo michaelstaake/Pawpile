@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { apiGet, apiPatch } from "../lib/api";
 import { formatDeviceIdLabel } from "../lib/deviceIds";
-import { AppSettingsRecord, DeviceStatusRecord, GpuPoolRecord, StatusModelRecord, StatusResponse, TokenUsageMetricRecord, TokenUsageSummaryRecord, TopTokenUserRecord } from "../lib/records";
+import { AccountUsageStatusRecord, AppSettingsRecord, DeviceStatusRecord, GpuPoolRecord, StatusModelRecord, StatusResponse, TokenUsageMetricRecord, TokenUsageSummaryRecord, TopTokenUserRecord } from "../lib/records";
 import { useAuth } from "../context/AuthContext";
 import { useToast } from "../context/ToastContext";
 import Modal from "../components/ui/Modal";
@@ -290,6 +290,7 @@ export default function StatusPage() {
   const [systemCpuUsagePercent, setSystemCpuUsagePercent] = useState<number | null>(null);
   const [systemDiskFreeBytes, setSystemDiskFreeBytes] = useState<number>(0);
   const [tokenUsage, setTokenUsage] = useState<TokenUsageSummaryRecord | null>(null);
+  const [accountUsage, setAccountUsage] = useState<AccountUsageStatusRecord | null>(null);
   const [appSettings, setAppSettings] = useState<AppSettingsRecord | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const lastErrorMessageRef = useRef<string | null>(null);
@@ -314,6 +315,7 @@ export default function StatusPage() {
         setSystemCpuUsagePercent(response.system_cpu_usage_percent);
         setSystemDiskFreeBytes(response.system_disk_free_bytes);
         setTokenUsage(response.token_usage);
+        setAccountUsage(response.account_usage ?? null);
         lastErrorMessageRef.current = null;
       } catch (error) {
         if (!isMounted) {
@@ -322,6 +324,7 @@ export default function StatusPage() {
         setSystemCpuUsagePercent(null);
         setSystemDiskFreeBytes(0);
         setTokenUsage(null);
+        setAccountUsage(null);
         const message = error instanceof Error ? error.message : "Failed to load status";
         if (lastErrorMessageRef.current !== message) {
           showError(message, { id: "status-error" });
@@ -532,8 +535,45 @@ export default function StatusPage() {
     [summary.activeModels, summary.memoryUsagePercent],
   );
 
+  const showAccountUsage = !user?.is_admin && accountUsage?.enabled;
+
   return (
     <section className="grid gap-4 overflow-hidden rounded-[32px] border border-black/10 bg-[linear-gradient(180deg,rgba(255,255,255,0.88)_0%,rgba(245,240,226,0.78)_100%)] p-6 shadow-sm backdrop-blur">
+      {showAccountUsage ? (
+        <section className="rounded-[28px] border border-black/10 bg-white/85 p-5 shadow-sm">
+          <div className="flex flex-wrap items-start justify-between gap-3">
+            <div>
+              <p className="text-xs font-semibold uppercase tracking-[0.24em] text-black/45">Your Usage</p>
+              <p className="mt-1 text-sm text-black/60">
+                {accountUsage.at_limit
+                  ? accountUsage.fallback_model_alias
+                    ? `You have reached a usage limit. You can still use ${accountUsage.fallback_model_alias} until your usage resets.`
+                    : "You have reached a usage limit. Chat is paused until your usage resets."
+                  : "Token usage against your account limits."}
+              </p>
+            </div>
+          </div>
+
+          <div className="mt-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+            {accountUsage.periods.map((period) => (
+              <div key={period.id} className="rounded-2xl border border-black/10 bg-white/80 p-4">
+                <p className="text-xs font-semibold uppercase tracking-[0.24em] text-black/45">{period.label}</p>
+                <p className="mt-2 font-display text-3xl text-ink">{formatWholePercent(period.percent)}</p>
+                <p className="mt-1 text-sm text-black/55">
+                  {numberFormatter.format(period.used_tokens)} / {numberFormatter.format(period.limit_tokens)} tokens
+                </p>
+                <div className="mt-3 h-2 overflow-hidden rounded-full bg-black/10">
+                  <div
+                    className={`h-full rounded-full ${period.percent >= 100 ? "bg-[#c63f3f]" : period.percent >= 80 ? "bg-[#c98a13]" : "bg-[#2f8f4e]"}`}
+                    style={{ width: `${clampPercent(period.percent)}%` }}
+                  />
+                </div>
+              </div>
+            ))}
+          </div>
+        </section>
+      ) : null}
+
       <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-12">
           <div className="rounded-2xl border border-black/10 bg-white/80 p-4 lg:col-span-3">
             <p className="text-xs font-semibold uppercase tracking-[0.24em] text-black/45">System Health</p>

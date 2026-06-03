@@ -25,3 +25,8 @@ class AppSettings(Base):
     cloudflare_turnstile_site_key: Mapped[str | None] = mapped_column(String(255), nullable=True)
     cloudflare_turnstile_secret_key: Mapped[str | None] = mapped_column(String(255), nullable=True)
     two_factor_enabled: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
+    usage_limit_tokens_60_minutes: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
+    usage_limit_tokens_24_hours: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
+    usage_limit_tokens_7_days: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
+    usage_limit_tokens_30_days: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
+    usage_fallback_model_alias: Mapped[str | None] = mapped_column(String(255), nullable=True)

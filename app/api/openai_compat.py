@@ -14,7 +14,9 @@ from app.core.activity_logger import log_event
 from app.core.db import get_db
 from app.core.inference_manager import InferenceManager
 from app.core.knowledge_base import build_rag_context, retrieve_relevant_documents
+from app.core.app_settings import get_or_create_app_settings
 from app.core.token_usage import record_token_usage
+from app.core.usage_limits import check_usage_limit_for_request
 from app.core.task_manager import task_manager
 from app.core.web_search import WEB_SEARCH_TOOL_DEFINITION, get_search_provider, parse_sse_chunks
 from app.models.app_settings import AppSettings
@@ -391,6 +393,16 @@ async def v1_chat_completions(payload: OpenAIChatRequest, current_user: User = D
     if not model:
         raise HTTPException(status_code=404, detail="Model not found or not active")
 
+    app_settings = get_or_create_app_settings(db)
+    usage_limit_result = check_usage_limit_for_request(
+        db,
+        user=current_user,
+        app_settings=app_settings,
+        requested_model_alias=model.alias,
+    )
+    if not usage_limit_result.allowed:
+        raise HTTPException(status_code=429, detail=usage_limit_result.detail or "Token usage limit reached")
+
     if payload.requests_tooling():
         if not model.tool_calling_enabled:
             raise HTTPException(
@@ -460,8 +472,7 @@ async def v1_chat_completions(payload: OpenAIChatRequest, current_user: User = D
     rag_context = ""
     rag_enabled = payload.model_extra.get("rag_enabled", False) if payload.model_extra else False
     rag_enabled = rag_enabled or model.rag_enabled
-    app_settings = db.query(AppSettings).filter(AppSettings.id == 1).first()
-    if rag_enabled and app_settings and app_settings.knowledge_base_enabled:
+    if rag_enabled and app_settings.knowledge_base_enabled:
         # Get the last user message as the query
         last_user_message = ""
         for msg in reversed(payload.messages):

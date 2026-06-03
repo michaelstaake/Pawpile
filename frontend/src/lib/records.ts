@@ -182,6 +182,21 @@ export type TokenUsageSummaryRecord = {
   top_user_forever: TopTokenUserRecord;
 };
 
+export type AccountUsagePeriodRecord = {
+  id: string;
+  label: string;
+  limit_tokens: number;
+  used_tokens: number;
+  percent: number;
+};
+
+export type AccountUsageStatusRecord = {
+  enabled: boolean;
+  fallback_model_alias: string | null;
+  at_limit: boolean;
+  periods: AccountUsagePeriodRecord[];
+};
+
 export type StatusResponse = {
   status: string;
   refreshed_at: string;
@@ -191,6 +206,7 @@ export type StatusResponse = {
   output_tokens_processed: number;
   tokens_processed: number;
   token_usage: TokenUsageSummaryRecord;
+  account_usage: AccountUsageStatusRecord | null;
   devices: DeviceStatusRecord[];
   runtime_errors: {
     vendor: string;
@@ -252,6 +268,11 @@ export type AppSettingsRecord = {
   cloudflare_turnstile_site_key: string | null;
   cloudflare_turnstile_secret_key_set: boolean;
   two_factor_enabled: boolean;
+  usage_limit_tokens_60_minutes: number;
+  usage_limit_tokens_24_hours: number;
+  usage_limit_tokens_7_days: number;
+  usage_limit_tokens_30_days: number;
+  usage_fallback_model_alias: string | null;
 };
 
 export type SslCertificateStatus = {

@@ -11,7 +11,9 @@ from app.core.config import get_settings
 from app.core.db import get_db
 from app.core.security import generate_api_key, hash_api_key, hash_password
 from app.core.token_usage import get_user_token_usage
+from app.core.usage_limits import validate_usage_limit_values
 from app.models.api_key import ApiKey
+from app.models.model_config import ModelConfig
 from app.models.user import User
 from app.utils.schemas import ApiKeyCreateRequest, AppSettingsResponse, AppSettingsUpdateRequest, UserCreateRequest, UserUpdateRequest
 
@@ -55,6 +57,41 @@ def update_settings(payload: AppSettingsUpdateRequest, admin_user: User = Depend
         app_settings.cloudflare_turnstile_secret_key = payload.cloudflare_turnstile_secret_key
     if payload.two_factor_enabled is not None:
         app_settings.two_factor_enabled = payload.two_factor_enabled
+
+    usage_limit_updates = {
+        "usage_limit_tokens_60_minutes": payload.usage_limit_tokens_60_minutes,
+        "usage_limit_tokens_24_hours": payload.usage_limit_tokens_24_hours,
+        "usage_limit_tokens_7_days": payload.usage_limit_tokens_7_days,
+        "usage_limit_tokens_30_days": payload.usage_limit_tokens_30_days,
+    }
+    if any(value is not None for value in usage_limit_updates.values()):
+        merged_limits = {
+            field_name: (
+                getattr(payload, field_name)
+                if getattr(payload, field_name) is not None
+                else getattr(app_settings, field_name)
+            )
+            for field_name in usage_limit_updates
+        }
+        try:
+            validate_usage_limit_values(**merged_limits)
+        except ValueError as exc:
+            raise HTTPException(status_code=400, detail=str(exc)) from exc
+        for field_name, value in usage_limit_updates.items():
+            if value is not None:
+                setattr(app_settings, field_name, value)
+
+    if payload.usage_fallback_model_alias is not None:
+        fallback_alias = payload.usage_fallback_model_alias
+        if fallback_alias:
+            fallback_model = (
+                db.query(ModelConfig)
+                .filter(ModelConfig.alias == fallback_alias, ModelConfig.activated.is_(True))
+                .first()
+            )
+            if not fallback_model:
+                raise HTTPException(status_code=400, detail="Fallback model must be an active model alias")
+        app_settings.usage_fallback_model_alias = fallback_alias
 
     db.add(app_settings)
     db.commit()
@@ -258,6 +295,11 @@ def _serialize_app_settings(app_settings) -> AppSettingsResponse:
         cloudflare_turnstile_site_key=app_settings.cloudflare_turnstile_site_key,
         cloudflare_turnstile_secret_key_set=app_settings.cloudflare_turnstile_secret_key is not None,
         two_factor_enabled=app_settings.two_factor_enabled,
+        usage_limit_tokens_60_minutes=app_settings.usage_limit_tokens_60_minutes,
+        usage_limit_tokens_24_hours=app_settings.usage_limit_tokens_24_hours,
+        usage_limit_tokens_7_days=app_settings.usage_limit_tokens_7_days,
+        usage_limit_tokens_30_days=app_settings.usage_limit_tokens_30_days,
+        usage_fallback_model_alias=app_settings.usage_fallback_model_alias,
     )
 
 
