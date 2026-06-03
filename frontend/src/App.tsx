@@ -43,12 +43,10 @@ type AppBackgroundStyle = CSSProperties & {
 function getMainNavItems(user: CurrentUser | null, knowledgeBaseEnabled: boolean): MobileNavItem[] {
   const items: MobileNavItem[] = [];
 
-  items.push({ to: "/status", iconClassName: "bi bi-activity", label: "Status" });
-
   if (user) {
     items.push({ to: "/", end: true, iconClassName: "bi bi-house", label: "Chat" });
     items.push({ to: "/apikeys", iconClassName: "bi bi-key", label: "API" });
-    if (knowledgeBaseEnabled) {
+    if (knowledgeBaseEnabled && user.is_admin) {
       items.push({ to: "/kb", iconClassName: "bi bi-book-half", label: "KB" });
     }
   }
@@ -58,6 +56,8 @@ function getMainNavItems(user: CurrentUser | null, knowledgeBaseEnabled: boolean
     items.push({ to: "/models", iconClassName: "bi bi-file-earmark", label: "Models" });
     items.push({ to: "/settings", iconClassName: "bi bi-gear", label: "Settings" });
   }
+
+  items.push({ to: "/status", iconClassName: "bi bi-activity", label: "Status" });
 
   items.push({
     to: user ? "/profile" : "/login",
@@ -302,7 +302,7 @@ export default function App() {
               <Route path="/profile" element={<RequireUser><ProfilePage /></RequireUser>} />
               <Route path="/api" element={<Navigate to="/apikeys" replace />} />
               <Route path="/apikeys" element={<RequireUser><ApiPage /></RequireUser>} />
-              <Route path="/kb" element={<RequireUser><KnowledgeBasePage /></RequireUser>} />
+              <Route path="/kb" element={<RequireAdmin><KnowledgeBasePage /></RequireAdmin>} />
               <Route path="/setup" element={<SetupRoute />} />
               <Route path="/403" element={<ForbiddenPage />} />
               <Route path="/404" element={<NotFoundPage />} />

@@ -1,7 +1,7 @@
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 
-from app.api.deps import get_current_user
+from app.api.deps import get_admin_user, get_current_user
 from app.core.db import get_db
 from app.core.knowledge_base import build_rag_context, retrieve_relevant_documents, truncate_content
 from app.models.knowledge_base import KnowledgeBaseCategory, KnowledgeBaseDocument
@@ -38,7 +38,7 @@ def list_categories(
 @router.post("/categories", response_model=KnowledgeBaseCategoryResponse)
 def create_category(
     payload: KnowledgeBaseCategoryCreateRequest,
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(get_admin_user),
     db: Session = Depends(get_db),
 ) -> KnowledgeBaseCategoryResponse:
     # Check for duplicate name (case-insensitive) among non-default categories
@@ -69,7 +69,7 @@ def create_category(
 def update_category(
     cat_id: int,
     payload: KnowledgeBaseCategoryUpdateRequest,
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(get_admin_user),
     db: Session = Depends(get_db),
 ) -> KnowledgeBaseCategoryResponse:
     cat = (
@@ -105,7 +105,7 @@ def update_category(
 @router.delete("/categories/{cat_id}")
 def delete_category(
     cat_id: int,
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(get_admin_user),
     db: Session = Depends(get_db),
 ) -> dict:
     cat = (
@@ -156,7 +156,7 @@ def list_documents(
 @router.post("/documents", response_model=KnowledgeBaseDocumentResponse)
 def create_document(
     payload: KnowledgeBaseDocumentCreateRequest,
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(get_admin_user),
     db: Session = Depends(get_db),
 ) -> KnowledgeBaseDocumentResponse:
     content = truncate_content(payload.content)
@@ -176,7 +176,7 @@ def create_document(
 def update_document(
     doc_id: int,
     payload: KnowledgeBaseDocumentUpdateRequest,
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(get_admin_user),
     db: Session = Depends(get_db),
 ) -> KnowledgeBaseDocumentResponse:
     doc = (
@@ -211,7 +211,7 @@ def update_document(
 @router.delete("/documents/{doc_id}")
 def delete_document(
     doc_id: int,
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(get_admin_user),
     db: Session = Depends(get_db),
 ) -> dict:
     doc = (
