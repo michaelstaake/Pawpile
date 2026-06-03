@@ -5,6 +5,9 @@ services:
       dockerfile: Dockerfile.backend
     container_name: pawpile-backend
     environment:
+      # Listen on 8000 inside the container; host port 8444 is mapped in `ports` below.
+      APP_PORT: "8000"
+      FRONTEND_ORIGIN: "https://localhost:8443"
       INFERENCE_SERVICE_URL: http://inference-cpu:8100
       INFERENCE_RUNTIME_URLS: cpu=http://inference-cpu:8100,nvidia=http://inference-nvidia:8100,vulkan=http://inference-vulkan:8100
       SUPPORTED_DEVICES: ""
@@ -20,7 +23,7 @@ services:
     ports:
       - "8444:8000"
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:8444/health"]
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
       interval: ${STARTUP_HEALTHCHECK_INTERVAL:-15s}
       timeout: ${STARTUP_HEALTHCHECK_TIMEOUT:-5s}
       retries: ${STARTUP_HEALTHCHECK_RETRIES:-40}
