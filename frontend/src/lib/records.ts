@@ -113,6 +113,7 @@ export type GpuPoolRecord = {
   id: number;
   name: string;
   vendor: string;
+  split_mode: string;
   devices: DeviceRecord[];
 };
 

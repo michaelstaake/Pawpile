@@ -993,7 +993,7 @@ def _build_pool_target(db: Session, pool: GpuPool, require_enabled: bool) -> Poo
     if require_enabled:
         query = query.filter(Device.enabled.is_(True))
     pool_devices = query.all()
-    return PoolActivationTarget(pool_id=pool.id, pool_name=pool.name, vendor=pool.vendor, devices=pool_devices)
+    return PoolActivationTarget(pool_id=pool.id, pool_name=pool.name, vendor=pool.vendor, devices=pool_devices, split_mode=pool.split_mode)
 
 
 def _estimate_model_size_mb(file_path: str) -> int:

@@ -289,12 +289,14 @@ class GpuPoolCreateRequest(BaseModel):
     name: str = Field(default="GPU Pool", min_length=1, max_length=120)
     vendor: str = Field(default="nvidia", min_length=1, max_length=32)
     device_ids: list[int] = Field(min_length=2)
+    split_mode: str = Field(default="row", min_length=1, max_length=16)
 
 
 class GpuPoolUpdateRequest(BaseModel):
     name: str | None = Field(default=None, min_length=1, max_length=120)
     vendor: str | None = Field(default=None, min_length=1, max_length=32)
     device_ids: list[int] = Field(min_length=2)
+    split_mode: str | None = Field(default=None, min_length=1, max_length=16)
 
 
 class DeviceReorderItem(BaseModel):

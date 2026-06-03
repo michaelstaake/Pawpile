@@ -8,7 +8,7 @@ from app.core.db import get_db
 from app.core.device_manager import DeviceManager, build_device_display_suffix, get_supported_vendors
 from app.core.gpu_pool_manager import delete_pool_and_revert_models, revert_models_pinned_to_devices
 from app.models.device import Device
-from app.models.gpu_pool import GpuPool, GpuPoolDevice
+from app.models.gpu_pool import GpuPool, GpuPoolDevice, VALID_SPLIT_MODES
 from app.models.model_config import ModelConfig
 from app.models.user import User
 from app.utils.schemas import DeviceReorderRequest, DeviceUpdateRequest, GpuPoolCreateRequest, GpuPoolUpdateRequest
@@ -56,11 +56,12 @@ def get_pool(pool_id: int, _: User = Depends(get_admin_user), db: Session = Depe
 @router.post("/pools")
 def create_pool(payload: GpuPoolCreateRequest, _: User = Depends(get_admin_user), db: Session = Depends(get_db)) -> dict:
     vendor = _validate_pool_vendor(payload.vendor)
+    split_mode = _validate_split_mode(payload.split_mode)
     devices = _validate_pool_devices(payload.device_ids, vendor, db)
     _validate_pool_membership(devices, db)
     inference = router.inference_manager  # type: ignore[attr-defined]
 
-    pool = GpuPool(name=payload.name.strip(), vendor=vendor)
+    pool = GpuPool(name=payload.name.strip(), vendor=vendor, split_mode=split_mode)
     db.add(pool)
     db.flush()
 
@@ -98,6 +99,8 @@ def update_pool(pool_id: int, payload: GpuPoolUpdateRequest, _: User = Depends(g
     if payload.name is not None:
         pool.name = payload.name.strip()
     pool.vendor = vendor
+    if payload.split_mode is not None:
+        pool.split_mode = _validate_split_mode(payload.split_mode)
     db.add(pool)
 
     reverted_models = revert_models_pinned_to_devices(db, added_device_ids, inference)
@@ -163,6 +166,13 @@ def _validate_pool_vendor(vendor: str) -> str:
     return normalized
 
 
+def _validate_split_mode(split_mode: str) -> str:
+    normalized = split_mode.strip().lower()
+    if normalized not in VALID_SPLIT_MODES:
+        raise HTTPException(status_code=400, detail=f"Invalid split mode. Must be one of: {', '.join(sorted(VALID_SPLIT_MODES))}")
+    return normalized
+
+
 def _validate_pool_devices(device_ids: list[int], vendor: str, db: Session) -> list[Device]:
     if len(device_ids) < 2:
         raise HTTPException(status_code=400, detail="A GPU pool requires at least two devices")
@@ -204,6 +214,7 @@ def _serialize_pool(pool: GpuPool, db: Session) -> dict:
         "id": pool.id,
         "name": pool.name,
         "vendor": pool.vendor,
+        "split_mode": pool.split_mode,
         "devices": [_serialize_device(d) for d in devices],
     }
 

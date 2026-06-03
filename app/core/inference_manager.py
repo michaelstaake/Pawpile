@@ -23,6 +23,7 @@ class PoolActivationTarget:
     pool_name: str
     vendor: str
     devices: list[Device]
+    split_mode: str = "row"
 
     @property
     def runtime_vendor(self) -> str:
@@ -178,6 +179,7 @@ class InferenceManager:
             "hardware_id": target.hardware_ids[0],
             "hardware_ids": target.hardware_ids,
             "vram_ratios": target.vram_ratios,
+            "split_mode": target.split_mode,
         }
         timeout = self.settings.inference_service_timeout_seconds
         async with httpx.AsyncClient(timeout=timeout) as client:

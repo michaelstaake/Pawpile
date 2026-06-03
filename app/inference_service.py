@@ -45,6 +45,7 @@ class ActivateModelRequest(BaseModel):
     hardware_id: str
     hardware_ids: list[str] = []
     vram_ratios: list[int] = []
+    split_mode: str = "row"
 
 
 @dataclass
@@ -93,7 +94,7 @@ class InferenceRuntime:
         ]
         if payload.mmproj_path:
             command.extend(["--mmproj", payload.mmproj_path])
-        command.extend(self._build_vendor_args(payload.vendor, payload.vram_ratios))
+        command.extend(self._build_vendor_args(payload.vendor, payload.vram_ratios, payload.split_mode))
 
         logs_dir = Path(self.settings.logs_dir)
         logs_dir.mkdir(parents=True, exist_ok=True)
@@ -249,11 +250,12 @@ class InferenceRuntime:
             raise RuntimeError(f"Unknown device vendor: {vendor}")
         return env
 
-    def _build_vendor_args(self, vendor: str, vram_ratios: list[int] | None = None) -> list[str]:
+    def _build_vendor_args(self, vendor: str, vram_ratios: list[int] | None = None, split_mode: str = "row") -> list[str]:
         if vendor.endswith("_pool"):
             args: list[str] = []
             if vram_ratios and len(vram_ratios) >= 2:
                 args.extend(["--tensor-split", ",".join(str(r) for r in vram_ratios)])
+            args.extend(["--split-mode", split_mode])
             return args
 
         return []

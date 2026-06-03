@@ -8,6 +8,21 @@ import { DeviceRecord, DeviceUpdateResponse, GpuPoolRecord } from "../lib/record
 
 const AUTO_SAVE_DELAY_MS = 700;
 const POOL_VENDORS = ["nvidia", "vulkan"] as const;
+const SPLIT_MODES = ["row", "layer", "tensor"] as const;
+
+function splitModeLabel(mode: string) {
+  if (mode === "row") return "Row";
+  if (mode === "layer") return "Layer";
+  if (mode === "tensor") return "Tensor";
+  return mode;
+}
+
+function splitModeDescription(mode: string) {
+  if (mode === "row") return "Splits by row — requires fast inter-GPU bandwidth.";
+  if (mode === "layer") return "Splits by layer — sequential, minimizes PCIe chatter.";
+  if (mode === "tensor") return "Tensor parallelism — requires high-speed inter-GPU bandwidth.";
+  return "";
+}
 
 function buildDevicePayload(device: DeviceRecord) {
   return {
@@ -63,6 +78,7 @@ export default function DevicesPage({ setupMode = false, onContinue }: DevicesPa
   const [selectedPoolDeviceIds, setSelectedPoolDeviceIds] = useState<number[]>([]);
   const [poolDraftName, setPoolDraftName] = useState("GPU Pool");
   const [poolDraftVendor, setPoolDraftVendor] = useState<(typeof POOL_VENDORS)[number]>("nvidia");
+  const [poolDraftSplitMode, setPoolDraftSplitMode] = useState<(typeof SPLIT_MODES)[number]>("row");
   const [editingPoolId, setEditingPoolId] = useState<number | null>(null);
   const [isPoolModalOpen, setIsPoolModalOpen] = useState(false);
   const [showDeletePoolConfirmId, setShowDeletePoolConfirmId] = useState<number | null>(null);
@@ -224,6 +240,7 @@ export default function DevicesPage({ setupMode = false, onContinue }: DevicesPa
     setEditingPoolId(null);
     setPoolDraftName("GPU Pool");
     setPoolDraftVendor((draftVendorOptions[0] ?? availablePoolVendors[0] ?? "nvidia") as (typeof POOL_VENDORS)[number]);
+    setPoolDraftSplitMode("row");
     setSelectedPoolDeviceIds([]);
     setShowDeletePoolConfirmId(null);
   }
@@ -242,6 +259,7 @@ export default function DevicesPage({ setupMode = false, onContinue }: DevicesPa
     setEditingPoolId(pool.id);
     setPoolDraftName(pool.name);
     setPoolDraftVendor(pool.vendor as (typeof POOL_VENDORS)[number]);
+    setPoolDraftSplitMode(pool.split_mode as (typeof SPLIT_MODES)[number]);
     setSelectedPoolDeviceIds(pool.devices.map((device) => device.id));
     setIsPoolModalOpen(true);
     setShowDeletePoolConfirmId(null);
@@ -285,9 +303,9 @@ export default function DevicesPage({ setupMode = false, onContinue }: DevicesPa
     if (!token || selectedPoolDeviceIds.length < 2) return;
     setPoolLoadingTarget("create");
     try {
-      const response = await apiPost<{ name: string; vendor: string; device_ids: number[] }, { pool: GpuPoolRecord }>(
+      const response = await apiPost<{ name: string; vendor: string; device_ids: number[]; split_mode: string }, { pool: GpuPoolRecord }>(
         "/api/devices/pools",
-        { name: poolDraftName.trim(), vendor: poolDraftVendor, device_ids: selectedPoolDeviceIds },
+        { name: poolDraftName.trim(), vendor: poolDraftVendor, device_ids: selectedPoolDeviceIds, split_mode: poolDraftSplitMode },
         token,
       );
       setPools((current) => sortPools([...current, response.pool]));
@@ -306,9 +324,9 @@ export default function DevicesPage({ setupMode = false, onContinue }: DevicesPa
     const removedDeviceIds = editablePool.devices.map((device) => device.id).filter((id) => !selectedPoolDeviceIds.includes(id));
     setPoolLoadingTarget(`update:${editablePool.id}`);
     try {
-      const response = await apiPatch<{ name: string; vendor: string; device_ids: number[] }, { pool: GpuPoolRecord }>(
+      const response = await apiPatch<{ name: string; vendor: string; device_ids: number[]; split_mode: string }, { pool: GpuPoolRecord }>(
         `/api/devices/pools/${editablePool.id}`,
-        { name: poolDraftName.trim(), vendor: poolDraftVendor, device_ids: selectedPoolDeviceIds },
+        { name: poolDraftName.trim(), vendor: poolDraftVendor, device_ids: selectedPoolDeviceIds, split_mode: poolDraftSplitMode },
         token,
       );
       if (removedDeviceIds.length > 0) {
@@ -409,6 +427,7 @@ export default function DevicesPage({ setupMode = false, onContinue }: DevicesPa
                             <div className="flex flex-wrap items-center gap-2">
                               <h4 className="font-display text-base text-violet-950">{pool.name}</h4>
                               <span className="rounded-full border border-violet-200 bg-violet-100 px-2 py-0.5 text-[11px] font-semibold uppercase tracking-[0.12em] text-violet-700">{vendorLabel(pool.vendor)}</span>
+                              <span className="rounded-full border border-violet-200 bg-violet-100 px-2 py-0.5 text-[11px] font-semibold uppercase tracking-[0.12em] text-violet-700">{splitModeLabel(pool.split_mode)}</span>
                             </div>
                           </div>
                           <div className="flex flex-wrap gap-2">
@@ -501,6 +520,15 @@ export default function DevicesPage({ setupMode = false, onContinue }: DevicesPa
                   <select className="rounded-xl border border-black/15 bg-white px-3 py-2 text-sm" value={poolDraftVendor} onChange={(event) => setPoolDraftVendor(event.target.value as (typeof POOL_VENDORS)[number])}>
                     {draftVendorOptions.map((vendor) => (
                       <option key={vendor} value={vendor}>{vendorLabel(vendor)}</option>
+                    ))}
+                  </select>
+                </label>
+                <label className="grid gap-1 text-sm text-black/70">
+                  <span>Split Mode</span>
+                  <span className="text-xs text-black/45">{splitModeDescription(poolDraftSplitMode)}</span>
+                  <select className="rounded-xl border border-black/15 bg-white px-3 py-2 text-sm" value={poolDraftSplitMode} onChange={(event) => setPoolDraftSplitMode(event.target.value as (typeof SPLIT_MODES)[number])}>
+                    {SPLIT_MODES.map((mode) => (
+                      <option key={mode} value={mode}>{splitModeLabel(mode)}</option>
                     ))}
                   </select>
                 </label>
