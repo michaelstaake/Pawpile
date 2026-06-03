@@ -68,9 +68,9 @@ async def verify_cloudflare_turnstile(secret_key: str, token: str) -> bool:
             )
             return False
 
-        if score < 0.1:
+        if score < 0.2:
             logger.info(
-                "Cloudflare Turnstile score below threshold: %s",
+                "Cloudflare Turnstile score below explicit widget threshold (0.2): %s",
                 score,
                 extra={"score": score, "error_codes": error_codes},
             )
