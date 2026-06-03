@@ -483,7 +483,7 @@ export default function StatusPage() {
         className: "lg:col-span-3",
       },
       {
-        label: "Last 1 Hour",
+        label: "Last 60 Minutes",
         value: formatTokenValue(summary?.last_1_hour ?? emptyMetric),
         title: formatTokenTooltip(summary?.last_1_hour ?? emptyMetric),
         detail: "Tokens",

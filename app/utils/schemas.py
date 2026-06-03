@@ -164,6 +164,7 @@ def content_includes_vision(content: str | list[dict[str, Any]] | None) -> bool:
 class LoginRequest(BaseModel):
     username: str
     password: str
+    turnstile_response: str | None = None
 
 
 class LoginResponse(BaseModel):
@@ -210,6 +211,7 @@ class BootstrapStatusResponse(BaseModel):
     background_image_path: str | None = None
     background_image_mode: Literal["fill", "stretch", "repeat"] = "fill"
     knowledge_base_enabled: bool = False
+    cloudflare_turnstile_enabled: bool = False
 
     @field_validator("background_color", mode="before")
     @classmethod
@@ -227,6 +229,7 @@ class UserRegistrationRequest(BaseModel):
     username: str = Field(min_length=3, max_length=64)
     email: str = Field(min_length=3, max_length=255)
     password: str = Field(min_length=8, max_length=255)
+    turnstile_response: str | None = None
 
 
 class AppSettingsResponse(BaseModel):
@@ -239,6 +242,10 @@ class AppSettingsResponse(BaseModel):
     input_price_per_1m: float = 0.0
     output_price_per_1m: float = 0.0
     public_url: str = ""
+    cloudflare_turnstile_enabled: bool = False
+    cloudflare_turnstile_site_key: str | None = None
+    cloudflare_turnstile_secret_key: str | None = None
+    two_factor_enabled: bool = False
 
     @field_validator("background_color", mode="before")
     @classmethod
@@ -260,6 +267,10 @@ class AppSettingsUpdateRequest(BaseModel):
     input_price_per_1m: float | None = None
     output_price_per_1m: float | None = None
     public_url: str | None = None
+    cloudflare_turnstile_enabled: bool | None = None
+    cloudflare_turnstile_site_key: str | None = None
+    cloudflare_turnstile_secret_key: str | None = None
+    two_factor_enabled: bool | None = None
 
     @field_validator("background_color", mode="before")
     @classmethod

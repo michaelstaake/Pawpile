@@ -11,7 +11,7 @@ from app.core.activity_logger import log_event
 from app.core.app_settings import get_or_create_app_settings
 from app.core.config import get_settings
 from app.core.db import get_db
-from app.core.security import create_access_token, generate_api_key, hash_api_key, hash_password, verify_password
+from app.core.security import create_access_token, generate_api_key, hash_api_key, hash_password, verify_api_key, verify_cloudflare_turnstile, verify_password
 from app.models.api_key import ApiKey
 from app.models.device import Device
 from app.models.model_config import ModelConfig
@@ -45,6 +45,7 @@ def bootstrap_status(db: Session = Depends(get_db)) -> BootstrapStatusResponse:
         background_image_path=app_settings.background_image_path,
         background_image_mode=app_settings.background_image_mode,
         knowledge_base_enabled=app_settings.knowledge_base_enabled,
+        cloudflare_turnstile_enabled=app_settings.cloudflare_turnstile_enabled,
     )
 
 
@@ -96,8 +97,20 @@ def bootstrap_admin(payload: BootstrapAdminRequest, request: Request, db: Sessio
 
 
 @router.post("/login", response_model=LoginResponse)
-def login(payload: LoginRequest, request: Request, db: Session = Depends(get_db)) -> LoginResponse:
+async def login(payload: LoginRequest, request: Request, db: Session = Depends(get_db)) -> LoginResponse:
     ip = request.client.host if request.client else None
+    app_settings = get_or_create_app_settings(db)
+
+    if app_settings.cloudflare_turnstile_enabled:
+        if not payload.turnstile_response:
+            log_event(db, "auth.login_failed", username=payload.username, ip_address=ip)
+            raise HTTPException(status_code=400, detail="Cloudflare Turnstile verification is required")
+        if app_settings.cloudflare_turnstile_secret_key:
+            turnstile_valid = await verify_cloudflare_turnstile(app_settings.cloudflare_turnstile_secret_key, payload.turnstile_response)
+            if not turnstile_valid:
+                log_event(db, "auth.login_failed", username=payload.username, ip_address=ip)
+                raise HTTPException(status_code=400, detail="Cloudflare Turnstile verification failed")
+
     user = db.query(User).filter(User.username == payload.username, User.is_active.is_(True)).first()
     if not user or not verify_password(payload.password, user.password_hash):
         log_event(db, "auth.login_failed", username=payload.username, ip_address=ip)
@@ -108,10 +121,20 @@ def login(payload: LoginRequest, request: Request, db: Session = Depends(get_db)
 
 
 @router.post("/register", response_model=LoginResponse)
-def register(payload: UserRegistrationRequest, request: Request, db: Session = Depends(get_db)) -> LoginResponse:
+async def register(payload: UserRegistrationRequest, request: Request, db: Session = Depends(get_db)) -> LoginResponse:
     app_settings = get_or_create_app_settings(db)
     if not app_settings.users_can_register:
         raise HTTPException(status_code=403, detail="User registration is disabled")
+
+    if app_settings.cloudflare_turnstile_enabled:
+        if not payload.turnstile_response:
+            log_event(db, "auth.register_failed", username=payload.username, ip_address=request.client.host if request.client else None)
+            raise HTTPException(status_code=400, detail="Cloudflare Turnstile verification is required")
+        if app_settings.cloudflare_turnstile_secret_key:
+            turnstile_valid = await verify_cloudflare_turnstile(app_settings.cloudflare_turnstile_secret_key, payload.turnstile_response)
+            if not turnstile_valid:
+                log_event(db, "auth.register_failed", username=payload.username, ip_address=request.client.host if request.client else None)
+                raise HTTPException(status_code=400, detail="Cloudflare Turnstile verification failed")
 
     existing_user = db.query(User.id).filter((User.username == payload.username) | (User.email == payload.email)).first()
     if existing_user is not None:

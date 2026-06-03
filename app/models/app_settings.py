@@ -21,3 +21,7 @@ class AppSettings(Base):
     public_url: Mapped[str] = mapped_column(String(512), default="", nullable=False)
     letsencrypt_email: Mapped[str | None] = mapped_column(String(255), nullable=True)
     cloudflare_api_token: Mapped[str | None] = mapped_column(Text, nullable=True)
+    cloudflare_turnstile_enabled: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
+    cloudflare_turnstile_site_key: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    cloudflare_turnstile_secret_key: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    two_factor_enabled: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)

@@ -55,6 +55,10 @@ export default function ConfigurationPage() {
     input_price_per_1m: 0,
     output_price_per_1m: 0,
     public_url: "",
+    cloudflare_turnstile_enabled: false,
+    cloudflare_turnstile_site_key: null,
+    cloudflare_turnstile_secret_key: null,
+    two_factor_enabled: false,
   });
   const [localSitename, setLocalSitename] = useState(DEFAULT_SITENAME);
   const [localPublicUrl, setLocalPublicUrl] = useState("");

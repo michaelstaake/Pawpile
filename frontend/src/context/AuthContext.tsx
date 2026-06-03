@@ -16,11 +16,13 @@ type AuthContextValue = {
   backgroundImagePath: string | null;
   backgroundImageMode: BackgroundImageMode;
   knowledgeBaseEnabled: boolean;
+  cloudflareTurnstileEnabled: boolean;
+  cloudflareTurnstileSiteKey: string | null;
   refreshAuthState: () => Promise<void>;
   refreshPublicSettings: () => Promise<void>;
   updateProfile: (payload: { email?: string; password?: string }) => Promise<CurrentUser>;
-  login: (username: string, password: string) => Promise<void>;
-  register: (username: string, email: string, password: string) => Promise<void>;
+  login: (username: string, password: string, turnstileResponse?: string) => Promise<void>;
+  register: (username: string, email: string, password: string, turnstileResponse?: string) => Promise<void>;
   bootstrapAdmin: (username: string, email: string, password: string) => Promise<void>;
   logout: () => void;
 };
@@ -44,6 +46,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [backgroundImagePath, setBackgroundImagePath] = useState<string | null>(null);
   const [backgroundImageMode, setBackgroundImageMode] = useState<BackgroundImageMode>(DEFAULT_BACKGROUND_IMAGE_MODE);
   const [knowledgeBaseEnabled, setKnowledgeBaseEnabled] = useState(false);
+  const [cloudflareTurnstileEnabled, setCloudflareTurnstileEnabled] = useState(false);
+  const [cloudflareTurnstileSiteKey, setCloudflareTurnstileSiteKey] = useState<string | null>(null);
 
   useEffect(() => {
     const onStorage = (event: StorageEvent) => {
@@ -68,6 +72,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       setBackgroundImagePath(bootstrap.background_image_path || null);
       setBackgroundImageMode(bootstrap.background_image_mode || DEFAULT_BACKGROUND_IMAGE_MODE);
       setKnowledgeBaseEnabled(bootstrap.knowledge_base_enabled);
+      setCloudflareTurnstileEnabled(bootstrap.cloudflare_turnstile_enabled);
+      setCloudflareTurnstileSiteKey(bootstrap.cloudflare_turnstile_site_key || null);
     } catch {
       // silently ignore — UI will retain previous values
     }
@@ -86,6 +92,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       setBackgroundImagePath(bootstrap.background_image_path || null);
       setBackgroundImageMode(bootstrap.background_image_mode || DEFAULT_BACKGROUND_IMAGE_MODE);
       setKnowledgeBaseEnabled(bootstrap.knowledge_base_enabled);
+      setCloudflareTurnstileEnabled(bootstrap.cloudflare_turnstile_enabled);
+      setCloudflareTurnstileSiteKey(bootstrap.cloudflare_turnstile_site_key || null);
 
       if (!token) {
         setUser(null);
@@ -111,16 +119,18 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       setBackgroundImagePath(null);
       setBackgroundImageMode(DEFAULT_BACKGROUND_IMAGE_MODE);
       setKnowledgeBaseEnabled(false);
+      setCloudflareTurnstileEnabled(false);
+      setCloudflareTurnstileSiteKey(null);
       setBootstrapError(error instanceof Error ? error.message : "Unable to load installation state");
     } finally {
       setIsBootstrapping(false);
     }
   }
 
-  async function login(username: string, password: string) {
+  async function login(username: string, password: string, turnstileResponse?: string) {
     setIsAuthenticating(true);
     try {
-      const response = await apiPost<{ username: string; password: string }, LoginResponse>("/api/auth/login", { username, password });
+      const response = await apiPost<{ username: string; password: string; turnstile_response?: string }, LoginResponse>("/api/auth/login", { username, password, turnstile_response });
       storeToken(response.access_token);
       setToken(response.access_token);
       const currentUser = await apiGet<CurrentUser>("/api/auth/me", response.access_token);
@@ -152,25 +162,30 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       setBackgroundImagePath(bootstrap.background_image_path || null);
       setBackgroundImageMode(bootstrap.background_image_mode || DEFAULT_BACKGROUND_IMAGE_MODE);
       setKnowledgeBaseEnabled(bootstrap.knowledge_base_enabled);
+      setCloudflareTurnstileEnabled(bootstrap.cloudflare_turnstile_enabled);
+      setCloudflareTurnstileSiteKey(bootstrap.cloudflare_turnstile_site_key || null);
       setBootstrapError(null);
     } finally {
       setIsAuthenticating(false);
     }
   }
 
-  async function register(username: string, email: string, password: string) {
+  async function register(username: string, email: string, password: string, turnstileResponse?: string) {
     setIsAuthenticating(true);
     try {
-      const response = await apiPost<{ username: string; email: string; password: string }, LoginResponse>("/api/auth/register", {
+      const response = await apiPost<{ username: string; email: string; password: string; turnstile_response?: string }, LoginResponse>("/api/auth/register", {
         username,
         email,
         password,
+        turnstile_response,
       });
       storeToken(response.access_token);
       setToken(response.access_token);
       const currentUser = await apiGet<CurrentUser>("/api/auth/me", response.access_token);
       const bootstrap = await apiGet<BootstrapStatus>("/api/auth/bootstrap-status");
       setKnowledgeBaseEnabled(bootstrap.knowledge_base_enabled);
+      setCloudflareTurnstileEnabled(bootstrap.cloudflare_turnstile_enabled);
+      setCloudflareTurnstileSiteKey(bootstrap.cloudflare_turnstile_site_key || null);
       setBootstrapError(null);
       setUser(currentUser);
     } finally {
@@ -210,6 +225,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         backgroundImagePath,
         backgroundImageMode,
         knowledgeBaseEnabled,
+        cloudflareTurnstileEnabled,
+        cloudflareTurnstileSiteKey,
         refreshAuthState,
         refreshPublicSettings,
         updateProfile,

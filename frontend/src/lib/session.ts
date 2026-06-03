@@ -14,6 +14,8 @@ export type BootstrapStatus = {
   background_image_path: string | null;
   background_image_mode: BackgroundImageMode;
   knowledge_base_enabled: boolean;
+  cloudflare_turnstile_enabled: boolean;
+  cloudflare_turnstile_site_key: string | null;
 };
 
 export type CurrentUser = {

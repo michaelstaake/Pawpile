@@ -47,6 +47,14 @@ def update_settings(payload: AppSettingsUpdateRequest, admin_user: User = Depend
         app_settings.output_price_per_1m = payload.output_price_per_1m
     if payload.public_url is not None:
         app_settings.public_url = payload.public_url
+    if payload.cloudflare_turnstile_enabled is not None:
+        app_settings.cloudflare_turnstile_enabled = payload.cloudflare_turnstile_enabled
+    if payload.cloudflare_turnstile_site_key is not None:
+        app_settings.cloudflare_turnstile_site_key = payload.cloudflare_turnstile_site_key
+    if payload.cloudflare_turnstile_secret_key is not None:
+        app_settings.cloudflare_turnstile_secret_key = payload.cloudflare_turnstile_secret_key
+    if payload.two_factor_enabled is not None:
+        app_settings.two_factor_enabled = payload.two_factor_enabled
 
     db.add(app_settings)
     db.commit()
@@ -246,6 +254,10 @@ def _serialize_app_settings(app_settings) -> AppSettingsResponse:
         input_price_per_1m=app_settings.input_price_per_1m,
         output_price_per_1m=app_settings.output_price_per_1m,
         public_url=app_settings.public_url or "",
+        cloudflare_turnstile_enabled=app_settings.cloudflare_turnstile_enabled,
+        cloudflare_turnstile_site_key=app_settings.cloudflare_turnstile_site_key,
+        cloudflare_turnstile_secret_key=app_settings.cloudflare_turnstile_secret_key,
+        two_factor_enabled=app_settings.two_factor_enabled,
     )
 
 

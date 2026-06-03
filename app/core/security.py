@@ -33,3 +33,18 @@ def hash_api_key(api_key: str) -> str:
 
 def verify_api_key(api_key: str, key_hash: str) -> bool:
     return hmac.compare_digest(hash_api_key(api_key), key_hash)
+
+
+async def verify_cloudflare_turnstile(secret_key: str, token: str) -> bool:
+    import httpx
+
+    async with httpx.AsyncClient(timeout=10) as client:
+        response = await client.post(
+            "https://challenges.cloudflare.com/turnstile/v0/siteverify",
+            data={
+                "secret": secret_key,
+                "response": token,
+            },
+        )
+        data = response.json()
+        return data.get("success", False) and data.get("score", 0) >= 0.5

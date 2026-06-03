@@ -6,11 +6,13 @@ import RunningTasksPage from "./RunningTasksPage";
 import UsersPage from "./UsersPage";
 import SslPage from "./SslPage";
 import WebSearchPage from "./WebSearchPage";
+import SecurityPage from "./SecurityPage";
 
-type SettingsTab = "general" | "running_tasks" | "users" | "web_search" | "kb_settings" | "ssl" | "logs";
+type SettingsTab = "general" | "security" | "running_tasks" | "users" | "web_search" | "kb_settings" | "ssl" | "logs";
 
 const tabs: { id: SettingsTab; label: string }[] = [
   { id: "general", label: "Configuration" },
+  { id: "security", label: "Security" },
   { id: "running_tasks", label: "Running Tasks" },
   { id: "users", label: "Users" },
   { id: "web_search", label: "Web Search" },
@@ -38,6 +40,7 @@ export default function SettingsPage() {
       </div>
 
       {activeTab === "general" && <ConfigurationPage />}
+      {activeTab === "security" && <SecurityPage />}
   {activeTab === "running_tasks" && <RunningTasksPage />}
       {activeTab === "users" && <UsersPage />}
       {activeTab === "web_search" && <WebSearchPage />}
