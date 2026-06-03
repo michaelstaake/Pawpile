@@ -90,6 +90,8 @@ export default function ProfilePage() {
   const roleLabel = user?.is_admin ? "Admin" : "Standard";
   const showAccountUsage = !user?.is_admin && accountUsage?.enabled;
   const numberFormatter = new Intl.NumberFormat();
+  const enabledPeriods = accountUsage?.periods.filter((p) => p.limit_tokens > 0) ?? [];
+  const enabledColumnCount = enabledPeriods.length;
 
   function clampPercent(value: number | null | undefined) {
     if (value === null || value === undefined || Number.isNaN(value)) {
@@ -157,8 +159,8 @@ export default function ProfilePage() {
               : "Token usage against your account limits."}
           </p>
 
-          <div className="mt-4 grid gap-3 sm:grid-cols-2">
-            {accountUsage.periods.map((period) => (
+          <div className="mt-4 grid gap-3" style={{ gridTemplateColumns: enabledColumnCount > 0 ? `repeat(${enabledColumnCount}, minmax(0, 1fr))` : "1fr" }}>
+            {enabledPeriods.map((period) => (
               <div key={period.id} className="rounded-2xl border border-black/10 bg-white/80 p-4">
                 <p className="text-xs font-semibold uppercase tracking-[0.24em] text-black/45">{period.label}</p>
                 <p className="mt-2 font-display text-3xl text-ink">{formatWholePercent(period.percent)}</p>
