@@ -571,9 +571,7 @@ export default function StatusPage() {
               <p className="text-xs font-semibold uppercase tracking-[0.24em] text-black/45">Your Usage</p>
               <p className="mt-1 text-sm text-black/60">
                 {accountUsage.at_limit
-                  ? accountUsage.fallback_model_alias
-                    ? `You have reached a usage limit. You can still use ${accountUsage.fallback_model_alias} until your usage resets.`
-                    : "You have reached a usage limit. Please try again later."
+                  ? "You have reached a usage limit. Chat and API access are unavailable until your usage resets."
                   : "Token usage against your account limits."}
               </p>
             </div>

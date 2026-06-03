@@ -398,7 +398,6 @@ async def v1_chat_completions(payload: OpenAIChatRequest, current_user: User = D
         db,
         user=current_user,
         app_settings=app_settings,
-        requested_model_alias=model.alias,
     )
     if not usage_limit_result.allowed:
         raise HTTPException(status_code=429, detail=usage_limit_result.detail or "Token usage limit reached")

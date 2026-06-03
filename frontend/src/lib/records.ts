@@ -195,7 +195,6 @@ export type AccountUsagePeriodRecord = {
 
 export type AccountUsageStatusRecord = {
   enabled: boolean;
-  fallback_model_alias: string | null;
   at_limit: boolean;
   periods: AccountUsagePeriodRecord[];
 };
@@ -275,7 +274,6 @@ export type AppSettingsRecord = {
   usage_limit_tokens_24_hours: number;
   usage_limit_tokens_7_days: number;
   usage_limit_tokens_30_days: number;
-  usage_fallback_model_alias: string | null;
 };
 
 export type SslCertificateStatus = {

@@ -26,7 +26,6 @@ export default function SecurityPage() {
     usage_limit_tokens_24_hours: 0,
     usage_limit_tokens_7_days: 0,
     usage_limit_tokens_30_days: 0,
-    usage_fallback_model_alias: null,
   });
   const [localSiteKey, setLocalSiteKey] = useState("");
   const [localSecretKey, setLocalSecretKey] = useState("");

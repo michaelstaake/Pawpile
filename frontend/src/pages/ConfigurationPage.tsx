@@ -63,7 +63,6 @@ export default function ConfigurationPage() {
     usage_limit_tokens_24_hours: 0,
     usage_limit_tokens_7_days: 0,
     usage_limit_tokens_30_days: 0,
-    usage_fallback_model_alias: null,
   });
   const [localSitename, setLocalSitename] = useState(DEFAULT_SITENAME);
   const [localPublicUrl, setLocalPublicUrl] = useState("");

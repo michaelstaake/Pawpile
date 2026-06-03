@@ -1,13 +1,8 @@
 import { FormEvent, useEffect, useMemo, useState } from "react";
-import { apiGet, apiPatch, resolveApiUrl } from "../lib/api";
+import { apiGet, apiPatch } from "../lib/api";
 import { useAuth } from "../context/AuthContext";
 import { useToast } from "../context/ToastContext";
 import { AppSettingsRecord } from "../lib/records";
-import { getStoredToken } from "../lib/session";
-
-type OpenAIModelRecord = {
-  id: string;
-};
 
 const PERIOD_FIELDS = [
   { key: "usage_limit_tokens_60_minutes" as const, label: "60 Minutes" },
@@ -33,7 +28,6 @@ const DEFAULT_SETTINGS: AppSettingsRecord = {
   usage_limit_tokens_24_hours: 0,
   usage_limit_tokens_7_days: 0,
   usage_limit_tokens_30_days: 0,
-  usage_fallback_model_alias: null,
 };
 
 function parseLimitValue(rawValue: string): number | null {
@@ -78,15 +72,12 @@ function validateUsageLimits(values: {
 export default function UsageLimitsPage() {
   const { token } = useAuth();
   const { showError, showSuccess } = useToast();
-  const [settings, setSettings] = useState<AppSettingsRecord>(DEFAULT_SETTINGS);
   const [draft, setDraft] = useState({
     usage_limit_tokens_60_minutes: "0",
     usage_limit_tokens_24_hours: "0",
     usage_limit_tokens_7_days: "0",
     usage_limit_tokens_30_days: "0",
-    usage_fallback_model_alias: "",
   });
-  const [models, setModels] = useState<OpenAIModelRecord[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
 
@@ -101,40 +92,18 @@ export default function UsageLimitsPage() {
   async function loadPageData(activeToken: string) {
     setIsLoading(true);
     try {
-      const [settingsResponse, modelsResponse] = await Promise.all([
-        apiGet<AppSettingsRecord>("/api/admin/settings", activeToken),
-        loadModels(),
-      ]);
-      setSettings(settingsResponse);
+      const settingsResponse = await apiGet<AppSettingsRecord>("/api/admin/settings", activeToken);
       setDraft({
         usage_limit_tokens_60_minutes: String(settingsResponse.usage_limit_tokens_60_minutes ?? 0),
         usage_limit_tokens_24_hours: String(settingsResponse.usage_limit_tokens_24_hours ?? 0),
         usage_limit_tokens_7_days: String(settingsResponse.usage_limit_tokens_7_days ?? 0),
         usage_limit_tokens_30_days: String(settingsResponse.usage_limit_tokens_30_days ?? 0),
-        usage_fallback_model_alias: settingsResponse.usage_fallback_model_alias ?? "",
       });
-      setModels(modelsResponse);
     } catch (error) {
       showError(error instanceof Error ? error.message : "Failed to load usage limits");
     } finally {
       setIsLoading(false);
     }
-  }
-
-  async function loadModels(): Promise<OpenAIModelRecord[]> {
-    const authToken = getStoredToken() || undefined;
-    const headers: Record<string, string> = {};
-    if (authToken) {
-      headers.Authorization = `Bearer ${authToken}`;
-    }
-
-    const response = await fetch(resolveApiUrl("/v1/models"), { headers });
-    if (!response.ok) {
-      throw new Error("Failed to load models");
-    }
-
-    const payload = (await response.json()) as { data?: OpenAIModelRecord[] };
-    return payload.data ?? [];
   }
 
   const parsedLimits = useMemo((): { valid: false; message: string } | { valid: true; values: {
@@ -190,24 +159,14 @@ export default function UsageLimitsPage() {
           | "usage_limit_tokens_24_hours"
           | "usage_limit_tokens_7_days"
           | "usage_limit_tokens_30_days"
-          | "usage_fallback_model_alias"
         >,
         AppSettingsRecord
-      >(
-        "/api/admin/settings",
-        {
-          ...parsedLimits.values,
-          usage_fallback_model_alias: draft.usage_fallback_model_alias.trim() || null,
-        },
-        token,
-      );
-      setSettings(response);
+      >("/api/admin/settings", parsedLimits.values, token);
       setDraft({
         usage_limit_tokens_60_minutes: String(response.usage_limit_tokens_60_minutes ?? 0),
         usage_limit_tokens_24_hours: String(response.usage_limit_tokens_24_hours ?? 0),
         usage_limit_tokens_7_days: String(response.usage_limit_tokens_7_days ?? 0),
         usage_limit_tokens_30_days: String(response.usage_limit_tokens_30_days ?? 0),
-        usage_fallback_model_alias: response.usage_fallback_model_alias ?? "",
       });
       showSuccess("Usage limits updated.");
     } catch (error) {
@@ -234,7 +193,7 @@ export default function UsageLimitsPage() {
         <h2 className="font-display text-2xl text-ink">Usage Limits</h2>
         <p className="mt-2 max-w-3xl text-sm text-black/60">
           Set per-account token limits for standard users. Admin users are not limited. Use zero to disable a time window.
-          When every limit is zero, usage is unlimited for everyone.
+          When every limit is zero, usage is unlimited for everyone. Users who hit a limit cannot use chat or the API until usage resets.
         </p>
 
         <div className="mt-6 grid gap-4 sm:grid-cols-2">
@@ -257,28 +216,6 @@ export default function UsageLimitsPage() {
           ))}
         </div>
 
-        <div className="mt-6">
-          <label htmlFor="usage_fallback_model_alias" className="block text-sm font-medium text-black/70">
-            Fallback model
-          </label>
-          <select
-            id="usage_fallback_model_alias"
-            value={draft.usage_fallback_model_alias}
-            onChange={(event) => setDraft((current) => ({ ...current, usage_fallback_model_alias: event.target.value }))}
-            className="mt-1 w-full rounded-lg border border-black/10 bg-white px-3 py-2.5 text-ink outline-none focus:border-black/30"
-          >
-            <option value="">No fallback model</option>
-            {models.map((model) => (
-              <option key={model.id} value={model.id}>
-                {model.id}
-              </option>
-            ))}
-          </select>
-          <p className="mt-1 text-xs text-black/50">
-            Standard users who hit a limit can still chat with this model until usage resets. Without a fallback, they are blocked entirely.
-          </p>
-        </div>
-
         {!parsedLimits.valid ? (
           <p className="mt-4 text-sm text-[#b42318]">{parsedLimits.message}</p>
         ) : null}
@@ -298,12 +235,6 @@ export default function UsageLimitsPage() {
           </button>
         </div>
       </section>
-
-      {settings.usage_fallback_model_alias ? (
-        <p className="text-xs text-black/45">
-          Current fallback: <span className="font-medium text-ink">{settings.usage_fallback_model_alias}</span>
-        </p>
-      ) : null}
     </form>
   );
 }

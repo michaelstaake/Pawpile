@@ -124,7 +124,6 @@ def check_usage_limit_for_request(
     *,
     user: User,
     app_settings: AppSettings,
-    requested_model_alias: str,
 ) -> UsageLimitCheckResult:
     if user.is_admin:
         return UsageLimitCheckResult(allowed=True, at_limit=False)
@@ -141,20 +140,6 @@ def check_usage_limit_for_request(
     exceeded_periods = [period_id for period_id, limit in limits.items() if limit > 0 and usage[period_id] >= limit]
     if not exceeded_periods:
         return UsageLimitCheckResult(allowed=True, at_limit=False)
-
-    fallback_alias = (app_settings.usage_fallback_model_alias or "").strip()
-    if fallback_alias and requested_model_alias == fallback_alias:
-        return UsageLimitCheckResult(allowed=True, at_limit=True)
-
-    if fallback_alias:
-        return UsageLimitCheckResult(
-            allowed=False,
-            at_limit=True,
-            detail=(
-                f"Token usage limit reached. You can continue using the fallback model ({fallback_alias}) "
-                "until your usage resets."
-            ),
-        )
 
     return UsageLimitCheckResult(
         allowed=False,
@@ -209,7 +194,6 @@ def build_account_usage_status(db: Session, *, user: User, app_settings: AppSett
 
     return {
         "enabled": True,
-        "fallback_model_alias": app_settings.usage_fallback_model_alias,
         "at_limit": is_user_over_usage_limit(db, user_id=user_id, app_settings=app_settings),
         "periods": periods,
     }

@@ -13,7 +13,6 @@ from app.core.security import generate_api_key, hash_api_key, hash_password
 from app.core.token_usage import get_user_token_usage
 from app.core.usage_limits import validate_usage_limit_values
 from app.models.api_key import ApiKey
-from app.models.model_config import ModelConfig
 from app.models.user import User
 from app.utils.schemas import ApiKeyCreateRequest, AppSettingsResponse, AppSettingsUpdateRequest, UserCreateRequest, UserUpdateRequest
 
@@ -80,18 +79,6 @@ def update_settings(payload: AppSettingsUpdateRequest, admin_user: User = Depend
         for field_name, value in usage_limit_updates.items():
             if value is not None:
                 setattr(app_settings, field_name, value)
-
-    if payload.usage_fallback_model_alias is not None:
-        fallback_alias = payload.usage_fallback_model_alias
-        if fallback_alias:
-            fallback_model = (
-                db.query(ModelConfig)
-                .filter(ModelConfig.alias == fallback_alias, ModelConfig.activated.is_(True))
-                .first()
-            )
-            if not fallback_model:
-                raise HTTPException(status_code=400, detail="Fallback model must be an active model alias")
-        app_settings.usage_fallback_model_alias = fallback_alias
 
     db.add(app_settings)
     db.commit()
@@ -299,7 +286,6 @@ def _serialize_app_settings(app_settings) -> AppSettingsResponse:
         usage_limit_tokens_24_hours=app_settings.usage_limit_tokens_24_hours,
         usage_limit_tokens_7_days=app_settings.usage_limit_tokens_7_days,
         usage_limit_tokens_30_days=app_settings.usage_limit_tokens_30_days,
-        usage_fallback_model_alias=app_settings.usage_fallback_model_alias,
     )
 
 
