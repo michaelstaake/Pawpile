@@ -23,6 +23,7 @@ export default function UsersPage() {
   const [isLoading, setIsLoading] = useState(false);
   const [isCreatingUser, setIsCreatingUser] = useState(false);
   const [savingUserId, setSavingUserId] = useState<number | null>(null);
+  const [isGeneratingPassword, setIsGeneratingPassword] = useState(false);
 
   useEffect(() => {
     if (!token) {
@@ -94,6 +95,25 @@ export default function UsersPage() {
     } finally {
       setSavingUserId(null);
     }
+  }
+
+  function generateRandomPassword(length = 16) {
+    const upper = "ABCDEFGHIJKLMNOPQRSTUVWXYZ";
+    const lower = "abcdefghijklmnopqrstuvwxyz";
+    const digits = "0123456789";
+    const special = "!@#$%^&*";
+    const all = upper + lower + digits + special;
+    let password = "";
+    for (let i = 0; i < length; i++) {
+      password += all[Math.floor(Math.random() * all.length)];
+    }
+    return password;
+  }
+
+  async function handleGeneratePassword() {
+    setIsGeneratingPassword(true);
+    setNewUser((current) => ({ ...current, password: generateRandomPassword() }));
+    setIsGeneratingPassword(false);
   }
 
   const visibleUsers = currentUser ? users.filter((user) => user.id !== currentUser.id) : users;
@@ -193,10 +213,19 @@ export default function UsersPage() {
                 Email
                 <input className="rounded-xl border border-black/15 bg-white px-3 py-2 text-sm" type="email" value={newUser.email} onChange={(event) => setNewUser((current) => ({ ...current, email: event.target.value }))} />
               </label>
-              <label className="grid gap-1 text-sm text-black/70 md:col-span-2">
-                Password
-                <input className="rounded-xl border border-black/15 bg-white px-3 py-2 text-sm" type="password" value={newUser.password} onChange={(event) => setNewUser((current) => ({ ...current, password: event.target.value }))} />
-              </label>
+              <div className="md:col-span-2">
+                <label className="grid gap-1 text-sm text-black/70">
+                  Password
+                  <input className="rounded-xl border border-black/15 bg-white px-3 py-2 text-sm" type="password" value={newUser.password} onChange={(event) => setNewUser((current) => ({ ...current, password: event.target.value }))} />
+                </label>
+                <button className="mt-1 rounded-lg border border-black/15 bg-white px-2 py-1 text-sm text-black/70 transition hover:bg-black/5" type="button" onClick={handleGeneratePassword} disabled={isGeneratingPassword}>
+                  {isGeneratingPassword ? (
+                    <span className="inline-block h-4 w-4 animate-spin rounded-full border-2 border-black/30 border-t-black" />
+                  ) : (
+                    <span className="bi bi-shuffle inline-block text-sm" />
+                  )}
+                </button>
+              </div>
               <div className="flex flex-wrap gap-3 rounded-xl border border-black/10 bg-white px-3 py-2 text-sm text-black/70 md:col-span-2">
                 <label className="flex items-center gap-2">
                   <input type="checkbox" checked={newUser.is_admin} onChange={(event) => setNewUser((current) => ({ ...current, is_admin: event.target.checked }))} />
