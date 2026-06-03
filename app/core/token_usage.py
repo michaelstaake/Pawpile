@@ -123,3 +123,61 @@ def _aggregate_top_user(db: Session, *, since: datetime | None = None) -> dict |
         "input_tokens": int(row.input_tokens or 0),
         "output_tokens": int(row.output_tokens or 0),
     }
+
+
+def get_user_token_usage(db: Session, *, user_ids: list[int], input_price_per_1m: float = 0.0, output_price_per_1m: float = 0.0) -> list[dict]:
+    now = datetime.now(timezone.utc)
+    periods = {
+        "last_60_minutes": now - timedelta(hours=1),
+        "last_24_hours": now - timedelta(hours=24),
+        "forever": None,
+    }
+
+    users = db.query(User).filter(User.id.in_(user_ids)).all()
+    user_map = {u.id: u for u in users}
+
+    user_ids_with_usage = [uid for uid in user_ids if uid in user_map]
+
+    if not user_ids_with_usage:
+        return []
+
+    result = []
+    for uid in user_ids:
+        user = user_map.get(uid)
+        if not user:
+            continue
+
+        user_data = {
+            "user_id": uid,
+            "username": user.username,
+            "last_60_minutes": {"total_tokens": 0, "input_tokens": 0, "output_tokens": 0},
+            "last_24_hours": {"total_tokens": 0, "input_tokens": 0, "output_tokens": 0},
+            "forever": {"total_tokens": 0, "input_tokens": 0, "output_tokens": 0},
+        }
+
+        for period_name, since in periods.items():
+            query = (
+                db.query(
+                    func.coalesce(func.sum(TokenUsage.total_tokens), 0),
+                    func.coalesce(func.sum(TokenUsage.input_tokens), 0),
+                    func.coalesce(func.sum(TokenUsage.output_tokens), 0),
+                )
+                .filter(TokenUsage.user_id == uid)
+            )
+            if since is not None:
+                query = query.filter(TokenUsage.created_at >= since)
+
+            total, input_tokens, output_tokens = query.one()
+            user_data[period_name] = {
+                "total_tokens": int(total or 0),
+                "input_tokens": int(input_tokens or 0),
+                "output_tokens": int(output_tokens or 0),
+            }
+
+        total_input = user_data["forever"]["input_tokens"]
+        total_output = user_data["forever"]["output_tokens"]
+        user_data["estimated_cost"] = round((total_input / 1_000_000) * input_price_per_1m + (total_output / 1_000_000) * output_price_per_1m, 6)
+
+        result.append(user_data)
+
+    return result

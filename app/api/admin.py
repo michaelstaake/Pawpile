@@ -10,6 +10,7 @@ from app.core.app_settings import get_or_create_app_settings
 from app.core.config import get_settings
 from app.core.db import get_db
 from app.core.security import generate_api_key, hash_api_key, hash_password
+from app.core.token_usage import get_user_token_usage
 from app.models.api_key import ApiKey
 from app.models.user import User
 from app.utils.schemas import ApiKeyCreateRequest, AppSettingsResponse, AppSettingsUpdateRequest, UserCreateRequest, UserUpdateRequest
@@ -104,6 +105,14 @@ def delete_background_image(admin_user: User = Depends(get_admin_user), db: Sess
 def list_users(_: User = Depends(get_admin_user), db: Session = Depends(get_db)) -> list[dict]:
     rows = db.query(User).order_by(User.id.asc()).all()
     return [_serialize_user(u) for u in rows]
+
+
+@router.get("/users/token-usage")
+def get_users_token_usage(_: User = Depends(get_admin_user), db: Session = Depends(get_db)) -> list[dict]:
+    app_settings = get_or_create_app_settings(db)
+    users = db.query(User).order_by(User.username.asc()).all()
+    user_ids = [u.id for u in users]
+    return get_user_token_usage(db, user_ids=user_ids, input_price_per_1m=app_settings.input_price_per_1m or 0.0, output_price_per_1m=app_settings.output_price_per_1m or 0.0)
 
 
 @router.post("/users")

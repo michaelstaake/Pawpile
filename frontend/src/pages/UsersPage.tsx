@@ -4,7 +4,7 @@ import Modal from "../components/ui/Modal";
 import { apiGet, apiPatch, apiPost } from "../lib/api";
 import { useAuth } from "../context/AuthContext";
 import { useToast } from "../context/ToastContext";
-import { UserRecord, UserUpdateResponse } from "../lib/records";
+import { UserRecord, UserTokenUsageRecord, UserUpdateResponse } from "../lib/records";
 
 type CreateUserPayload = {
   username: string;
@@ -18,6 +18,7 @@ export default function UsersPage() {
   const { token, user: currentUser } = useAuth();
   const { showError, showSuccess } = useToast();
   const [users, setUsers] = useState<UserRecord[]>([]);
+  const [userTokenUsages, setUserTokenUsages] = useState<Record<number, UserTokenUsageRecord>>({});
   const [newUser, setNewUser] = useState<CreateUserPayload>({ username: "", email: "", password: "", is_admin: false, is_active: true });
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
@@ -30,6 +31,7 @@ export default function UsersPage() {
       return;
     }
     void refreshUsers(token);
+    void refreshTokenUsage(token);
   }, [token]);
 
   async function refreshUsers(activeToken: string) {
@@ -41,6 +43,19 @@ export default function UsersPage() {
       showError(error instanceof Error ? error.message : "Failed to load users");
     } finally {
       setIsLoading(false);
+    }
+  }
+
+  async function refreshTokenUsage(activeToken: string) {
+    try {
+      const response = await apiGet<UserTokenUsageRecord[]>("/api/admin/users/token-usage", activeToken);
+      const usageMap: Record<number, UserTokenUsageRecord> = {};
+      for (const usage of response) {
+        usageMap[usage.user_id] = usage;
+      }
+      setUserTokenUsages(usageMap);
+    } catch (error) {
+      showError(error instanceof Error ? error.message : "Failed to load token usage");
     }
   }
 
@@ -95,6 +110,19 @@ export default function UsersPage() {
     } finally {
       setSavingUserId(null);
     }
+  }
+
+  function formatTokens(tokens: number): string {
+    if (tokens >= 1_000_000_000) {
+      return `${(tokens / 1_000_000_000).toFixed(1)}B`;
+    }
+    if (tokens >= 1_000_000) {
+      return `${(tokens / 1_000_000).toFixed(1)}M`;
+    }
+    if (tokens >= 1_000) {
+      return `${(tokens / 1_000).toFixed(1)}K`;
+    }
+    return tokens.toString();
   }
 
   function generateRandomPassword(length = 16) {
@@ -168,6 +196,44 @@ export default function UsersPage() {
                     Active
                   </label>
                 </div>
+              </div>
+              <div className="mt-4">
+                {userTokenUsages[user.id] ? (() => {
+                  const usage = userTokenUsages[user.id];
+                  return (
+                    <div className="grid gap-2 rounded-xl border border-black/10 bg-white/70 p-3">
+                      <div className="flex items-center justify-between">
+                        <span className="text-xs font-semibold text-black/50 uppercase tracking-wide">Token Usage &amp; Estimated Cost</span>
+                        <span className="text-sm font-semibold text-black">
+                          ${usage.estimated_cost.toFixed(4)}
+                        </span>
+                      </div>
+                      <div className="grid grid-cols-3 gap-3">
+                        <div className="rounded-lg bg-sand/60 px-2 py-1.5 text-center">
+                          <div className="text-[10px] uppercase tracking-wide text-black/50">60 min</div>
+                          <div className="text-sm font-semibold text-black">{formatTokens(usage.last_60_minutes.total_tokens)}</div>
+                          <div className="text-[10px] text-black/50">
+                            {formatTokens(usage.last_60_minutes.input_tokens)} / {formatTokens(usage.last_60_minutes.output_tokens)}
+                          </div>
+                        </div>
+                        <div className="rounded-lg bg-sand/60 px-2 py-1.5 text-center">
+                          <div className="text-[10px] uppercase tracking-wide text-black/50">24 hrs</div>
+                          <div className="text-sm font-semibold text-black">{formatTokens(usage.last_24_hours.total_tokens)}</div>
+                          <div className="text-[10px] text-black/50">
+                            {formatTokens(usage.last_24_hours.input_tokens)} / {formatTokens(usage.last_24_hours.output_tokens)}
+                          </div>
+                        </div>
+                        <div className="rounded-lg bg-sand/60 px-2 py-1.5 text-center">
+                          <div className="text-[10px] uppercase tracking-wide text-black/50">Forever</div>
+                          <div className="text-sm font-semibold text-black">{formatTokens(usage.forever.total_tokens)}</div>
+                          <div className="text-[10px] text-black/50">
+                            {formatTokens(usage.forever.input_tokens)} / {formatTokens(usage.forever.output_tokens)}
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  );
+                })() : null}
               </div>
               <div className="mt-4 flex justify-end">
                 <button className="rounded-xl bg-ink px-4 py-2 text-sm font-semibold text-white disabled:cursor-not-allowed disabled:opacity-60" type="submit" disabled={savingUserId === user.id}>

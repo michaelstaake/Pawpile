@@ -52,6 +52,15 @@ export type UserRecord = {
   password?: string;
 };
 
+export type UserTokenUsageRecord = {
+  user_id: number;
+  username: string;
+  last_60_minutes: TokenUsageMetricRecord;
+  last_24_hours: TokenUsageMetricRecord;
+  forever: TokenUsageMetricRecord;
+  estimated_cost: number;
+};
+
 export type ApiKeyRecord = {
   id: number;
   user_id: number;
