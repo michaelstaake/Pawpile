@@ -23,7 +23,7 @@ class PoolActivationTarget:
     pool_name: str
     vendor: str
     devices: list[Device]
-    split_mode: str = "row"
+    split_mode: str = "layer"
 
     @property
     def runtime_vendor(self) -> str:

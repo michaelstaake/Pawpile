@@ -3,10 +3,9 @@ from sqlalchemy.orm import Mapped, mapped_column
 
 from app.core.db import Base
 
-SPLIT_MODE_ROW = "row"
 SPLIT_MODE_LAYER = "layer"
 SPLIT_MODE_TENSOR = "tensor"
-VALID_SPLIT_MODES = {SPLIT_MODE_ROW, SPLIT_MODE_LAYER, SPLIT_MODE_TENSOR}
+VALID_SPLIT_MODES = {SPLIT_MODE_LAYER, SPLIT_MODE_TENSOR}
 
 
 class GpuPool(Base):
@@ -15,7 +14,7 @@ class GpuPool(Base):
     id: Mapped[int] = mapped_column(Integer, primary_key=True, index=True)
     name: Mapped[str] = mapped_column(String(120), nullable=False, default="GPU Pool")
     vendor: Mapped[str] = mapped_column(String(32), nullable=False, default="nvidia")
-    split_mode: Mapped[str] = mapped_column(String(16), nullable=False, default=SPLIT_MODE_ROW)
+    split_mode: Mapped[str] = mapped_column(String(16), nullable=False, default=SPLIT_MODE_LAYER)
 
 
 class GpuPoolDevice(Base):

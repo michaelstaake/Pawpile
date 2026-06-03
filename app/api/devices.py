@@ -168,6 +168,8 @@ def _validate_pool_vendor(vendor: str) -> str:
 
 def _validate_split_mode(split_mode: str) -> str:
     normalized = split_mode.strip().lower()
+    if normalized == "row":
+        raise HTTPException(status_code=400, detail="Split mode 'row' is no longer supported. Use 'layer' or 'tensor'.")
     if normalized not in VALID_SPLIT_MODES:
         raise HTTPException(status_code=400, detail=f"Invalid split mode. Must be one of: {', '.join(sorted(VALID_SPLIT_MODES))}")
     return normalized
@@ -214,7 +216,7 @@ def _serialize_pool(pool: GpuPool, db: Session) -> dict:
         "id": pool.id,
         "name": pool.name,
         "vendor": pool.vendor,
-        "split_mode": pool.split_mode,
+        "split_mode": "layer" if pool.split_mode == "row" else pool.split_mode,
         "devices": [_serialize_device(d) for d in devices],
     }
 

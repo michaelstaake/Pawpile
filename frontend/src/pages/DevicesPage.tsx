@@ -8,19 +8,21 @@ import { DeviceRecord, DeviceUpdateResponse, GpuPoolRecord } from "../lib/record
 
 const AUTO_SAVE_DELAY_MS = 700;
 const POOL_VENDORS = ["nvidia", "vulkan"] as const;
-const SPLIT_MODES = ["row", "layer", "tensor"] as const;
+const SPLIT_MODES = ["layer", "tensor"] as const;
+
+function normalizePoolSplitMode(mode: string): (typeof SPLIT_MODES)[number] {
+  return mode === "tensor" ? "tensor" : "layer";
+}
 
 function splitModeLabel(mode: string) {
-  if (mode === "row") return "Row";
-  if (mode === "layer") return "Layer";
+  if (mode === "layer" || mode === "row") return "Layer";
   if (mode === "tensor") return "Tensor";
   return mode;
 }
 
 function splitModeDescription(mode: string) {
-  if (mode === "row") return "In most cases, the default mode is fine, but you can try other modes for see which one performs the best on your particular hardware.";
-  if (mode === "layer") return "In most cases, the default mode is fine, but you can try other modes for see which one performs the best on your particular hardware.";
-  if (mode === "tensor") return "In most cases, the default mode is fine, but you can try other modes for see which one performs the best on your particular hardware.";
+  if (mode === "layer") return "Default for multi-GPU pools. Splits the model by layer across pool members.";
+  if (mode === "tensor") return "Experimental. May improve token speed on fast GPU interconnects; try layer first.";
   return "";
 }
 
@@ -78,7 +80,7 @@ export default function DevicesPage({ setupMode = false, onContinue }: DevicesPa
   const [selectedPoolDeviceIds, setSelectedPoolDeviceIds] = useState<number[]>([]);
   const [poolDraftName, setPoolDraftName] = useState("GPU Pool");
   const [poolDraftVendor, setPoolDraftVendor] = useState<(typeof POOL_VENDORS)[number]>("nvidia");
-  const [poolDraftSplitMode, setPoolDraftSplitMode] = useState<(typeof SPLIT_MODES)[number]>("row");
+  const [poolDraftSplitMode, setPoolDraftSplitMode] = useState<(typeof SPLIT_MODES)[number]>("layer");
   const [editingPoolId, setEditingPoolId] = useState<number | null>(null);
   const [isPoolModalOpen, setIsPoolModalOpen] = useState(false);
   const [showDeletePoolConfirmId, setShowDeletePoolConfirmId] = useState<number | null>(null);
@@ -240,7 +242,7 @@ export default function DevicesPage({ setupMode = false, onContinue }: DevicesPa
     setEditingPoolId(null);
     setPoolDraftName("GPU Pool");
     setPoolDraftVendor((draftVendorOptions[0] ?? availablePoolVendors[0] ?? "nvidia") as (typeof POOL_VENDORS)[number]);
-    setPoolDraftSplitMode("row");
+    setPoolDraftSplitMode("layer");
     setSelectedPoolDeviceIds([]);
     setShowDeletePoolConfirmId(null);
   }
@@ -259,7 +261,7 @@ export default function DevicesPage({ setupMode = false, onContinue }: DevicesPa
     setEditingPoolId(pool.id);
     setPoolDraftName(pool.name);
     setPoolDraftVendor(pool.vendor as (typeof POOL_VENDORS)[number]);
-    setPoolDraftSplitMode(pool.split_mode as (typeof SPLIT_MODES)[number]);
+    setPoolDraftSplitMode(normalizePoolSplitMode(pool.split_mode));
     setSelectedPoolDeviceIds(pool.devices.map((device) => device.id));
     setIsPoolModalOpen(true);
     setShowDeletePoolConfirmId(null);

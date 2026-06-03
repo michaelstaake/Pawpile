@@ -45,7 +45,7 @@ class ActivateModelRequest(BaseModel):
     hardware_id: str
     hardware_ids: list[str] = []
     vram_ratios: list[int] = []
-    split_mode: str = "row"
+    split_mode: str = "layer"
 
 
 @dataclass
@@ -250,7 +250,7 @@ class InferenceRuntime:
             raise RuntimeError(f"Unknown device vendor: {vendor}")
         return env
 
-    def _build_vendor_args(self, vendor: str, vram_ratios: list[int] | None = None, split_mode: str = "row") -> list[str]:
+    def _build_vendor_args(self, vendor: str, vram_ratios: list[int] | None = None, split_mode: str = "layer") -> list[str]:
         if vendor.endswith("_pool"):
             args: list[str] = []
             if vram_ratios and len(vram_ratios) >= 2:
