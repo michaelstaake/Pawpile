@@ -52,6 +52,12 @@ class Settings(BaseSettings):
     frontend_origin: str = "https://localhost:8443"
     ssl_certfile: str = "./certs/server.crt"
     ssl_keyfile: str = "./certs/server.key"
+    letsencrypt_email: str = ""
+    letsencrypt_use_staging: bool = False
+    letsencrypt_config_dir: str = ""
+    cloudflare_api_token: str = ""
+    docker_frontend_container: str = "pawpile-frontend"
+    docker_backend_container: str = "pawpile-backend"
     supported_devices: str = ""
     inference_service_url: str = "http://localhost:8100"
     inference_runtime_urls: str = ""
@@ -81,6 +87,11 @@ class Settings(BaseSettings):
     def inference_runtime_url_for_vendor(self, vendor: str) -> str | None:
         mapping = self.inference_runtime_url_map()
         return mapping.get(vendor.strip().lower()) or mapping.get("default")
+
+    def resolved_letsencrypt_config_dir(self) -> str:
+        if self.letsencrypt_config_dir.strip():
+            return self.letsencrypt_config_dir.strip()
+        return str(Path(self.data_dir) / "letsencrypt")
 
 
 @lru_cache

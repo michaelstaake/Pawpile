@@ -7,8 +7,9 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 
-from app.api import admin, auth, chat, devices, knowledge_base, logs, models, openai_compat, status, web_search as web_search_api
+from app.api import admin, auth, chat, devices, knowledge_base, logs, models, openai_compat, ssl as ssl_api, status, web_search as web_search_api
 from app.core.activity_logger import log_event, prune_old_logs, schedule_daily_pruning
+from app.core.letsencrypt import schedule_daily_ssl_renewal
 from app.core.app_settings import get_or_create_app_settings
 from app.core.config import get_settings
 from app.core.db import SessionLocal
@@ -92,10 +93,12 @@ async def lifespan(_: FastAPI):
         db.close()
 
     pruning_task = asyncio.create_task(schedule_daily_pruning())
+    ssl_renewal_task = asyncio.create_task(schedule_daily_ssl_renewal())
 
     yield
 
     pruning_task.cancel()
+    ssl_renewal_task.cancel()
 
     for model_id in list(inference_manager._running.keys()):
         await inference_manager.deactivate_model(model_id)
@@ -103,9 +106,23 @@ async def lifespan(_: FastAPI):
 
 app = FastAPI(title=settings.app_name, lifespan=lifespan)
 
+
+def _cors_allowed_origins() -> list[str]:
+    origins = [settings.frontend_origin]
+    db = SessionLocal()
+    try:
+        app_settings = get_or_create_app_settings(db)
+        public_url = (app_settings.public_url or "").strip()
+        if public_url and public_url not in origins:
+            origins.append(public_url)
+    finally:
+        db.close()
+    return origins
+
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=[settings.frontend_origin],
+    allow_origins=_cors_allowed_origins(),
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -123,6 +140,7 @@ app.include_router(devices.router)
 app.include_router(models.router)
 app.include_router(chat.router)
 app.include_router(admin.router)
+app.include_router(ssl_api.router)
 app.include_router(web_search_api.router)
 app.include_router(knowledge_base.router)
 app.include_router(logs.router)

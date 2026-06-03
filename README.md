@@ -184,6 +184,25 @@ Use this in your OpenCode config file to connect to Pawpile's OpenAI-compatible 
 }
 ```
 
+## Custom SSL (Let's Encrypt + Cloudflare)
+
+Pawpile can replace the default self-signed certificate with a trusted Let's Encrypt certificate using **Cloudflare DNS-01** validation. This works on homelab setups that use **custom HTTPS ports** or cannot bind host port 80, because validation happens through Cloudflare DNS—not through HTTP on Pawpile.
+
+1. Add your hostname to a **Cloudflare** zone (proxied or DNS-only).
+2. Create a Cloudflare **API token** with **Zone → DNS → Edit** for that zone.
+3. In **Settings → Configuration**, set **URL** to your public address, e.g. `https://pawpile.example.com` (no port, no trailing slash).
+4. In **Settings → SSL**, save your Let's Encrypt account email and Cloudflare API token, then click **Obtain certificate**.
+5. Point your reverse proxy at Pawpile's HTTPS port (for example `8443` in the default Docker compose mapping).
+
+Optional environment variables in `.env` (see `.env.example`):
+
+- `CLOUDFLARE_API_TOKEN` — overrides the token stored in the UI
+- `LETSENCRYPT_EMAIL` — overrides the email stored in the UI
+- `LETSENCRYPT_USE_STAGING=true` — use Let's Encrypt staging while testing
+- `DOCKER_FRONTEND_CONTAINER` / `DOCKER_BACKEND_CONTAINER` — container names for nginx reload and backend restart after cert install
+
+Certificates are stored in `./certs` and renewed automatically when they are within 30 days of expiry.
+
 ## Troubleshooting
 
 ### Docker Issues

@@ -10,6 +10,39 @@ const ALLOWED_BACKGROUND_IMAGE_TYPES = new Set(["image/jpeg", "image/png"]);
 const MAX_BACKGROUND_IMAGE_BYTES = 10 * 1024 * 1024;
 const HEX_COLOR_PATTERN = /^#[0-9a-f]{6}$/i;
 
+function normalizePublicUrl(rawUrl: string): string | null {
+  const trimmed = rawUrl.trim();
+  if (!trimmed) {
+    return "";
+  }
+
+  if (trimmed.endsWith("/")) {
+    return null;
+  }
+
+  try {
+    const parsed = new URL(trimmed);
+    if (parsed.protocol !== "https:") {
+      return null;
+    }
+    if (parsed.username || parsed.password || parsed.port) {
+      return null;
+    }
+    if (parsed.pathname !== "" && parsed.pathname !== "/") {
+      return null;
+    }
+    if (parsed.search || parsed.hash) {
+      return null;
+    }
+    if (!parsed.hostname) {
+      return null;
+    }
+    return `https://${parsed.hostname}`;
+  } catch {
+    return null;
+  }
+}
+
 export default function ConfigurationPage() {
   const { refreshPublicSettings, token } = useAuth();
   const { showError, showSuccess } = useToast();
@@ -21,8 +54,10 @@ export default function ConfigurationPage() {
     background_image_mode: "fill",
     input_price_per_1m: 0,
     output_price_per_1m: 0,
+    public_url: "",
   });
   const [localSitename, setLocalSitename] = useState(DEFAULT_SITENAME);
+  const [localPublicUrl, setLocalPublicUrl] = useState("");
   const [localBackgroundColor, setLocalBackgroundColor] = useState(DEFAULT_BACKGROUND_COLOR);
   const [isLoading, setIsLoading] = useState(true);
   const [isSaving, setIsSaving] = useState<keyof AppSettingsRecord | null>(null);
@@ -45,6 +80,10 @@ export default function ConfigurationPage() {
   useEffect(() => {
     setLocalBackgroundColor(settings.background_color || DEFAULT_BACKGROUND_COLOR);
   }, [settings.background_color]);
+
+  useEffect(() => {
+    setLocalPublicUrl(settings.public_url || "");
+  }, [settings.public_url]);
 
   async function loadSettings(activeToken: string) {
     setIsLoading(true);
@@ -143,6 +182,20 @@ export default function ConfigurationPage() {
 
     if (normalized !== settings.sitename) {
       void updateSetting("sitename", normalized);
+    }
+  }
+
+  function commitPublicUrl(rawUrl: string) {
+    const normalized = normalizePublicUrl(rawUrl);
+    if (normalized === null) {
+      setLocalPublicUrl(settings.public_url || "");
+      showError("URL must be https://hostname with no port, path, or trailing slash.");
+      return;
+    }
+
+    setLocalPublicUrl(normalized);
+    if (normalized !== (settings.public_url || "")) {
+      void updateSetting("public_url", normalized);
     }
   }
 
@@ -295,6 +348,30 @@ export default function ConfigurationPage() {
             ) : (
               <p className="text-sm text-black/65">No background image uploaded. Desktop will use the background color until you add one.</p>
             )}
+          </div>
+          <div className="flex flex-col gap-2 rounded-2xl border border-black/10 bg-[#fffdf7] px-4 py-4">
+            <div>
+              <div className="text-sm font-semibold text-black">URL</div>
+              <p className="mt-1 text-sm text-black/65">
+                Public HTTPS address for this Pawpile instance (no port or trailing slash). Required for Let&apos;s Encrypt on the SSL tab.
+              </p>
+            </div>
+            <div className="mt-2 max-w-xl">
+              <input
+                type="url"
+                className="w-full rounded-xl border border-black/15 bg-white px-3 py-2 text-sm text-black focus:outline-none focus:ring-2 focus:ring-ink/20"
+                value={localPublicUrl}
+                onChange={(e) => setLocalPublicUrl(e.target.value)}
+                onBlur={() => commitPublicUrl(localPublicUrl)}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter") {
+                    commitPublicUrl(localPublicUrl);
+                  }
+                }}
+                disabled={isLoading || isSaving === "public_url"}
+                placeholder="https://pawpile.example.com"
+              />
+            </div>
           </div>
           <label className="flex items-start justify-between gap-4 rounded-2xl border border-black/10 bg-[#fffdf7] px-4 py-4">
             <div>

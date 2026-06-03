@@ -4,9 +4,10 @@ import KnowledgeBaseSettings from "./KnowledgeBaseSettings";
 import LogsPage from "./LogsPage";
 import RunningTasksPage from "./RunningTasksPage";
 import UsersPage from "./UsersPage";
+import SslPage from "./SslPage";
 import WebSearchPage from "./WebSearchPage";
 
-type SettingsTab = "general" | "running_tasks" | "users" | "web_search" | "kb_settings" | "logs";
+type SettingsTab = "general" | "running_tasks" | "users" | "web_search" | "kb_settings" | "ssl" | "logs";
 
 const tabs: { id: SettingsTab; label: string }[] = [
   { id: "general", label: "Configuration" },
@@ -14,6 +15,7 @@ const tabs: { id: SettingsTab; label: string }[] = [
   { id: "users", label: "Users" },
   { id: "web_search", label: "Web Search" },
   { id: "kb_settings", label: "Knowledge Base" },
+  { id: "ssl", label: "SSL" },
   { id: "logs", label: "Logs" },
 ];
 
@@ -40,6 +42,7 @@ export default function SettingsPage() {
       {activeTab === "users" && <UsersPage />}
       {activeTab === "web_search" && <WebSearchPage />}
       {activeTab === "kb_settings" && <KnowledgeBaseSettings />}
+      {activeTab === "ssl" && <SslPage />}
       {activeTab === "logs" && <LogsPage />}
     </div>
   );

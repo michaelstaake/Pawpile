@@ -1,4 +1,4 @@
-from sqlalchemy import Boolean, Float, Integer, String
+from sqlalchemy import Boolean, Float, Integer, String, Text
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.core.db import Base
@@ -18,3 +18,6 @@ class AppSettings(Base):
     knowledge_base_enabled: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
     input_price_per_1m: Mapped[float] = mapped_column(Float, default=0.0, nullable=False)
     output_price_per_1m: Mapped[float] = mapped_column(Float, default=0.0, nullable=False)
+    public_url: Mapped[str] = mapped_column(String(512), default="", nullable=False)
+    letsencrypt_email: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    cloudflare_api_token: Mapped[str | None] = mapped_column(Text, nullable=True)

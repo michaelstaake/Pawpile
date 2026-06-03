@@ -318,6 +318,22 @@ export async function setActiveWebSearchProvider<T>(providerType: string | null,
   return apiPatch<{ provider_type: string | null }, T>("/api/admin/web-search/active", { provider_type: providerType }, token);
 }
 
+export async function fetchSslStatus<T>(token?: string): Promise<T> {
+  return apiGet<T>("/api/admin/ssl/status", token);
+}
+
+export async function updateSslSettings<TRequest, TResponse>(payload: TRequest, token?: string): Promise<TResponse> {
+  return apiPatch<TRequest, TResponse>("/api/admin/ssl/settings", payload, token);
+}
+
+export async function obtainLetsEncryptCertificate<T>(token?: string): Promise<T> {
+  return apiPost<Record<string, never>, T>("/api/admin/ssl/letsencrypt", {}, token);
+}
+
+export async function renewLetsEncryptCertificate<T>(token?: string): Promise<T> {
+  return apiPost<Record<string, never>, T>("/api/admin/ssl/renew", {}, token);
+}
+
 // Knowledge Base API functions
 export async function fetchKbDocuments<T>(token?: string, categoryId?: number): Promise<T> {
   const params = categoryId !== undefined ? `?category_id=${categoryId}` : "";

@@ -1,4 +1,5 @@
 from typing import Any, Literal
+from urllib.parse import urlparse
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 
@@ -18,6 +19,34 @@ def _normalize_background_color(value: str | None) -> str:
         raise ValueError("background_color must be a hex color like #efe8d2")
 
     return normalized
+
+
+def normalize_public_url(value: str | None) -> str:
+    if value is None:
+        return ""
+
+    normalized = value.strip()
+    if not normalized:
+        return ""
+
+    if normalized.endswith("/"):
+        raise ValueError("URL must not end with a trailing slash")
+
+    parsed = urlparse(normalized)
+    if parsed.scheme != "https":
+        raise ValueError("URL must use https")
+    if parsed.username or parsed.password:
+        raise ValueError("URL must not include credentials")
+    if parsed.port is not None:
+        raise ValueError("URL must not include a port")
+    if parsed.path not in ("", "/"):
+        raise ValueError("URL must not include a path")
+    if parsed.params or parsed.query or parsed.fragment:
+        raise ValueError("URL must not include query parameters or fragments")
+    if not parsed.hostname:
+        raise ValueError("URL must include a hostname")
+
+    return f"https://{parsed.hostname}"
 
 
 def normalize_message_content(content: Any) -> str:
@@ -209,11 +238,17 @@ class AppSettingsResponse(BaseModel):
     knowledge_base_enabled: bool = False
     input_price_per_1m: float = 0.0
     output_price_per_1m: float = 0.0
+    public_url: str = ""
 
     @field_validator("background_color", mode="before")
     @classmethod
     def validate_background_color(cls, value: str | None) -> str:
         return _normalize_background_color(value)
+
+    @field_validator("public_url", mode="before")
+    @classmethod
+    def validate_public_url(cls, value: str | None) -> str:
+        return normalize_public_url(value)
 
 
 class AppSettingsUpdateRequest(BaseModel):
@@ -224,6 +259,7 @@ class AppSettingsUpdateRequest(BaseModel):
     knowledge_base_enabled: bool | None = None
     input_price_per_1m: float | None = None
     output_price_per_1m: float | None = None
+    public_url: str | None = None
 
     @field_validator("background_color", mode="before")
     @classmethod
@@ -231,6 +267,46 @@ class AppSettingsUpdateRequest(BaseModel):
         if value is None:
             return None
         return _normalize_background_color(value)
+
+    @field_validator("public_url", mode="before")
+    @classmethod
+    def validate_public_url(cls, value: str | None) -> str | None:
+        if value is None:
+            return None
+        return normalize_public_url(value)
+
+
+class SslStatusResponse(BaseModel):
+    public_url: str = ""
+    letsencrypt_available: bool = False
+    cloudflare_api_token_set: bool = False
+    letsencrypt_email_set: bool = False
+    certificate: dict | None = None
+
+
+class SslSettingsUpdateRequest(BaseModel):
+    letsencrypt_email: str | None = None
+    cloudflare_api_token: str | None = None
+
+    @field_validator("letsencrypt_email", mode="before")
+    @classmethod
+    def validate_letsencrypt_email(cls, value: str | None) -> str | None:
+        if value is None:
+            return None
+        normalized = value.strip()
+        if not normalized:
+            return ""
+        if "@" not in normalized or normalized.startswith("@") or normalized.endswith("@"):
+            raise ValueError("Invalid email address")
+        return normalized
+
+    @field_validator("cloudflare_api_token", mode="before")
+    @classmethod
+    def validate_cloudflare_api_token(cls, value: str | None) -> str | None:
+        if value is None:
+            return None
+        normalized = value.strip()
+        return normalized or ""
 
 
 class WebSearchProviderResponse(BaseModel):

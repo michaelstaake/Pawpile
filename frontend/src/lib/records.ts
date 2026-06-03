@@ -238,6 +238,36 @@ export type AppSettingsRecord = {
   background_image_mode: BackgroundImageMode;
   input_price_per_1m: number;
   output_price_per_1m: number;
+  public_url: string;
+};
+
+export type SslCertificateStatus = {
+  subject: string | null;
+  issuer: string;
+  not_after: string;
+  days_remaining: number;
+  is_self_signed: boolean;
+  is_lets_encrypt: boolean;
+  san_names: string[];
+  domain_matches: boolean;
+};
+
+export type SslStatusRecord = {
+  public_url: string;
+  letsencrypt_available: boolean;
+  cloudflare_api_token_set: boolean;
+  letsencrypt_email_set: boolean;
+  certificate: SslCertificateStatus | null;
+};
+
+export type SslSettingsUpdateRequest = {
+  letsencrypt_email?: string;
+  cloudflare_api_token?: string;
+};
+
+export type SslTaskResponse = {
+  status: string;
+  task_id: string;
 };
 
 export type ApiKeyCreateResponse = {
