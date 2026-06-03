@@ -16,7 +16,7 @@ class Settings(BaseSettings):
     app_name: str = "Pawpile"
     app_env: str = "development"
     app_host: str = "0.0.0.0"
-    app_port: int = 8000
+    app_port: int = 8444
     app_log_level: str = "INFO"
 
     database_url: str = "sqlite:///./data/pawpile.db"
@@ -49,7 +49,7 @@ class Settings(BaseSettings):
     queue_max_size: int = 1000
     queue_poll_interval_ms: int = 100
 
-    frontend_origin: str = "http://localhost:5173"
+    frontend_origin: str = "http://localhost:8443"
     supported_devices: str = ""
     inference_service_url: str = "http://localhost:8100"
     inference_runtime_urls: str = ""

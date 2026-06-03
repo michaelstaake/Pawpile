@@ -78,7 +78,7 @@ Large models can also take several minutes to finish loading the first time they
 
 **4. Proceed to web interface**
 
-Once Docker reports the containers are healthy and started, open the Pawpile web interface: https://localhost:5173 or replace localhost with your server's local IP. You will receive an SSL error since Pawpile generates a self-signed SSL certificate. It is safe to bypass this error.
+Once Docker reports the containers are healthy and started, open the Pawpile web interface: https://localhost:8443 or replace localhost with your server's local IP. You will receive an SSL error since Pawpile generates a self-signed SSL certificate. It is safe to bypass this error.
 
 On a new install you will be redirected to the setup page where you can create your first admin account.
 
@@ -122,7 +122,7 @@ Pawpile currently supports `/v1/models` and `/v1/chat/completions`.
 ## Example API Call
 
 ```bash
-curl http://localhost:8000/v1/chat/completions \
+curl http://localhost:8444/v1/chat/completions \
   -H "Authorization: Bearer API_KEY" \
   -H "Content-Type: application/json" \
   -d '{
@@ -135,7 +135,7 @@ curl http://localhost:8000/v1/chat/completions \
 ### Example Vision API Call
 
 ```bash
-curl http://localhost:8000/v1/chat/completions \
+curl http://localhost:8444/v1/chat/completions \
   -H "Authorization: Bearer API_KEY" \
   -H "Content-Type: application/json" \
   -d '{
@@ -170,7 +170,7 @@ Use this in your OpenCode config file to connect to Pawpile's OpenAI-compatible 
       "name": "pawpile",
       "npm": "@ai-sdk/openai-compatible",
       "options": {
-        "baseURL": "http://localhost:8000/v1",
+        "baseURL": "http://localhost:8444/v1",
         "apiKey": "API_KEY",
         "timeout": 7200000
       },

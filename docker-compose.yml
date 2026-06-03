@@ -18,9 +18,9 @@ services:
       - ./logs:/app/logs
       - /var/run/docker.sock:/var/run/docker.sock:ro
     ports:
-      - "8000:8000"
+      - "8444:8000"
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      test: ["CMD", "curl", "-f", "http://localhost:8444/health"]
       interval: ${STARTUP_HEALTHCHECK_INTERVAL:-15s}
       timeout: ${STARTUP_HEALTHCHECK_TIMEOUT:-5s}
       retries: ${STARTUP_HEALTHCHECK_RETRIES:-40}
@@ -42,7 +42,7 @@ services:
       dockerfile: frontend/Dockerfile
     container_name: pawpile-frontend
     ports:
-      - "5173:443"
+      - "8443:443"
     volumes:
       - ./certs:/etc/nginx/certs
     depends_on:
