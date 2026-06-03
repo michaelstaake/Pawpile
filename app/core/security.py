@@ -1,11 +1,16 @@
 import hashlib
 import hmac
+import logging
 import secrets
 from datetime import datetime, timedelta, timezone
+
 import bcrypt
+import httpx
 from jose import jwt
 
 from app.core.config import get_settings
+
+logger = logging.getLogger(__name__)
 
 
 def hash_password(password: str) -> str:
@@ -35,47 +40,39 @@ def verify_api_key(api_key: str, key_hash: str) -> bool:
     return hmac.compare_digest(hash_api_key(api_key), key_hash)
 
 
-async def verify_cloudflare_turnstile(secret_key: str, token: str) -> bool:
-    import logging
+async def verify_cloudflare_turnstile(secret_key: str, token: str, remote_ip: str | None = None) -> bool:
+    if not token.strip():
+        return False
 
-    import httpx
+    form_data: dict[str, str] = {
+        "secret": secret_key,
+        "response": token,
+    }
+    if remote_ip:
+        form_data["remoteip"] = remote_ip
 
-    logger = logging.getLogger(__name__)
-
-    async with httpx.AsyncClient(timeout=10) as client:
-        try:
+    try:
+        async with httpx.AsyncClient(timeout=10) as client:
             response = await client.post(
                 "https://challenges.cloudflare.com/turnstile/v0/siteverify",
-                data={
-                    "secret": secret_key,
-                    "response": token,
-                },
+                data=form_data,
             )
-     data = response.json()
+            data = response.json()
     except Exception:
-      logger.exception("Failed to parse Cloudflare Turnstile verification response")
-      return False
+        logger.exception("Cloudflare Turnstile siteverify request failed")
+        return False
 
-    logger.info("Cloudflare Turnstile response: %s", data)
-
-    success = data.get("success", False)
-    score = data.get("score")
     error_codes = data.get("error-codes", [])
+    if not data.get("success"):
+        logger.warning(
+            "Cloudflare Turnstile verification failed: %s",
+            error_codes,
+            extra={"error_codes": error_codes, "hostname": data.get("hostname")},
+        )
+        return False
 
-        if not success:
-            logger.warning(
-                "Cloudflare Turnstile verification failed: %s",
-                error_codes,
-                extra={"error_codes": error_codes, "score": score},
-            )
-            return False
-
-        if "score" in data and score < 0.2:
-            logger.info(
-                "Cloudflare Turnstile score below explicit widget threshold (0.2): %s",
-                score,
-                extra={"score": score, "error_codes": error_codes},
-            )
-            return False
-
-        return True
+    logger.info(
+        "Cloudflare Turnstile verification succeeded",
+        extra={"hostname": data.get("hostname"), "action": data.get("action")},
+    )
+    return True

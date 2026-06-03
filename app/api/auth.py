@@ -107,7 +107,11 @@ async def login(payload: LoginRequest, request: Request, db: Session = Depends(g
             log_event(db, "auth.login_failed", username=payload.username, ip_address=ip)
             raise HTTPException(status_code=400, detail="Cloudflare Turnstile verification is required")
         if app_settings.cloudflare_turnstile_secret_key:
-            turnstile_valid = await verify_cloudflare_turnstile(app_settings.cloudflare_turnstile_secret_key, payload.turnstile_response)
+            turnstile_valid = await verify_cloudflare_turnstile(
+                app_settings.cloudflare_turnstile_secret_key,
+                payload.turnstile_response,
+                ip,
+            )
             if not turnstile_valid:
                 log_event(db, "auth.login_failed", username=payload.username, ip_address=ip)
                 raise HTTPException(status_code=400, detail="Cloudflare Turnstile verification failed")
@@ -132,7 +136,11 @@ async def register(payload: UserRegistrationRequest, request: Request, db: Sessi
             log_event(db, "auth.register_failed", username=payload.username, ip_address=request.client.host if request.client else None)
             raise HTTPException(status_code=400, detail="Cloudflare Turnstile verification is required")
         if app_settings.cloudflare_turnstile_secret_key:
-            turnstile_valid = await verify_cloudflare_turnstile(app_settings.cloudflare_turnstile_secret_key, payload.turnstile_response)
+            turnstile_valid = await verify_cloudflare_turnstile(
+                app_settings.cloudflare_turnstile_secret_key,
+                payload.turnstile_response,
+                request.client.host if request.client else None,
+            )
             if not turnstile_valid:
                 log_event(db, "auth.register_failed", username=payload.username, ip_address=request.client.host if request.client else None)
                 raise HTTPException(status_code=400, detail="Cloudflare Turnstile verification failed")

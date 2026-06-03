@@ -2,18 +2,7 @@ import { FormEvent, useEffect, useRef, useState } from "react";
 import { Navigate, Link } from "react-router-dom";
 import { useAuth } from "../context/AuthContext";
 import { useToast } from "../context/ToastContext";
-
-declare global {
-  interface Window {
-    turnstile: {
-      render: (container: string | HTMLElement, config: Record<string, unknown>) => string;
-      reset: (widgetId?: string) => void;
-      execute: (widgetId?: string) => void;
-      getResponse: (widgetId?: string) => string;
-      remove: (widgetId: string) => void;
-    };
-  }
-}
+import { readTurnstileToken, resetTurnstileWidget, turnstileRenderOptions } from "../lib/turnstile";
 
 export default function RegisterPage() {
   const { user, requiresSetup, isBootstrapping, isAuthenticating, register, usersCanRegister, cloudflareTurnstileEnabled, cloudflareTurnstileSiteKey } = useAuth();
@@ -22,9 +11,9 @@ export default function RegisterPage() {
   const [registerEmail, setRegisterEmail] = useState("");
   const [registerPassword, setRegisterPassword] = useState("");
   const [registerConfirmPassword, setRegisterConfirmPassword] = useState("");
-  const [turnstileWidgetId, setTurnstileWidgetId] = useState<string | null>(null);
   const turnstileRef = useRef<HTMLDivElement | null>(null);
   const widgetIdRef = useRef<string | null>(null);
+  const turnstileTokenRef = useRef<string | null>(null);
 
   useEffect(() => {
     if (!cloudflareTurnstileEnabled || !cloudflareTurnstileSiteKey) {
@@ -35,14 +24,10 @@ export default function RegisterPage() {
       return;
     }
 
+    const renderOptions = turnstileRenderOptions(cloudflareTurnstileSiteKey, turnstileTokenRef);
+
     if (window.turnstile && turnstileRef.current) {
-      const id = window.turnstile.render(turnstileRef.current, {
-        sitekey: cloudflareTurnstileSiteKey,
-        theme: "light",
-        size: "flexible",
-      });
-      widgetIdRef.current = id;
-      setTurnstileWidgetId(id);
+      widgetIdRef.current = window.turnstile.render(turnstileRef.current, renderOptions);
       return;
     }
 
@@ -51,16 +36,10 @@ export default function RegisterPage() {
     script.async = true;
     script.defer = true;
     script.onload = () => {
-      if (!turnstileRef.current) {
+      if (!turnstileRef.current || !window.turnstile) {
         return;
       }
-      const id = window.turnstile!.render(turnstileRef.current, {
-        sitekey: cloudflareTurnstileSiteKey,
-        theme: "light",
-        size: "flexible",
-      });
-      widgetIdRef.current = id;
-      setTurnstileWidgetId(id);
+      widgetIdRef.current = window.turnstile.render(turnstileRef.current, renderOptions);
     };
     document.head.appendChild(script);
 
@@ -68,6 +47,7 @@ export default function RegisterPage() {
       if (widgetIdRef.current) {
         window.turnstile?.remove(widgetIdRef.current);
         widgetIdRef.current = null;
+        turnstileTokenRef.current = null;
       }
     };
   }, [cloudflareTurnstileEnabled, cloudflareTurnstileSiteKey]);
@@ -82,22 +62,9 @@ export default function RegisterPage() {
 
     let turnstileResponse: string | undefined;
     if (cloudflareTurnstileEnabled && widgetIdRef.current) {
-      try {
-        await new Promise<void>((resolve, reject) => {
-          const timeout = setTimeout(() => reject(new Error("Turnstile verification timed out")), 10000);
-          window.turnstile!.execute(widgetIdRef.current!);
-          const checkInterval = setInterval(() => {
-            const token = window.turnstile!.getResponse(widgetIdRef.current!);
-            if (token) {
-              clearInterval(checkInterval);
-              clearTimeout(timeout);
-              resolve();
-            }
-          }, 200);
-        });
-        turnstileResponse = window.turnstile!.getResponse(widgetIdRef.current!);
-      } catch {
-        showError("Turnstile verification failed. Please try again.");
+      turnstileResponse = readTurnstileToken(widgetIdRef.current, turnstileTokenRef);
+      if (!turnstileResponse) {
+        showError("Please complete the security check before registering.");
         return;
       }
     }
@@ -108,6 +75,7 @@ export default function RegisterPage() {
       setRegisterConfirmPassword("");
       showSuccess("Account created.");
     } catch (error) {
+      resetTurnstileWidget(widgetIdRef.current, turnstileTokenRef);
       showError(error instanceof Error ? error.message : "Registration failed");
     }
   }
