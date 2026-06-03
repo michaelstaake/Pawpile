@@ -519,9 +519,9 @@ export default function StatusPage() {
       },
       {
         label: "Top User 24h",
-        value: topUserLast24Hours?.username ?? "N/A",
-        title: formatTokenTooltip(topUserLast24Hours),
-        detail: topUserLast24Hours ? formatWholePercent(topUserLast24HoursPercent) : "0%",
+        value: token ? (topUserLast24Hours?.username ?? "N/A") : "N/A",
+        title: token ? formatTokenTooltip(topUserLast24Hours) : undefined,
+        detail: token ? (topUserLast24Hours ? formatWholePercent(topUserLast24HoursPercent) : "0%") : "Log in to view",
         className: "lg:col-span-3",
       },
     ];
@@ -579,7 +579,9 @@ export default function StatusPage() {
               </p>
             ) : appSettings ? (
               <p className="mt-1 text-sm text-black/55">Based on cloud API pricing of ${appSettings.input_price_per_1m.toFixed(2)}/1M Input, ${appSettings.output_price_per_1m.toFixed(2)}/1M Output</p>
-            ) : null}
+            ) : (
+              <p className="mt-1 text-sm text-black/55">Log in to view</p>
+            )}
           </div>
         </div>
 
