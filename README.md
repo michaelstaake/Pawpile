@@ -122,7 +122,7 @@ Pawpile currently supports `/v1/models` and `/v1/chat/completions`.
 ## Example API Call
 
 ```bash
-curl http://localhost:8444/v1/chat/completions \
+curl -k https://localhost:8444/v1/chat/completions \
   -H "Authorization: Bearer API_KEY" \
   -H "Content-Type: application/json" \
   -d '{
@@ -135,7 +135,7 @@ curl http://localhost:8444/v1/chat/completions \
 ### Example Vision API Call
 
 ```bash
-curl http://localhost:8444/v1/chat/completions \
+curl -k https://localhost:8444/v1/chat/completions \
   -H "Authorization: Bearer API_KEY" \
   -H "Content-Type: application/json" \
   -d '{
@@ -170,7 +170,7 @@ Use this in your OpenCode config file to connect to Pawpile's OpenAI-compatible 
       "name": "pawpile",
       "npm": "@ai-sdk/openai-compatible",
       "options": {
-        "baseURL": "http://localhost:8444/v1",
+        "baseURL": "https://localhost:8444/v1",
         "apiKey": "API_KEY",
         "timeout": 7200000
       },
