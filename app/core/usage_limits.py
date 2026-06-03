@@ -85,6 +85,20 @@ def get_user_token_usage_by_period(db: Session, *, user_id: int) -> dict[str, in
     return usage
 
 
+def get_user_oldest_token_timestamp_by_period(db: Session, *, user_id: int) -> dict[str, datetime | None]:
+    now = datetime.now(timezone.utc)
+    oldest: dict[str, datetime | None] = {}
+    for period_id, _, window in USAGE_PERIOD_SPECS:
+        since = now - window
+        result = (
+            db.query(func.min(TokenUsage.created_at))
+            .filter(TokenUsage.user_id == user_id, TokenUsage.created_at >= since)
+            .scalar()
+        )
+        oldest[period_id] = result
+    return oldest
+
+
 def is_user_over_usage_limit(db: Session, *, user_id: int, app_settings: AppSettings) -> bool:
     limits = get_usage_limit_values(app_settings)
     if not any(limit > 0 for limit in limits.values()):
@@ -154,7 +168,9 @@ def build_account_usage_status(db: Session, *, user: User, app_settings: AppSett
     if not user_id or user_id <= 0:
         return None
 
+    now = datetime.now(timezone.utc)
     usage = get_user_token_usage_by_period(db, user_id=user_id)
+    oldest = get_user_oldest_token_timestamp_by_period(db, user_id=user_id)
     period_labels = {
         "60_minutes": "60 Minutes",
         "24_hours": "24 Hours",
@@ -166,6 +182,12 @@ def build_account_usage_status(db: Session, *, user: User, app_settings: AppSett
         used = usage[period_id]
         percent = min(100.0, (used / limit) * 100) if limit > 0 else 0.0
         _, _, window = next(s for s in USAGE_PERIOD_SPECS if s[0] == period_id)
+        oldest_ts = oldest[period_id]
+        if oldest_ts is not None:
+            resets_in = int((oldest_ts + window - now).total_seconds())
+            resets_in = max(0, resets_in)
+        else:
+            resets_in = None
         periods.append(
             {
                 "id": period_id,
@@ -173,7 +195,7 @@ def build_account_usage_status(db: Session, *, user: User, app_settings: AppSett
                 "limit_tokens": limit,
                 "used_tokens": used,
                 "percent": round(percent, 1),
-                "resets_in_seconds": int(window.total_seconds()),
+                "resets_in_seconds": resets_in,
             }
         )
 

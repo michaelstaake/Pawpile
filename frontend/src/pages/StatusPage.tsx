@@ -127,8 +127,8 @@ function formatWholePercent(value: number) {
   return `${Math.round(clampPercent(value))}%`;
 }
 
-function formatResetIn(seconds: number) {
-  if (seconds < 0) return null;
+function formatResetIn(seconds: number | null) {
+  if (seconds === null || seconds < 0) return null;
   const days = Math.floor(seconds / (60 * 60 * 24));
   if (days > 0) {
     const remainingHours = Math.floor((seconds % (60 * 60 * 24)) / (60 * 60));

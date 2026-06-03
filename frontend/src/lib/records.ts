@@ -190,7 +190,7 @@ export type AccountUsagePeriodRecord = {
   limit_tokens: number;
   used_tokens: number;
   percent: number;
-  resets_in_seconds: number;
+  resets_in_seconds: number | null;
 };
 
 export type AccountUsageStatusRecord = {
