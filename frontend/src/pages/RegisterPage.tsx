@@ -24,18 +24,25 @@ export default function RegisterPage() {
   const [registerConfirmPassword, setRegisterConfirmPassword] = useState("");
   const [turnstileWidgetId, setTurnstileWidgetId] = useState<string | null>(null);
   const turnstileRef = useRef<HTMLDivElement | null>(null);
+  const widgetIdRef = useRef<string | null>(null);
 
   useEffect(() => {
     if (!cloudflareTurnstileEnabled || !cloudflareTurnstileSiteKey) {
       return;
     }
 
-    if (window.turnstile) {
-      const widgetId = window.turnstile.render(turnstileRef.current!, {
+    if (widgetIdRef.current) {
+      return;
+    }
+
+    if (window.turnstile && turnstileRef.current) {
+      const id = window.turnstile.render(turnstileRef.current, {
         sitekey: cloudflareTurnstileSiteKey,
         theme: "light",
+        size: "flexible",
       });
-      setTurnstileWidgetId(widgetId);
+      widgetIdRef.current = id;
+      setTurnstileWidgetId(id);
       return;
     }
 
@@ -44,20 +51,26 @@ export default function RegisterPage() {
     script.async = true;
     script.defer = true;
     script.onload = () => {
-      const widgetId = window.turnstile!.render(turnstileRef.current!, {
+      if (!turnstileRef.current) {
+        return;
+      }
+      const id = window.turnstile!.render(turnstileRef.current, {
         sitekey: cloudflareTurnstileSiteKey,
         theme: "light",
+        size: "flexible",
       });
-      setTurnstileWidgetId(widgetId);
+      widgetIdRef.current = id;
+      setTurnstileWidgetId(id);
     };
     document.head.appendChild(script);
 
     return () => {
-      if (turnstileWidgetId) {
-        window.turnstile?.remove(turnstileWidgetId);
+      if (widgetIdRef.current) {
+        window.turnstile?.remove(widgetIdRef.current);
+        widgetIdRef.current = null;
       }
     };
-  }, [cloudflareTurnstileEnabled, cloudflareTurnstileSiteKey, turnstileWidgetId]);
+  }, [cloudflareTurnstileEnabled, cloudflareTurnstileSiteKey]);
 
   async function handleRegister(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -68,13 +81,13 @@ export default function RegisterPage() {
     }
 
     let turnstileResponse: string | undefined;
-    if (cloudflareTurnstileEnabled && turnstileWidgetId) {
+    if (cloudflareTurnstileEnabled && widgetIdRef.current) {
       try {
         await new Promise<void>((resolve, reject) => {
           const timeout = setTimeout(() => reject(new Error("Turnstile verification timed out")), 10000);
-          window.turnstile!.execute(turnstileWidgetId);
+          window.turnstile!.execute(widgetIdRef.current!);
           const checkInterval = setInterval(() => {
-            const token = window.turnstile!.getResponse(turnstileWidgetId);
+            const token = window.turnstile!.getResponse(widgetIdRef.current!);
             if (token) {
               clearInterval(checkInterval);
               clearTimeout(timeout);
@@ -82,7 +95,7 @@ export default function RegisterPage() {
             }
           }, 200);
         });
-        turnstileResponse = window.turnstile!.getResponse(turnstileWidgetId);
+        turnstileResponse = window.turnstile!.getResponse(widgetIdRef.current!);
       } catch {
         showError("Turnstile verification failed. Please try again.");
         return;
@@ -134,7 +147,7 @@ export default function RegisterPage() {
             <input className="rounded-2xl border border-black/10 bg-[#fcfaf5] px-4 py-3 text-sm outline-none transition focus:border-black/25 focus:bg-white" type="password" value={registerConfirmPassword} onChange={(event) => setRegisterConfirmPassword(event.target.value)} autoComplete="new-password" />
           </label>
           {cloudflareTurnstileEnabled && cloudflareTurnstileSiteKey ? (
-            <div ref={turnstileRef} className="mt-2" />
+            <div ref={turnstileRef} className="mt-2 w-64 min-h-[74px]" />
           ) : null}
           <div className="flex items-center justify-between gap-4 mt-2">
             <button className="rounded-2xl bg-ink px-5 py-3 text-sm font-semibold text-white disabled:cursor-not-allowed disabled:opacity-60" type="submit" disabled={isAuthenticating}>

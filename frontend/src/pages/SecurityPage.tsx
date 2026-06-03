@@ -20,7 +20,7 @@ export default function SecurityPage() {
     public_url: "",
     cloudflare_turnstile_enabled: false,
     cloudflare_turnstile_site_key: null,
-    cloudflare_turnstile_secret_key: null,
+    cloudflare_turnstile_secret_key_set: false,
     two_factor_enabled: false,
   });
   const [localSiteKey, setLocalSiteKey] = useState("");
@@ -42,10 +42,10 @@ export default function SecurityPage() {
   }, [settings.cloudflare_turnstile_site_key]);
 
   useEffect(() => {
-    if (settings.cloudflare_turnstile_secret_key) {
-      setLocalSecretKey(settings.cloudflare_turnstile_secret_key);
+    if (settings.cloudflare_turnstile_secret_key_set) {
+      setLocalSecretKey("••••••••");
     }
-  }, [settings.cloudflare_turnstile_secret_key]);
+  }, [settings.cloudflare_turnstile_secret_key_set]);
 
   async function loadSettings(activeToken: string) {
     setIsLoading(true);
@@ -82,8 +82,53 @@ export default function SecurityPage() {
     }
   }
 
-  const hasTurnstileKeys = Boolean(localSiteKey.trim()) && Boolean(localSecretKey.trim());
-  const canEnableTurnstile = !hasTurnstileKeys;
+  async function updateTurnstileSiteKey(nextValue: string) {
+    if (!token) {
+      return;
+    }
+
+    const previousSettings = settings;
+    setSettings({ ...settings, cloudflare_turnstile_site_key: nextValue });
+    setIsSaving("cloudflare_turnstile_site_key");
+
+    try {
+      const response = await apiPatch<{ cloudflare_turnstile_site_key: string }, AppSettingsRecord>("/api/admin/settings", { cloudflare_turnstile_site_key: nextValue }, token);
+      setSettings(response);
+      await refreshPublicSettings();
+      showSuccess("Security settings updated.");
+    } catch (error) {
+      setSettings(previousSettings);
+      showError(error instanceof Error ? error.message : "Failed to update security setting");
+    } finally {
+      setIsSaving(null);
+    }
+  }
+
+  async function updateTurnstileSecretKey(nextValue: string) {
+    if (!token) {
+      return;
+    }
+
+    const previousSettings = settings;
+    setSettings({ ...settings, cloudflare_turnstile_secret_key_set: nextValue !== "" });
+    setIsSaving("cloudflare_turnstile_secret_key");
+
+    try {
+      const response = await apiPatch<{ cloudflare_turnstile_secret_key: string }, AppSettingsRecord>("/api/admin/settings", { cloudflare_turnstile_secret_key: nextValue }, token);
+      setSettings(response);
+      await refreshPublicSettings();
+      showSuccess("Security settings updated.");
+    } catch (error) {
+      setSettings(previousSettings);
+      showError(error instanceof Error ? error.message : "Failed to update security setting");
+    } finally {
+      setIsSaving(null);
+    }
+  }
+
+  const hasTurnstileKeys = Boolean(localSiteKey.trim()) && Boolean(settings.cloudflare_turnstile_secret_key_set);
+  const canDisableTurnstile = settings.cloudflare_turnstile_enabled;
+  const isCheckboxDisabled = isLoading || isSaving === "cloudflare_turnstile_enabled" || (!canDisableTurnstile && !hasTurnstileKeys);
 
   return (
     <section className="grid gap-4">
@@ -110,13 +155,18 @@ export default function SecurityPage() {
                 <input
                   type="checkbox"
                   checked={settings.cloudflare_turnstile_enabled}
-                  disabled={isLoading || isSaving === "cloudflare_turnstile_enabled" || canEnableTurnstile}
+                  disabled={isCheckboxDisabled}
                   onChange={(event) => void updateSetting("cloudflare_turnstile_enabled", event.target.checked)}
                 />
               </label>
 
               <label className="grid gap-2">
                 <span className="text-sm font-semibold text-black">Site Key</span>
+                <p className="text-sm text-black/65">
+                  {settings.cloudflare_turnstile_site_key
+                    ? "A site key is saved. Enter a new value to replace it, or clear it below."
+                    : "Enter your Cloudflare Turnstile site key."}
+                </p>
                 <input
                   type="text"
                   className="max-w-md rounded-xl border border-black/15 bg-white px-3 py-2 text-sm text-black focus:outline-none focus:ring-2 focus:ring-ink/20"
@@ -124,13 +174,13 @@ export default function SecurityPage() {
                   onChange={(e) => setLocalSiteKey(e.target.value)}
                   onBlur={() => {
                     if (localSiteKey.trim() !== (settings.cloudflare_turnstile_site_key || "")) {
-                      void updateSetting("cloudflare_turnstile_site_key", localSiteKey.trim());
+                      void updateTurnstileSiteKey(localSiteKey.trim());
                     }
                   }}
                   onKeyDown={(e) => {
                     if (e.key === "Enter") {
                       if (localSiteKey.trim() !== (settings.cloudflare_turnstile_site_key || "")) {
-                        void updateSetting("cloudflare_turnstile_site_key", localSiteKey.trim());
+                        void updateTurnstileSiteKey(localSiteKey.trim());
                       }
                     }
                   }}
@@ -139,11 +189,42 @@ export default function SecurityPage() {
                 />
               </label>
 
+              {settings.cloudflare_turnstile_site_key ? (
+                <button
+                  type="button"
+                  className="rounded-xl border border-black/10 bg-white px-3 py-2 text-sm font-semibold text-black disabled:cursor-not-allowed disabled:opacity-60"
+                  onClick={() => {
+                    if (!token) return;
+                    void (async () => {
+                      setIsSaving("cloudflare_turnstile_site_key");
+                      try {
+                        const response = await apiPatch<{ cloudflare_turnstile_site_key: string }, AppSettingsRecord>(
+                          "/api/admin/settings",
+                          { cloudflare_turnstile_site_key: "" },
+                          token,
+                        );
+                        setSettings(response);
+                        setLocalSiteKey("");
+                        await refreshPublicSettings();
+                        showSuccess("Site key removed.");
+                      } catch (error) {
+                        showError(error instanceof Error ? error.message : "Failed to clear site key");
+                      } finally {
+                        setIsSaving(null);
+                      }
+                    })();
+                  }}
+                  disabled={isLoading || isSaving === "cloudflare_turnstile_site_key"}
+                >
+                  Clear site key
+                </button>
+              ) : null}
+
               <label className="grid gap-2">
                 <span className="text-sm font-semibold text-black">Secret Key</span>
                 <p className="text-sm text-black/65">
-                  {settings.cloudflare_turnstile_secret_key
-                    ? "A secret key is saved. Enter a new value to replace it."
+                  {settings.cloudflare_turnstile_secret_key_set
+                    ? "A secret key is saved. Enter a new value to replace it, or clear it below."
                     : "Enter your Cloudflare Turnstile secret key."}
                 </p>
                 <input
@@ -152,24 +233,55 @@ export default function SecurityPage() {
                   value={localSecretKey}
                   onChange={(e) => setLocalSecretKey(e.target.value)}
                   onBlur={() => {
-                    if (localSecretKey.trim() !== (settings.cloudflare_turnstile_secret_key || "")) {
-                      void updateSetting("cloudflare_turnstile_secret_key", localSecretKey.trim());
+                    if (localSecretKey.trim() !== "••••••••" && localSecretKey.trim() !== "") {
+                      void updateTurnstileSecretKey(localSecretKey.trim());
                     }
                   }}
                   onKeyDown={(e) => {
                     if (e.key === "Enter") {
-                      if (localSecretKey.trim() !== (settings.cloudflare_turnstile_secret_key || "")) {
-                        void updateSetting("cloudflare_turnstile_secret_key", localSecretKey.trim());
+                      if (localSecretKey.trim() !== "••••••••" && localSecretKey.trim() !== "") {
+                        void updateTurnstileSecretKey(localSecretKey.trim());
                       }
                     }
                   }}
                   disabled={isLoading || isSaving === "cloudflare_turnstile_secret_key"}
                   autoComplete="off"
-                  placeholder="Cloudflare Turnstile secret key"
+                  placeholder={settings.cloudflare_turnstile_secret_key_set ? "••••••••" : "Cloudflare Turnstile secret key"}
                 />
               </label>
 
-              {canEnableTurnstile && settings.cloudflare_turnstile_enabled ? (
+              {settings.cloudflare_turnstile_secret_key_set ? (
+                <button
+                  type="button"
+                  className="rounded-xl border border-black/10 bg-white px-3 py-2 text-sm font-semibold text-black disabled:cursor-not-allowed disabled:opacity-60"
+                  onClick={() => {
+                    if (!token) return;
+                    void (async () => {
+                      setIsSaving("cloudflare_turnstile_secret_key");
+                      try {
+                        const response = await apiPatch<{ cloudflare_turnstile_secret_key: string }, AppSettingsRecord>(
+                          "/api/admin/settings",
+                          { cloudflare_turnstile_secret_key: "" },
+                          token,
+                        );
+                        setSettings(response);
+                        setLocalSecretKey("");
+                        await refreshPublicSettings();
+                        showSuccess("Secret key removed.");
+                      } catch (error) {
+                        showError(error instanceof Error ? error.message : "Failed to clear secret key");
+                      } finally {
+                        setIsSaving(null);
+                      }
+                    })();
+                  }}
+                  disabled={isLoading || isSaving === "cloudflare_turnstile_secret_key"}
+                >
+                  Clear secret key
+                </button>
+              ) : null}
+
+              {isCheckboxDisabled && !settings.cloudflare_turnstile_enabled ? (
                 <p className="text-sm text-amber-900/80">Enable CAPTCHA only after filling in both the Site Key and Secret Key.</p>
               ) : null}
             </div>

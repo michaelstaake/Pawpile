@@ -212,6 +212,7 @@ class BootstrapStatusResponse(BaseModel):
     background_image_mode: Literal["fill", "stretch", "repeat"] = "fill"
     knowledge_base_enabled: bool = False
     cloudflare_turnstile_enabled: bool = False
+    cloudflare_turnstile_site_key: str | None = None
 
     @field_validator("background_color", mode="before")
     @classmethod
@@ -244,7 +245,7 @@ class AppSettingsResponse(BaseModel):
     public_url: str = ""
     cloudflare_turnstile_enabled: bool = False
     cloudflare_turnstile_site_key: str | None = None
-    cloudflare_turnstile_secret_key: str | None = None
+    cloudflare_turnstile_secret_key_set: bool = False
     two_factor_enabled: bool = False
 
     @field_validator("background_color", mode="before")

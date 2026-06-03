@@ -256,7 +256,7 @@ def _serialize_app_settings(app_settings) -> AppSettingsResponse:
         public_url=app_settings.public_url or "",
         cloudflare_turnstile_enabled=app_settings.cloudflare_turnstile_enabled,
         cloudflare_turnstile_site_key=app_settings.cloudflare_turnstile_site_key,
-        cloudflare_turnstile_secret_key=app_settings.cloudflare_turnstile_secret_key,
+        cloudflare_turnstile_secret_key_set=app_settings.cloudflare_turnstile_secret_key is not None,
         two_factor_enabled=app_settings.two_factor_enabled,
     )
 

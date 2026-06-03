@@ -250,7 +250,7 @@ export type AppSettingsRecord = {
   public_url: string;
   cloudflare_turnstile_enabled: boolean;
   cloudflare_turnstile_site_key: string | null;
-  cloudflare_turnstile_secret_key: string | null;
+  cloudflare_turnstile_secret_key_set: boolean;
   two_factor_enabled: boolean;
 };
 
