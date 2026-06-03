@@ -137,29 +137,39 @@ export default function UsageLimitsPage() {
     return payload.data ?? [];
   }
 
-  const parsedLimits = useMemo(() => {
-    const values = {
-      usage_limit_tokens_60_minutes: parseLimitValue(draft.usage_limit_tokens_60_minutes),
-      usage_limit_tokens_24_hours: parseLimitValue(draft.usage_limit_tokens_24_hours),
-      usage_limit_tokens_7_days: parseLimitValue(draft.usage_limit_tokens_7_days),
-      usage_limit_tokens_30_days: parseLimitValue(draft.usage_limit_tokens_30_days),
-    };
+  const parsedLimits = useMemo((): { valid: false; message: string } | { valid: true; values: {
+    usage_limit_tokens_60_minutes: number;
+    usage_limit_tokens_24_hours: number;
+    usage_limit_tokens_7_days: number;
+    usage_limit_tokens_30_days: number;
+  } } => {
+    const usage_limit_tokens_60_minutes = parseLimitValue(draft.usage_limit_tokens_60_minutes);
+    const usage_limit_tokens_24_hours = parseLimitValue(draft.usage_limit_tokens_24_hours);
+    const usage_limit_tokens_7_days = parseLimitValue(draft.usage_limit_tokens_7_days);
+    const usage_limit_tokens_30_days = parseLimitValue(draft.usage_limit_tokens_30_days);
 
     if (
-      values.usage_limit_tokens_60_minutes === null
-      || values.usage_limit_tokens_24_hours === null
-      || values.usage_limit_tokens_7_days === null
-      || values.usage_limit_tokens_30_days === null
+      usage_limit_tokens_60_minutes === null
+      || usage_limit_tokens_24_hours === null
+      || usage_limit_tokens_7_days === null
+      || usage_limit_tokens_30_days === null
     ) {
-      return { valid: false as const, message: "Token limits must be whole numbers of zero or greater." };
+      return { valid: false, message: "Token limits must be whole numbers of zero or greater." };
     }
+
+    const values = {
+      usage_limit_tokens_60_minutes,
+      usage_limit_tokens_24_hours,
+      usage_limit_tokens_7_days,
+      usage_limit_tokens_30_days,
+    };
 
     const validationMessage = validateUsageLimits(values);
     if (validationMessage) {
-      return { valid: false as const, message: validationMessage };
+      return { valid: false, message: validationMessage };
     }
 
-    return { valid: true as const, values };
+    return { valid: true, values };
   }, [draft]);
 
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
@@ -207,8 +217,12 @@ export default function UsageLimitsPage() {
     }
   }
 
-  const limitsEnabled = parsedLimits.valid
-    && Object.values(parsedLimits.values).some((value) => value > 0);
+  const limitsEnabled = parsedLimits.valid && (
+    parsedLimits.values.usage_limit_tokens_60_minutes > 0
+    || parsedLimits.values.usage_limit_tokens_24_hours > 0
+    || parsedLimits.values.usage_limit_tokens_7_days > 0
+    || parsedLimits.values.usage_limit_tokens_30_days > 0
+  );
 
   if (isLoading) {
     return <div className="rounded-2xl border border-black/10 bg-white/80 px-4 py-8 text-sm text-black/55 shadow-sm">Loading usage limits...</div>;
