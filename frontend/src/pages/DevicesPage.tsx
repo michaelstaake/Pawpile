@@ -18,9 +18,9 @@ function splitModeLabel(mode: string) {
 }
 
 function splitModeDescription(mode: string) {
-  if (mode === "row") return "Splits by row — requires fast inter-GPU bandwidth.";
-  if (mode === "layer") return "Splits by layer — sequential, minimizes PCIe chatter.";
-  if (mode === "tensor") return "Tensor parallelism — requires high-speed inter-GPU bandwidth.";
+  if (mode === "row") return "In most cases, the default mode is fine, but you can try other modes for see which one performs the best on your particular hardware.";
+  if (mode === "layer") return "In most cases, the default mode is fine, but you can try other modes for see which one performs the best on your particular hardware.";
+  if (mode === "tensor") return "In most cases, the default mode is fine, but you can try other modes for see which one performs the best on your particular hardware.";
   return "";
 }
 
