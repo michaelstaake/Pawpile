@@ -36,15 +36,44 @@ def verify_api_key(api_key: str, key_hash: str) -> bool:
 
 
 async def verify_cloudflare_turnstile(secret_key: str, token: str) -> bool:
+    import logging
+
     import httpx
 
+    logger = logging.getLogger(__name__)
+
     async with httpx.AsyncClient(timeout=10) as client:
-        response = await client.post(
-            "https://challenges.cloudflare.com/turnstile/v0/siteverify",
-            data={
-                "secret": secret_key,
-                "response": token,
-            },
-        )
-        data = response.json()
-        return data.get("success", False) and data.get("score", 0) >= 0.5
+        try:
+            response = await client.post(
+                "https://challenges.cloudflare.com/turnstile/v0/siteverify",
+                data={
+                    "secret": secret_key,
+                    "response": token,
+                },
+            )
+            data = response.json()
+        except Exception:
+            logger.exception("Failed to parse Cloudflare Turnstile verification response")
+            return False
+
+        success = data.get("success", False)
+        score = data.get("score", 0)
+        error_codes = data.get("error-codes", [])
+
+        if not success:
+            logger.warning(
+                "Cloudflare Turnstile verification failed: %s",
+                error_codes,
+                extra={"error_codes": error_codes, "score": score},
+            )
+            return False
+
+        if score < 0.1:
+            logger.info(
+                "Cloudflare Turnstile score below threshold: %s",
+                score,
+                extra={"score": score, "error_codes": error_codes},
+            )
+            return False
+
+        return True
