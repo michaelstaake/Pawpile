@@ -19,8 +19,7 @@ depends_on: Sequence[str] | None = None
 
 def upgrade() -> None:
     op.execute(sa.text("UPDATE gpu_pools SET split_mode = 'layer' WHERE split_mode = 'row'"))
-    op.alter_column("gpu_pools", "split_mode", server_default="layer")
 
 
 def downgrade() -> None:
-    op.alter_column("gpu_pools", "split_mode", server_default="row")
+    pass
