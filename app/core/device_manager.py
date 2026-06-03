@@ -14,6 +14,8 @@ from app.models.device import Device
 
 logger = logging.getLogger(__name__)
 
+AMD_VENDOR_ID = 0x1002
+
 
 def get_supported_vendors() -> set[str]:
     settings = get_settings()
@@ -216,6 +218,7 @@ class DeviceManager:
         if not output:
             return []
         devices: list[DetectedDevice] = []
+        amd_vulkan_indices: list[int] = []
         # vulkaninfo --summary groups each physical device under a "GPU<N>:" header
         blocks = re.split(r"GPU(\d+):", output)
         # blocks layout: [preamble, idx0, block0, idx1, block1, ...]
@@ -233,9 +236,13 @@ class DeviceManager:
 
             name = name_match.group(1).strip()
             device_type_str = type_match.group(1).strip().lower() if type_match else ""
+            vendor_id = _parse_vulkan_vendor_id(block)
             # Skip software/CPU renderers (e.g. lavapipe, llvmpipe)
             if "cpu" in device_type_str or "virtual_gpu" in device_type_str:
                 continue
+
+            if vendor_id == AMD_VENDOR_ID:
+                amd_vulkan_indices.append(idx)
 
             devices.append(
                 DetectedDevice(
@@ -251,7 +258,7 @@ class DeviceManager:
 
         if devices:
             memory_by_idx = self._parse_vulkan_device_memory()
-            memory_by_idx.update(self._read_amdgpu_vram_totals())
+            memory_by_idx.update(self._read_amdgpu_vram_totals(amd_vulkan_indices))
             for device in devices:
                 idx = int(device.hardware_id.split(":")[1])
                 device.memory_mb = memory_by_idx.get(idx, 0)
@@ -274,8 +281,10 @@ class DeviceManager:
             return {}
         return _parse_vulkaninfo_device_local_heap_mb(output)
 
-    def _read_amdgpu_vram_totals(self) -> dict[int, int]:
+    def _read_amdgpu_vram_totals(self, amd_vulkan_indices: list[int]) -> dict[int, int]:
         memory_by_idx: dict[int, int] = {}
+        if not amd_vulkan_indices:
+            return memory_by_idx
         try:
             amd_card_paths = sorted(
                 p.parent for p in Path("/sys/class/drm").glob("card*/device/gpu_busy_percent")
@@ -284,7 +293,7 @@ class DeviceManager:
         except Exception:
             return memory_by_idx
 
-        for vulkan_idx, device_path in enumerate(amd_card_paths):
+        for vulkan_idx, device_path in zip(amd_vulkan_indices, amd_card_paths, strict=False):
             total_bytes = self._read_sysfs_int(device_path / "mem_info_vram_total")
             if total_bytes is None or total_bytes <= 0:
                 continue
@@ -392,6 +401,18 @@ def _parse_vulkaninfo_device_local_heap_mb(output: str) -> dict[int, int]:
             memory_by_idx[idx] = device_local_mb
 
     return memory_by_idx
+
+
+def _parse_vulkan_vendor_id(block: str) -> int | None:
+    match = re.search(r"vendorID\s*=\s*(0x[0-9a-fA-F]+|\d+)", block)
+    if not match:
+        return None
+
+    raw_value = match.group(1)
+    try:
+        return int(raw_value, 16 if raw_value.lower().startswith("0x") else 10)
+    except ValueError:
+        return None
 
 
 def _vulkan_size_to_mb(value: float, unit: str | None) -> int:

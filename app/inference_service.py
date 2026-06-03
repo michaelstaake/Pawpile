@@ -19,7 +19,7 @@ from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
 
 from app.core.config import get_settings
-from app.core.device_manager import DeviceManager, get_supported_vendors, is_supported_vendor
+from app.core.device_manager import AMD_VENDOR_ID, DeviceManager, get_supported_vendors, is_supported_vendor, _parse_vulkan_vendor_id
 
 logger = logging.getLogger(__name__)
 
@@ -421,6 +421,7 @@ class InferenceRuntime:
     def _collect_vulkan_metrics(self) -> dict[str, dict]:
         output = self._run_command(["vulkaninfo"])
         metrics: dict[str, dict] = {}
+        amd_vulkan_indices: list[int] = []
         if output:
             blocks = re.split(r"GPU(\d+):", output)
             # blocks layout: [preamble, idx0, block0, idx1, block1, ...]
@@ -436,6 +437,9 @@ class InferenceRuntime:
 
                 memory_total_mb = 0
                 memory_used_mb = 0
+                vendor_id = _parse_vulkan_vendor_id(block)
+                if vendor_id == AMD_VENDOR_ID:
+                    amd_vulkan_indices.append(idx)
                 heap_blocks = re.split(r"memoryHeaps\[\d+\]:", block)
                 for heap_block in heap_blocks[1:]:
                     if "VK_MEMORY_HEAP_DEVICE_LOCAL_BIT" not in heap_block:
@@ -467,7 +471,7 @@ class InferenceRuntime:
                 p.parent for p in Path("/sys/class/drm").glob("card*/device/gpu_busy_percent")
                 if p.is_file()
             )
-            for vulkan_idx, device_path in enumerate(amd_card_paths):
+            for vulkan_idx, device_path in zip(amd_vulkan_indices, amd_card_paths, strict=False):
                 hardware_id = f"vulkan:{vulkan_idx}"
                 metric = metrics.setdefault(
                     hardware_id,

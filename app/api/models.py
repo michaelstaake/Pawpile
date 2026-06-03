@@ -813,11 +813,13 @@ async def _resolve_device_for_model(db: Session, model: ModelConfig, inference: 
             raise HTTPException(status_code=409, detail=f"No inference runtime configured for {pool.vendor} (required for GPU pool)")
 
         if model_size_mb > 0:
-            combined_available = _pool_combined_available_mb(target, memory_metrics)
-            combined_total = sum(
-                memory_metrics.get(d.hardware_id, {}).get("total_mb", 0) for d in target.devices
-            )
-            if combined_total > 0 and model_size_mb > combined_available:
+            combined_total, combined_available, totals_verified = _pool_combined_memory_mb(target, memory_metrics)
+            if not totals_verified:
+                raise HTTPException(
+                    status_code=409,
+                    detail="GPU pool capacity could not be verified from runtime metrics",
+                )
+            if model_size_mb > combined_available:
                 raise HTTPException(
                     status_code=409,
                     detail=(
@@ -860,11 +862,8 @@ async def _resolve_device_for_model(db: Session, model: ModelConfig, inference: 
         if len(target.devices) < 2 or not inference.has_runtime_for_vendor(target.runtime_vendor):
             continue
 
-        combined_available = _pool_combined_available_mb(target, memory_metrics)
-        combined_total = sum(
-            memory_metrics.get(d.hardware_id, {}).get("total_mb", 0) for d in target.devices
-        )
-        pool_fits = model_size_mb == 0 or combined_total == 0 or combined_available >= model_size_mb
+        _, combined_available, totals_verified = _pool_combined_memory_mb(target, memory_metrics)
+        pool_fits = model_size_mb == 0 or (totals_verified and combined_available >= model_size_mb)
         if pool_fits:
             pool_candidates.append((target, combined_available))
 
@@ -970,16 +969,21 @@ async def _resolve_device_for_model(db: Session, model: ModelConfig, inference: 
 
 
 def _pool_combined_available_mb(target: PoolActivationTarget, memory_metrics: dict) -> int:
+    return _pool_combined_memory_mb(target, memory_metrics)[1]
+
+
+def _pool_combined_memory_mb(target: PoolActivationTarget, memory_metrics: dict) -> tuple[int, int, bool]:
+    combined_total = 0
     total = 0
     for device in target.devices:
         metrics = memory_metrics.get(device.hardware_id, {})
         total_mb = metrics.get("total_mb", 0)
         available_mb = metrics.get("available_mb", 0)
-        if total_mb > 0:
-            total += available_mb
-        else:
-            total += device.memory_mb
-    return total
+        if total_mb <= 0:
+            return 0, 0, False
+        combined_total += total_mb
+        total += available_mb
+    return combined_total, total, True
 
 
 def _build_pool_target(db: Session, pool: GpuPool, require_enabled: bool) -> PoolActivationTarget:

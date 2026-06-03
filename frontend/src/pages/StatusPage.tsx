@@ -62,6 +62,17 @@ function formatMemorySummary(memoryUsedMb: number, memoryTotalMb: number) {
   return `${formatMemory(memoryUsedMb)} of ${formatMemory(memoryTotalMb)}`;
 }
 
+function formatCombinedMemorySummary(memoryUsedMb: number, memoryTotalMb: number, hasUnknownCapacity: boolean) {
+  if (hasUnknownCapacity && !hasKnownMemoryCapacity(memoryTotalMb)) {
+    return `${formatMemory(memoryUsedMb)} used across pooled GPUs`;
+  }
+  if (hasUnknownCapacity) {
+    return `${formatMemory(memoryUsedMb)} used of at least ${formatMemory(memoryTotalMb)}`;
+  }
+
+  return formatMemorySummary(memoryUsedMb, memoryTotalMb);
+}
+
 function formatDiskSpace(bytes: number) {
   if (bytes >= 1024 * 1024 * 1024 * 1024) {
     return `${(bytes / (1024 * 1024 * 1024 * 1024)).toFixed(1)} TB`;
@@ -143,8 +154,9 @@ function getSystemHealth(activeModels: number, memoryUsagePercent: number | null
   };
 }
 
-function DeviceCard({ device, isPooled, modelColors }: { device: DeviceStatusRecord; isPooled: boolean; modelColors: Map<number, string> }) {
+function DeviceCard({ device, poolName, modelColors }: { device: DeviceStatusRecord; poolName: string | null; modelColors: Map<number, string> }) {
   const isCpuDevice = device.device_type.toLowerCase() === "cpu" || device.vendor.toLowerCase() === "cpu";
+  const isPooled = poolName !== null;
   const gpuUsagePercent = clampPercent(device.gpu_usage_percent);
   const hasGpuUsage = device.gpu_usage_percent !== null && device.gpu_usage_percent !== undefined;
   const cpuUsagePercent = clampPercent(device.usage_percent);
@@ -192,6 +204,9 @@ function DeviceCard({ device, isPooled, modelColors }: { device: DeviceStatusRec
           <p className="mt-2 text-sm text-black/65">
             {device.device_type.toUpperCase()} {device.display_suffix}
           </p>
+          {poolName && (
+            <p className="mt-1 text-xs text-black/55">Part of pool {poolName}. This card shows this GPU only.</p>
+          )}
         </div>
       </div>
 
@@ -390,7 +405,47 @@ export default function StatusPage() {
   }
 
   const visibleDevices = useMemo(() => devices.filter((device) => device.enabled), [devices]);
-  const poolDeviceIds = useMemo(() => new Set(pools.flatMap((pool) => pool.devices.map((d) => d.id))), [pools]);
+  const poolNamesByDeviceId = useMemo(() => {
+    const entries = new Map<number, string>();
+    for (const pool of pools) {
+      for (const device of pool.devices) {
+        entries.set(device.id, pool.name);
+      }
+    }
+    return entries;
+  }, [pools]);
+  const visiblePoolSummaries = useMemo(() => {
+    const visibleById = new Map(visibleDevices.map((device) => [device.id, device]));
+    return pools
+      .map((pool) => {
+        const members = pool.devices
+          .map((poolDevice) => visibleById.get(poolDevice.id))
+          .filter((device): device is DeviceStatusRecord => Boolean(device));
+        if (members.length === 0) {
+          return null;
+        }
+
+        const memoryTotalMb = members.reduce((sum, device) => sum + Math.max(0, device.memory_total_mb), 0);
+        const memoryUsedMb = members.reduce((sum, device) => sum + Math.max(0, device.memory_used_mb), 0);
+        const hasUnknownCapacity = members.some((device) => device.memory_total_mb <= 0);
+        const memberLabel = members.map((device) => `${device.name} ${device.display_suffix}`).join(", ");
+        const loadedModels = Array.from(new Set(members.flatMap((device) => device.models.map((model) => model.alias)))).sort();
+
+        return {
+          id: pool.id,
+          name: pool.name,
+          vendor: pool.vendor,
+          members,
+          memberLabel,
+          memoryTotalMb,
+          memoryUsedMb,
+          hasUnknownCapacity,
+          memoryPercent: hasUnknownCapacity ? null : getMemoryPercent(memoryUsedMb, memoryTotalMb),
+          loadedModels,
+        };
+      })
+      .filter((pool): pool is NonNullable<typeof pool> => pool !== null);
+  }, [pools, visibleDevices]);
   const modelColors = useMemo(() => {
     const modelIds = Array.from(new Set(visibleDevices.flatMap((device) => device.models.map((model) => model.model_id)))).sort((left, right) => left - right);
     return new Map(modelIds.map((modelId, index) => [modelId, colorForModel(index)]));
@@ -588,7 +643,45 @@ export default function StatusPage() {
         <div className="rounded-2xl border border-black/10 bg-white/80 px-4 py-8 text-sm text-black/55 shadow-sm">Loading...</div>
       ) : visibleDevices.length > 0 ? (
         <div className="grid gap-4">
-          {visibleDevices.map((device) => <DeviceCard key={device.id} device={device} isPooled={poolDeviceIds.has(device.id)} modelColors={modelColors} />)}
+          {visiblePoolSummaries.length > 0 && (
+            <div className="grid gap-4 lg:grid-cols-2">
+              {visiblePoolSummaries.map((pool) => (
+                <article key={pool.id} className="overflow-hidden rounded-[28px] border border-violet-200 bg-[linear-gradient(180deg,rgba(245,232,255,0.9)_0%,rgba(255,255,255,0.85)_100%)] p-5 shadow-sm backdrop-blur">
+                  <div className="flex flex-wrap items-start justify-between gap-3">
+                    <div>
+                      <div className="flex flex-wrap items-center gap-2">
+                        <h3 className="font-display text-xl text-ink">{pool.name}</h3>
+                        <span className="rounded-full border border-violet-200 bg-violet-100 px-2 py-0.5 text-xs font-semibold uppercase tracking-[0.18em] text-violet-700">{pool.vendor} pool</span>
+                      </div>
+                      <p className="mt-2 text-sm text-black/65">{pool.memberLabel}</p>
+                    </div>
+                    <div className="text-right">
+                      <p className="text-xs font-semibold uppercase tracking-[0.24em] text-black/45">Combined Memory</p>
+                      <p className="mt-1 font-display text-2xl text-ink">{pool.memoryPercent !== null ? `${pool.memoryPercent.toFixed(1)}%` : "N/A"}</p>
+                    </div>
+                  </div>
+                  <div className="mt-4 rounded-2xl border border-black/10 bg-white/70 p-4">
+                    <p className="text-xs font-semibold uppercase tracking-[0.24em] text-black/45">Pool Capacity</p>
+                    <p className="mt-1 text-sm text-black/65">{formatCombinedMemorySummary(pool.memoryUsedMb, pool.memoryTotalMb, pool.hasUnknownCapacity)}</p>
+                    <div className="mt-4 h-4 overflow-hidden rounded-full bg-black/10">
+                      {pool.memoryPercent !== null ? (
+                        <div className="h-full rounded-full bg-violet-600" style={{ width: `${pool.memoryPercent}%` }} />
+                      ) : (
+                        <div className="h-full rounded-full bg-violet-300" title="Combined pool capacity unavailable" />
+                      )}
+                    </div>
+                    {pool.hasUnknownCapacity && (
+                      <p className="mt-3 text-xs text-black/50">One or more member GPUs did not report a reliable total capacity.</p>
+                    )}
+                  </div>
+                  {pool.loadedModels.length > 0 && (
+                    <p className="mt-4 text-sm text-black/60">Loaded models: {pool.loadedModels.join(", ")}</p>
+                  )}
+                </article>
+              ))}
+            </div>
+          )}
+          {visibleDevices.map((device) => <DeviceCard key={device.id} device={device} poolName={poolNamesByDeviceId.get(device.id) ?? null} modelColors={modelColors} />)}
         </div>
       ) : (
         <div className="rounded-2xl border border-dashed border-black/15 bg-white/60 px-4 py-8 text-sm text-black/55 shadow-sm">No ready devices are available.</div>
