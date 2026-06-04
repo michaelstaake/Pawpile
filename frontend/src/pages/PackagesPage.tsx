@@ -426,6 +426,7 @@ export default function PackagesPage() {
               </div>
 
               <div className="mt-3 grid grid-cols-2 gap-2">
+                <p className="col-span-2 text-[10px] font-semibold uppercase tracking-[0.2em] text-black/40">Tokens</p>
                 {TOKEN_PERIOD_FIELDS.map((period) => (
                   <div key={period.key} className="rounded-lg bg-sand/60 px-2 py-1.5 text-center">
                     <div className="text-[10px] uppercase tracking-wide text-black/50">{period.label}</div>
@@ -434,6 +435,7 @@ export default function PackagesPage() {
                     </div>
                   </div>
                 ))}
+                <p className="col-span-2 text-[10px] font-semibold uppercase tracking-[0.2em] text-black/40">Web Search</p>
                 {TOOL_PERIOD_FIELDS.map((period) => (
                   <div key={period.key} className="rounded-lg bg-sand/60 px-2 py-1.5 text-center">
                     <div className="text-[10px] uppercase tracking-wide text-black/50">{period.label}</div>
@@ -471,7 +473,7 @@ export default function PackagesPage() {
                 <input className="rounded-xl border border-black/15 bg-white px-3 py-2 text-sm" value={createDraft.name} onChange={(event) => setCreateDraft((current) => ({ ...current, name: event.target.value }))} required />
               </label>
               <div className="md:col-span-2">
-                <p className="text-xs text-black/50">Token Usage Limits</p>
+                <p className="text-xs font-semibold uppercase tracking-[0.2em] text-black/40">Tokens</p>
                 <div className="mt-2 grid grid-cols-2 gap-3">
                   {TOKEN_PERIOD_FIELDS.map((period) => (
                     <div key={period.key}>
@@ -483,7 +485,7 @@ export default function PackagesPage() {
                 </div>
               </div>
               <div className="md:col-span-2">
-                <p className="text-xs text-black/50">Tool Usage Limits</p>
+                <p className="text-xs font-semibold uppercase tracking-[0.2em] text-black/40">Web Search</p>
                 <div className="mt-2 grid grid-cols-2 gap-3">
                   {TOOL_PERIOD_FIELDS.map((period) => (
                     <div key={period.key}>
@@ -523,7 +525,7 @@ export default function PackagesPage() {
                 <input className="rounded-xl border border-black/15 bg-white px-3 py-2 text-sm" value={editDraft.name} onChange={(event) => setEditDraft((current) => ({ ...current, name: event.target.value }))} required />
               </label>
               <div className="md:col-span-2">
-                <p className="text-xs text-black/50">Token Usage Limits</p>
+                <p className="text-xs font-semibold uppercase tracking-[0.2em] text-black/40">Tokens</p>
                 <div className="mt-2 grid grid-cols-2 gap-3">
                   {TOKEN_PERIOD_FIELDS.map((period) => (
                     <div key={period.key}>
@@ -535,7 +537,7 @@ export default function PackagesPage() {
                 </div>
               </div>
               <div className="md:col-span-2">
-                <p className="text-xs text-black/50">Tool Usage Limits</p>
+                <p className="text-xs font-semibold uppercase tracking-[0.2em] text-black/40">Web Search</p>
                 <div className="mt-2 grid grid-cols-2 gap-3">
                   {TOOL_PERIOD_FIELDS.map((period) => (
                     <div key={period.key}>
