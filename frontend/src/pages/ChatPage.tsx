@@ -1227,7 +1227,7 @@ export default function ChatPage() {
               aria-pressed={useWebSearch}
               aria-disabled={!selectedModelSupportsWebSearch}
             >
-              <i className={`text-[18px] leading-none ${useWebSearch ? "bi bi-globe text-[18px] leading-none" : "bi bi-globe2 text-[18px] leading-none"}`} aria-hidden="true" />
+              <i className="bi bi-globe text-[18px] leading-none" aria-hidden="true" />
             </button>
             <button
               type="button"
@@ -1244,7 +1244,7 @@ export default function ChatPage() {
               aria-pressed={useThinking || selectedModelAlwaysThinks}
               aria-disabled={!selectedModelAllowsThinkingPreference && !selectedModelAlwaysThinks}
             >
-              <i className={`text-[18px] leading-none ${useThinking || selectedModelAlwaysThinks ? "bi bi-star-fill text-[18px] leading-none" : "bi bi-star text-[18px] leading-none"}`} aria-hidden="true" />
+              <i className="bi bi-stars text-[18px] leading-none" aria-hidden="true" />
             </button>
             <button
               type="button"
