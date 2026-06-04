@@ -41,6 +41,7 @@ class ActivateModelRequest(BaseModel):
     context_length: int
     threads: int
     gpu_layers: int
+    flash_attention_enabled: bool = False
     vendor: str
     hardware_id: str
     hardware_ids: list[str] = []
@@ -91,6 +92,8 @@ class InferenceRuntime:
             str(payload.threads),
             "--n-gpu-layers",
             str(payload.gpu_layers),
+            "--flash-attn",
+            "on" if payload.flash_attention_enabled else "off",
         ]
         if payload.mmproj_path:
             command.extend(["--mmproj", payload.mmproj_path])
