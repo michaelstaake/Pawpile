@@ -312,9 +312,9 @@ export default function ApiPage() {
             </div>
           </div>
           <div>
-            <h3 className="font-display text-lg text-black">List models (curl)</h3>
+            <h3 className="font-display text-lg text-black">List models</h3>
             <div className="mt-2 flex items-center gap-3">
-              <code className="rounded-xl border border-black/10 bg-[#fffdf7] px-3 py-2 text-sm font-mono text-black">curl {BASE_URL}/v1/models -H "Authorization: Bearer YOUR_API_KEY"</code>
+              <code className="rounded-xl border border-black/10 bg-[#fffdf7] px-3 py-2 text-sm font-mono text-black">{BASE_URL}/v1/models</code>
             </div>
           </div>
           <div>
