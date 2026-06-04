@@ -1105,6 +1105,16 @@ export default function ChatPage() {
                           <span>RAG</span>
                         </span>
                       ) : null}
+                      {thinkingTagLabel ? (
+                        <span
+                          className={`inline-flex items-center gap-2 rounded-full px-3 py-1.5 text-xs font-medium ${
+                            isSelected ? "bg-white/10 text-white/90" : "bg-black/5 text-black/70"
+                          }`}
+                        >
+                          <i className="bi bi-stars text-[13px] leading-none" aria-hidden="true" />
+                          <span>{thinkingTagLabel}</span>
+                        </span>
+                      ) : null}
                     </div>
                   </button>
                 );
