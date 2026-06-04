@@ -5,6 +5,7 @@ from app.api.deps import get_admin_user, get_current_user
 from app.core.app_settings import get_or_create_app_settings
 from app.core.db import get_db
 from app.models.user import User
+from app.utils.schemas import TermsStatusResponse
 
 router = APIRouter(prefix="/api/terms", tags=["terms"])
 
@@ -72,9 +73,3 @@ def decline_terms(current_user: User = Depends(get_current_user), db: Session = 
     db.add(current_user)
     db.commit()
     return {"status": "logged_out"}
-
-
-class TermsStatusResponse:
-    def __init__(self, terms_enabled: bool, terms_accepted: bool):
-        self.terms_enabled = terms_enabled
-        self.terms_accepted = terms_accepted

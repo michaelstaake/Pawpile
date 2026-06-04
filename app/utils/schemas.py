@@ -174,6 +174,11 @@ class LoginResponse(BaseModel):
     terms_enabled: bool = False
 
 
+class TermsStatusResponse(BaseModel):
+    terms_enabled: bool
+    terms_accepted: bool
+
+
 class UserResponse(BaseModel):
     id: int
     username: str
