@@ -17,7 +17,6 @@ from app.core.device_manager import (
     AMD_VENDOR_ID,
     DeviceManager,
     _format_rocm_display_name,
-    _parse_rocm_unique_ids,
     _rocm_product_name_from_entry,
     build_device_display_suffix,
     get_supported_vendors,
@@ -60,31 +59,37 @@ class SupportedVendorTests(unittest.TestCase):
 
 
 class RocmDisplayNameTests(unittest.TestCase):
-    def test_format_generic_rocm_name_includes_vram_and_pci(self) -> None:
+    def test_format_generic_rocm_name_uses_gpu_index_and_vram(self) -> None:
         name = _format_rocm_display_name(
             "AMD Radeon Graphics",
             memory_mb=32_768,
             hardware_id="rocm:0",
-            pci_bdf="0000:01:00.0",
-            unique_id="0xabc123def456",
         )
-        self.assertIn("32 GB", name)
-        self.assertIn("0000:01:00.0", name)
-        self.assertIn("ID", name)
+        self.assertEqual(name, "AMD GPU 0 (32 GB)")
 
-    def test_build_device_display_suffix_prefers_pci_bdf(self) -> None:
+    def test_format_hex_rocm_name_is_replaced(self) -> None:
+        name = _format_rocm_display_name(
+            "0x7551",
+            memory_mb=32_768,
+            hardware_id="rocm:1",
+        )
+        self.assertEqual(name, "AMD GPU 1 (32 GB)")
+
+    def test_build_device_display_suffix_uses_pci_slot(self) -> None:
         self.assertEqual(
-            build_device_display_suffix("0000:c1:00.0", "rocm:0"),
-            "0000:C1:00.0",
+            build_device_display_suffix("0000:69:00.0", "rocm:0"),
+            "69:00.0",
         )
 
-    def test_parse_rocm_unique_ids(self) -> None:
-        payload = json.dumps({"card0": {"Unique ID": "0xdeadbeef"}})
-        self.assertEqual(_parse_rocm_unique_ids(payload), {0: "0xdeadbeef"})
+    def test_rocm_product_name_skips_hex_and_generic_series(self) -> None:
+        entry = {
+            "Card series": "AMD Radeon Graphics",
+            "Card model": "0x7551",
+        }
+        self.assertIsNone(_rocm_product_name_from_entry(entry))
 
-    def test_rocm_product_name_skips_generic_series(self) -> None:
-        entry = {"Card series": "AMD Radeon Graphics", "Card model": "Radeon AI PRO R9700"}
-        self.assertEqual(_rocm_product_name_from_entry(entry), "Radeon AI PRO R9700")
+        good_entry = {"Card series": "AMD Radeon Graphics", "Card model": "Radeon AI PRO R9700"}
+        self.assertEqual(_rocm_product_name_from_entry(good_entry), "Radeon AI PRO R9700")
 
 
 class RocmDetectionTests(unittest.TestCase):

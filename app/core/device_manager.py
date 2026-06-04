@@ -32,60 +32,34 @@ _GENERIC_AMD_GPU_NAMES = frozenset(
 @dataclass
 class AmdGpuSysfsInfo:
     pci_bdf: str
-    product_name: str | None = None
-    unique_id: str | None = None
 
 
 def _is_generic_amd_gpu_name(name: str) -> bool:
     normalized = name.strip().lower()
     if not normalized or normalized in _GENERIC_AMD_GPU_NAMES:
         return True
-    return bool(re.fullmatch(r"amd gpu \d+", normalized))
+    return bool(re.fullmatch(r"amd gpu \d+(\s*\([^)]+\))?", normalized))
 
 
-def _format_rocm_display_name(
-    rocm_name: str,
-    *,
-    memory_mb: int,
-    hardware_id: str,
-    pci_bdf: str | None,
-    unique_id: str | None,
-) -> str:
-    candidates: list[str] = []
-    for value in (rocm_name,):
-        cleaned = str(value).strip()
-        if cleaned and not _is_generic_amd_gpu_name(cleaned):
-            candidates.append(cleaned)
+def _is_unhelpful_rocm_product_name(name: str) -> bool:
+    cleaned = name.strip()
+    if not cleaned or _is_generic_amd_gpu_name(cleaned):
+        return True
+    if re.fullmatch(r"0x[0-9a-f]+", cleaned, flags=re.IGNORECASE):
+        return True
+    return False
+
+
+def _format_rocm_display_name(rocm_name: str, *, memory_mb: int, hardware_id: str) -> str:
+    if not _is_unhelpful_rocm_product_name(rocm_name):
+        return rocm_name[:120]
 
     index = hardware_id.rsplit(":", 1)[-1]
-    if memory_mb >= 16_384:
-        vram_label = f"{memory_mb // 1024} GB"
-    elif memory_mb > 0:
-        vram_label = f"{memory_mb:,} MB"
-    else:
-        vram_label = ""
-
-    if candidates:
-        base = candidates[0]
-    else:
-        parts = [f"AMD GPU {index}"]
-        if vram_label:
-            parts.append(vram_label)
-        base = " · ".join(parts)
-
-    suffix_parts: list[str] = []
-    if pci_bdf:
-        suffix_parts.append(pci_bdf)
-    if unique_id:
-        short_id = unique_id.strip()
-        if len(short_id) > 12:
-            short_id = f"{short_id[:6]}…{short_id[-4:]}"
-        suffix_parts.append(f"ID {short_id}")
-
-    if suffix_parts:
-        return f"{base} ({', '.join(suffix_parts)})"[:120]
-
-    return base[:120]
+    if memory_mb >= 1024 and memory_mb % 1024 == 0:
+        return f"AMD GPU {index} ({memory_mb // 1024} GB)"
+    if memory_mb > 0:
+        return f"AMD GPU {index} ({memory_mb:,} MB)"
+    return f"AMD GPU {index}"
 
 
 def get_supported_vendors() -> set[str]:
@@ -191,7 +165,9 @@ class DeviceManager:
             else:
                 row.stable_hardware_id = d.stable_hardware_id
                 row.stable_hardware_id_source = d.stable_hardware_id_source
-                if _is_generic_amd_gpu_name(row.name) or row.name.strip() == d.name.strip():
+                if d.vendor == "rocm" and _is_unhelpful_rocm_product_name(row.name):
+                    row.name = d.name
+                elif row.name.strip() == d.name.strip():
                     row.name = d.name
                 row.vendor = d.vendor
                 row.device_type = d.device_type
@@ -373,22 +349,17 @@ class DeviceManager:
 
     def _enrich_rocm_devices(self, devices: list[DetectedDevice]) -> None:
         card_infos = _read_amdgpu_card_infos()
-        unique_ids = _parse_rocm_unique_ids(self._run("rocm-smi --showuniqueid --json"))
 
         for index, device in enumerate(devices):
-            rocm_index = int(device.hardware_id.rsplit(":", 1)[-1])
             info = card_infos[index] if index < len(card_infos) else None
-            pci_bdf = info.pci_bdf if info else None
-            if pci_bdf:
-                device.stable_hardware_id = pci_bdf
+            if info and info.pci_bdf:
+                device.stable_hardware_id = info.pci_bdf
                 device.stable_hardware_id_source = "pci_bdf"
 
             device.name = _format_rocm_display_name(
                 device.name,
                 memory_mb=device.memory_mb,
                 hardware_id=device.hardware_id,
-                pci_bdf=pci_bdf,
-                unique_id=unique_ids.get(rocm_index),
             )
 
     def _run(self, command: str) -> str:
@@ -614,44 +585,22 @@ def _rocm_product_name_from_entry(entry: dict) -> str | None:
         for key, value in entry.items():
             if key.strip().lower() == preferred:
                 cleaned = str(value).strip()
-                if cleaned and not _is_generic_amd_gpu_name(cleaned):
+                if cleaned and not _is_unhelpful_rocm_product_name(cleaned):
                     return cleaned
 
     for key, value in entry.items():
         key_lower = key.lower()
-        if not any(token in key_lower for token in ("series", "model", "product", "marketing", "sku", "vendor")):
+        if not any(token in key_lower for token in ("series", "model", "product", "marketing", "sku")):
             continue
         cleaned = str(value).strip()
-        if cleaned and not _is_generic_amd_gpu_name(cleaned):
+        if cleaned and not _is_unhelpful_rocm_product_name(cleaned):
             return cleaned
 
-    for key in ("Card series", "Card Series", "Card model", "Card Model"):
+    for key in ("Card series", "Card Series"):
         cleaned = str(entry.get(key, "")).strip()
-        if cleaned:
+        if cleaned and not _is_unhelpful_rocm_product_name(cleaned):
             return cleaned
     return None
-
-
-def _parse_rocm_unique_ids(json_output: str) -> dict[int, str]:
-    if not json_output:
-        return {}
-    try:
-        data = json.loads(json_output)
-    except json.JSONDecodeError:
-        return {}
-    if not isinstance(data, dict):
-        return {}
-
-    unique_ids: dict[int, str] = {}
-    for card_key, entry in data.items():
-        if not card_key.lower().startswith("card") or not isinstance(entry, dict):
-            continue
-        index = int(re.sub(r"\D", "", card_key) or "0")
-        for key, value in entry.items():
-            if "unique" in key.lower() and str(value).strip():
-                unique_ids[index] = str(value).strip()
-                break
-    return unique_ids
 
 
 def _read_amdgpu_card_infos() -> list[AmdGpuSysfsInfo]:
@@ -674,18 +623,7 @@ def _read_amdgpu_card_infos() -> list[AmdGpuSysfsInfo]:
         except Exception:
             continue
 
-        product_name: str | None = None
-        for key in ("product_name", "marketing_name"):
-            path = device_path / key
-            if path.is_file():
-                try:
-                    product_name = path.read_text().strip() or None
-                except Exception:
-                    product_name = None
-                if product_name:
-                    break
-
-        infos.append(AmdGpuSysfsInfo(pci_bdf=pci_bdf, product_name=product_name))
+        infos.append(AmdGpuSysfsInfo(pci_bdf=pci_bdf))
     return infos
 
 
@@ -759,12 +697,14 @@ def _vulkan_size_to_mb(value: float, unit: str | None) -> int:
 
 
 def build_device_display_suffix(stable_hardware_id: str | None, hardware_id: str) -> str:
-    if stable_hardware_id and re.fullmatch(
-        r"[\da-f]{4}:[\da-f]{2}:[\da-f]{2}\.\d",
-        stable_hardware_id.strip(),
-        flags=re.IGNORECASE,
-    ):
-        return stable_hardware_id.strip().upper()
+    if stable_hardware_id:
+        pci_match = re.fullmatch(
+            r"[\da-f]{4}:([\da-f]{2}:[\da-f]{2}\.\d)",
+            stable_hardware_id.strip(),
+            flags=re.IGNORECASE,
+        )
+        if pci_match:
+            return pci_match.group(1).upper()
 
     source_value = stable_hardware_id or hardware_id
     compact_value = re.sub(r"[^A-Za-z0-9]", "", source_value)
