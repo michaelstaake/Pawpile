@@ -195,12 +195,14 @@ export type AccountUsagePeriodRecord = {
 
 export type AccountUsageStatusRecord = {
   enabled: boolean;
+  is_admin: boolean;
   at_limit: boolean;
   periods: AccountUsagePeriodRecord[];
 };
 
 export type AccountToolUsageStatusRecord = {
   enabled: boolean;
+  is_admin: boolean;
   at_limit: boolean;
   periods: AccountUsagePeriodRecord[];
 };

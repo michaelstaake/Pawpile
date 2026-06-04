@@ -94,13 +94,10 @@ export default function ProfilePage() {
   }
 
   const roleLabel = user?.is_admin ? "Admin" : "Standard";
-  const showAccountUsage = !user?.is_admin && accountUsage?.enabled;
-  const showAccountToolUsage = !user?.is_admin && accountToolUsage?.enabled;
+  const showAccountUsage = accountUsage?.enabled;
+  const showAccountToolUsage = accountToolUsage?.enabled;
   const numberFormatter = new Intl.NumberFormat();
-  const enabledPeriods = accountUsage?.periods.filter((p) => p.limit_tokens > 0) ?? [];
-  const enabledToolPeriods = accountToolUsage?.periods.filter((p) => p.limit_tokens > 0) ?? [];
-  const enabledColumnCount = enabledPeriods.length;
-  const enabledToolColumnCount = enabledToolPeriods.length;
+  const adminUsage = user?.is_admin;
   const atAnyLimit = Boolean(accountUsage?.at_limit || accountToolUsage?.at_limit);
 
   function clampPercent(value: number | null | undefined) {
@@ -170,27 +167,39 @@ export default function ProfilePage() {
                 : accountUsage?.at_limit && accountToolUsage?.at_limit
                   ? "You have reached token and web search usage limits. Chat, API, and web search are unavailable until your usage resets."
                   : "You have reached a usage limit. Chat and API access are unavailable until your usage resets."
-              : "Token and web search usage against your account limits."}
+              : adminUsage
+                ? "Token and web search usage."
+                : "Token and web search usage against your account limits."}
           </p>
 
           {showAccountUsage && (
             <>
               <p className="mt-4 text-xs font-semibold uppercase tracking-[0.18em] text-black/45">Token Usage</p>
-              <div className="mt-3 grid gap-3" style={{ gridTemplateColumns: enabledColumnCount > 0 ? `repeat(${enabledColumnCount}, minmax(0, 1fr))` : "1fr" }}>
-                {enabledPeriods.map((period) => (
+              <div className="mt-3 grid gap-3" style={{ gridTemplateColumns: `repeat(${accountUsage.periods.length}, minmax(0, 1fr))` }}>
+                {accountUsage.periods.map((period) => (
                   <div key={period.id} className="rounded-2xl border border-black/10 bg-white/80 p-4">
                     <p className="text-xs font-semibold uppercase tracking-[0.24em] text-black/45">{period.label}</p>
-                    <p className="mt-2 font-display text-3xl text-ink">{formatWholePercent(period.percent)}</p>
-                    <p className="mt-1 text-sm text-black/55">
-                      {numberFormatter.format(period.used_tokens)} / {numberFormatter.format(period.limit_tokens)} tokens
-                    </p>
-                    {(() => { const reset = formatResetIn(period.resets_in_seconds); return reset ? <p className="mt-1 text-xs text-black/40">Resets in {reset}</p> : null; })()}
-                    <div className="mt-3 h-2 overflow-hidden rounded-full bg-black/10">
-                      <div
-                        className={`h-full rounded-full ${period.percent >= 100 ? "bg-[#c63f3f]" : period.percent >= 80 ? "bg-[#c98a13]" : "bg-[#2f8f4e]"}`}
-                        style={{ width: `${clampPercent(period.percent)}%` }}
-                      />
-                    </div>
+                    {period.limit_tokens === 0 ? (
+                      <>
+                        <p className="mt-2 font-display text-3xl text-ink">{numberFormatter.format(period.used_tokens)}</p>
+                        <p className="mt-1 text-sm text-black/55">Tokens</p>
+                        {(() => { const reset = formatResetIn(period.resets_in_seconds); return reset ? <p className="mt-1 text-xs text-black/40">Resets in {reset}</p> : null; })()}
+                      </>
+                    ) : (
+                      <>
+                        <p className="mt-2 font-display text-3xl text-ink">{formatWholePercent(period.percent)}</p>
+                        <p className="mt-1 text-sm text-black/55">
+                          {numberFormatter.format(period.used_tokens)} / {numberFormatter.format(period.limit_tokens)} tokens
+                        </p>
+                        {(() => { const reset = formatResetIn(period.resets_in_seconds); return reset ? <p className="mt-1 text-xs text-black/40">Resets in {reset}</p> : null; })()}
+                        <div className="mt-3 h-2 overflow-hidden rounded-full bg-black/10">
+                          <div
+                            className={`h-full rounded-full ${period.percent >= 100 ? "bg-[#c63f3f]" : period.percent >= 80 ? "bg-[#c98a13]" : "bg-[#2f8f4e]"}`}
+                            style={{ width: `${clampPercent(period.percent)}%` }}
+                          />
+                        </div>
+                      </>
+                    )}
                   </div>
                 ))}
               </div>
@@ -200,21 +209,31 @@ export default function ProfilePage() {
           {showAccountToolUsage && (
             <>
               <p className={`text-xs font-semibold uppercase tracking-[0.18em] text-black/45 ${showAccountUsage ? "mt-6" : "mt-4"}`}>Web Search Usage</p>
-              <div className="mt-3 grid gap-3" style={{ gridTemplateColumns: enabledToolColumnCount > 0 ? `repeat(${enabledToolColumnCount}, minmax(0, 1fr))` : "1fr" }}>
-                {enabledToolPeriods.map((period) => (
+              <div className="mt-3 grid gap-3" style={{ gridTemplateColumns: `repeat(${accountToolUsage.periods.length}, minmax(0, 1fr))` }}>
+                {accountToolUsage.periods.map((period) => (
                   <div key={period.id} className="rounded-2xl border border-black/10 bg-white/80 p-4">
                     <p className="text-xs font-semibold uppercase tracking-[0.24em] text-black/45">{period.label}</p>
-                    <p className="mt-2 font-display text-3xl text-ink">{formatWholePercent(period.percent)}</p>
-                    <p className="mt-1 text-sm text-black/55">
-                      {numberFormatter.format(period.used_tokens)} / {numberFormatter.format(period.limit_tokens)} searches
-                    </p>
-                    {(() => { const reset = formatResetIn(period.resets_in_seconds); return reset ? <p className="mt-1 text-xs text-black/40">Resets in {reset}</p> : null; })()}
-                    <div className="mt-3 h-2 overflow-hidden rounded-full bg-black/10">
-                      <div
-                        className={`h-full rounded-full ${period.percent >= 100 ? "bg-[#c63f3f]" : period.percent >= 80 ? "bg-[#c98a13]" : "bg-[#2f8f4e]"}`}
-                        style={{ width: `${clampPercent(period.percent)}%` }}
-                      />
-                    </div>
+                    {period.limit_tokens === 0 ? (
+                      <>
+                        <p className="mt-2 font-display text-3xl text-ink">{numberFormatter.format(period.used_tokens)}</p>
+                        <p className="mt-1 text-sm text-black/55">Searches</p>
+                        {(() => { const reset = formatResetIn(period.resets_in_seconds); return reset ? <p className="mt-1 text-xs text-black/40">Resets in {reset}</p> : null; })()}
+                      </>
+                    ) : (
+                      <>
+                        <p className="mt-2 font-display text-3xl text-ink">{formatWholePercent(period.percent)}</p>
+                        <p className="mt-1 text-sm text-black/55">
+                          {numberFormatter.format(period.used_tokens)} / {numberFormatter.format(period.limit_tokens)} searches
+                        </p>
+                        {(() => { const reset = formatResetIn(period.resets_in_seconds); return reset ? <p className="mt-1 text-xs text-black/40">Resets in {reset}</p> : null; })()}
+                        <div className="mt-3 h-2 overflow-hidden rounded-full bg-black/10">
+                          <div
+                            className={`h-full rounded-full ${period.percent >= 100 ? "bg-[#c63f3f]" : period.percent >= 80 ? "bg-[#c98a13]" : "bg-[#2f8f4e]"}`}
+                            style={{ width: `${clampPercent(period.percent)}%` }}
+                          />
+                        </div>
+                      </>
+                    )}
                   </div>
                 ))}
               </div>

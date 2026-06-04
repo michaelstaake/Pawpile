@@ -277,14 +277,6 @@ def check_tool_usage_limit_for_request(
 
 
 def build_account_usage_status(db: Session, *, user: User, app_settings: AppSettings) -> dict | None:
-    if user.is_admin:
-        return None
-
-    limits = get_usage_limit_values(app_settings)
-    enabled_limits = {period_id: limit for period_id, limit in limits.items() if limit > 0}
-    if not enabled_limits:
-        return None
-
     user_id = getattr(user, "id", None)
     if not user_id or user_id <= 0:
         return None
@@ -298,8 +290,9 @@ def build_account_usage_status(db: Session, *, user: User, app_settings: AppSett
         "7_days": "7 Days",
         "30_days": "30 Days",
     }
+    limits = get_usage_limit_values(app_settings)
     periods = []
-    for period_id, limit in enabled_limits.items():
+    for period_id, limit in limits.items():
         used = usage[period_id]
         percent = min(100.0, (used / limit) * 100) if limit > 0 else 0.0
         _, _, window = next(s for s in USAGE_PERIOD_SPECS if s[0] == period_id)
@@ -322,20 +315,13 @@ def build_account_usage_status(db: Session, *, user: User, app_settings: AppSett
 
     return {
         "enabled": True,
+        "is_admin": user.is_admin,
         "at_limit": is_user_over_usage_limit(db, user_id=user_id, app_settings=app_settings),
         "periods": periods,
     }
 
 
 def build_account_tool_usage_status(db: Session, *, user: User, app_settings: AppSettings) -> dict | None:
-    if user.is_admin:
-        return None
-
-    limits = get_tool_usage_limit_values(app_settings)
-    enabled_limits = {period_id: limit for period_id, limit in limits.items() if limit > 0}
-    if not enabled_limits:
-        return None
-
     user_id = getattr(user, "id", None)
     if not user_id or user_id <= 0:
         return None
@@ -349,8 +335,9 @@ def build_account_tool_usage_status(db: Session, *, user: User, app_settings: Ap
         "7_days": "7 Days",
         "30_days": "30 Days",
     }
+    limits = get_tool_usage_limit_values(app_settings)
     periods = []
-    for period_id, limit in enabled_limits.items():
+    for period_id, limit in limits.items():
         used = usage[period_id]
         percent = min(100.0, (used / limit) * 100) if limit > 0 else 0.0
         _, _, window = next(s for s in TOOL_USAGE_PERIOD_SPECS if s[0] == period_id)
@@ -373,6 +360,7 @@ def build_account_tool_usage_status(db: Session, *, user: User, app_settings: Ap
 
     return {
         "enabled": True,
+        "is_admin": user.is_admin,
         "at_limit": is_user_over_tool_usage_limit(db, user_id=user_id, app_settings=app_settings),
         "periods": periods,
     }
