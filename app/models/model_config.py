@@ -31,6 +31,7 @@ class ModelConfig(Base):
     vision_enabled: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
     web_search_enabled: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
     rag_enabled: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
+    flash_attention_enabled: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
     mmproj_file_name: Mapped[str | None] = mapped_column(String(255), nullable=True)
     assignment_mode: Mapped[str] = mapped_column(String(32), default="auto", nullable=False)
     pinned_device_id: Mapped[int | None] = mapped_column(ForeignKey("devices.id"), nullable=True)

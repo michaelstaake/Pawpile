@@ -115,6 +115,7 @@ function buildModelPayload(model: ModelRecord) {
     vision_enabled: model.vision_enabled,
     web_search_enabled: model.web_search_enabled,
     rag_enabled: model.rag_enabled,
+    flash_attention_enabled: model.flash_attention_enabled,
     assignment_mode: model.assignment_mode,
     pinned_device_id: model.assignment_mode === "pinned" ? model.pinned_device_id : null,
     pinned_pool_id: model.assignment_mode === "pool" ? model.pinned_pool_id : null,
@@ -1051,6 +1052,13 @@ export default function ModelsPage({ setupMode = false, onComplete }: ModelsPage
                     <span>Threads</span>
                     <span className="text-xs text-black/45">CPU worker threads for this model.</span>
                     <input className="rounded-xl border border-black/15 bg-white px-3 py-2 text-sm" type="number" min={1} value={modalNumericDrafts.threads ?? String(modalDraft.threads)} onChange={(event) => setModalNumericDraft("threads", event.target.value)} onBlur={(event) => commitModalNumericDraft("threads", event.target.value, (n) => Math.max(1, Math.round(n)))} />
+                  </label>
+                  <label className="flex gap-3 rounded-xl border border-black/10 bg-white px-3 py-2 text-sm text-black/70">
+                    <input className="mt-1" type="checkbox" checked={modalDraft.flash_attention_enabled} onChange={(event) => updateModalDraft({ flash_attention_enabled: event.target.checked })} />
+                    <span className="grid gap-0.5">
+                      <span className="text-sm text-black/70">Flash Attention</span>
+                      <span className="text-xs text-black/45">Use flash attention to speed up inference.</span>
+                    </span>
                   </label>
                 </div>
               </section>
