@@ -19,7 +19,7 @@ export default function TermsAcceptancePage() {
       <article className="rounded-2xl border border-black/10 bg-white/90 p-6 shadow-sm backdrop-blur">
         <h2 className="font-display text-2xl">Terms and Policies</h2>
         <p className="mt-2 text-sm text-black/65">
-          Please review and accept the terms and policies to continue using Pawpile.
+          Please review and accept the terms and policies to continue.
         </p>
 
         <div className="mt-4 max-h-[50vh] overflow-y-auto rounded-2xl border border-black/10 bg-[#fffdf7] p-5">
