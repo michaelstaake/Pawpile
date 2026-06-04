@@ -45,6 +45,10 @@ class Settings(BaseSettings):
     rocm_pool_parallel: int = 1
     # Disable prompt cache in ROCm pools by default to avoid kv-cache restore corruption.
     rocm_pool_cache_ram_mb: int = 0
+    # Some ROCm multi-GPU combinations produce unstable output with flash attention.
+    rocm_pool_flash_attn_enabled: bool = False
+    # Tensor split on ROCm pools is experimental; keep disabled unless validated.
+    rocm_pool_allow_tensor_split: bool = False
 
     default_context_length: int = 32768
     default_threads: int = 8

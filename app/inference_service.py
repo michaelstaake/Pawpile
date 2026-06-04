@@ -64,6 +64,59 @@ def _rocm_pool_stability_args() -> list[str]:
     return args
 
 
+def _rocm_pool_flash_attn_enabled(requested: bool) -> bool:
+    settings = get_settings()
+    if settings.rocm_pool_flash_attn_enabled:
+        return requested
+    return False
+
+
+def _resolve_flash_attn_for_launch(vendor: str, requested: bool, split_mode: str) -> bool:
+    if vendor != "rocm_pool":
+        return requested
+
+    enabled = _rocm_pool_flash_attn_enabled(requested)
+    normalized_split_mode = split_mode.strip().lower()
+
+    # Tensor split requires flash-attn. If the model-level flash setting conflicts,
+    # ignore that model value and force a compatible value at launch.
+    if normalized_split_mode == "tensor" and not enabled:
+        settings = get_settings()
+        if settings.rocm_pool_allow_tensor_split and settings.rocm_pool_flash_attn_enabled:
+            logger.warning(
+                "Ignoring model flash-attn setting for ROCm tensor pool; forcing --flash-attn on"
+            )
+            return True
+
+    return enabled
+
+
+def _effective_pool_split_mode(vendor: str, split_mode: str, *, flash_attn_enabled: bool) -> str:
+    if vendor != "rocm_pool":
+        return split_mode
+
+    normalized = split_mode.strip().lower()
+    if normalized not in {"layer", "tensor"}:
+        logger.warning("ROCm pool requested unsupported split mode '%s'; using 'layer'", split_mode)
+        return "layer"
+
+    if normalized != "tensor":
+        return normalized
+
+    if not flash_attn_enabled:
+        logger.warning("ROCm pool requested split mode 'tensor' but flash-attn is off; using 'layer' instead")
+        return "layer"
+
+    settings = get_settings()
+    if settings.rocm_pool_allow_tensor_split:
+        return normalized
+
+    logger.warning(
+        "ROCm pool requested split mode 'tensor' but it is disabled by configuration; using 'layer' instead"
+    )
+    return "layer"
+
+
 def _validate_gpu_offload_from_log(log_path: str, vendor: str, gpu_layers: int) -> None:
     effective_vendor = vendor.removesuffix("_pool")
     if effective_vendor not in _GPU_OFFLOAD_VENDORS or gpu_layers == 0:
@@ -150,6 +203,14 @@ class InferenceRuntime:
 
         port = self.settings.llama_base_port + payload.model_id
         env = self._build_env(payload.vendor, payload.hardware_id, payload.threads, payload.hardware_ids)
+        flash_attn_enabled = _resolve_flash_attn_for_launch(
+            payload.vendor,
+            payload.flash_attention_enabled,
+            payload.split_mode,
+        )
+        if payload.vendor == "rocm_pool" and payload.flash_attention_enabled and not flash_attn_enabled:
+            logger.warning("ROCm pool forcing --flash-attn off for stability")
+
         command = [
             self._resolve_llama_server_path(),
             "-m",
@@ -165,7 +226,7 @@ class InferenceRuntime:
             "--n-gpu-layers",
             _format_gpu_layers_for_cli(payload.gpu_layers),
             "--flash-attn",
-            "on" if payload.flash_attention_enabled else "off",
+            "on" if flash_attn_enabled else "off",
         ]
         command.extend(
             _llama_offload_extra_args(
@@ -178,7 +239,14 @@ class InferenceRuntime:
             command.append("--no-mmap")
         if payload.mmproj_path:
             command.extend(["--mmproj", payload.mmproj_path])
-        command.extend(self._build_vendor_args(payload.vendor, payload.vram_ratios, payload.split_mode))
+        command.extend(
+            self._build_vendor_args(
+                payload.vendor,
+                payload.vram_ratios,
+                payload.split_mode,
+                flash_attn_enabled=flash_attn_enabled,
+            )
+        )
 
         logs_dir = Path(self.settings.logs_dir)
         logs_dir.mkdir(parents=True, exist_ok=True)
@@ -349,14 +417,28 @@ class InferenceRuntime:
             raise RuntimeError(f"Unknown device vendor: {vendor}")
         return env
 
-    def _build_vendor_args(self, vendor: str, vram_ratios: list[int] | None = None, split_mode: str = "layer") -> list[str]:
+    def _build_vendor_args(
+        self,
+        vendor: str,
+        vram_ratios: list[int] | None = None,
+        split_mode: str = "layer",
+        *,
+        flash_attn_enabled: bool = False,
+    ) -> list[str]:
         if vendor.endswith("_pool"):
             args: list[str] = []
+            effective_split_mode = split_mode
             if vendor == "rocm_pool":
                 args.extend(_rocm_pool_stability_args())
-            if vram_ratios and len(vram_ratios) >= 2:
+                effective_split_mode = _effective_pool_split_mode(
+                    vendor,
+                    split_mode,
+                    flash_attn_enabled=flash_attn_enabled,
+                )
+
+            if effective_split_mode == "tensor" and vram_ratios and len(vram_ratios) >= 2:
                 args.extend(["--tensor-split", ",".join(str(r) for r in vram_ratios)])
-            args.extend(["--split-mode", split_mode])
+            args.extend(["--split-mode", effective_split_mode])
             return args
 
         return []
