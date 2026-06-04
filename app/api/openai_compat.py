@@ -92,7 +92,7 @@ def _record_usage(usage: Any, *, db: Session, user_id: int | None, tool_calls: i
     if output_tokens is None:
         output_tokens = _coerce_usage_count(usage.get("completionTokens"))
 
-    if total_tokens is None and input_tokens is None and output_tokens is None:
+    if total_tokens is None and input_tokens is None and output_tokens is None and tool_calls <= 0:
         return False
 
     return record_token_usage(
@@ -105,10 +105,46 @@ def _record_usage(usage: Any, *, db: Session, user_id: int | None, tool_calls: i
     )
 
 
-def _record_usage_from_sse_chunk(chunk: bytes | str, *, db: Session, user_id: int | None, tool_calls: int = 0) -> bool:
+def _usage_counts_from_raw(usage: Any) -> dict[str, int] | None:
+    if not isinstance(usage, dict):
+        return None
+
+    total_tokens = _coerce_usage_count(usage.get("total_tokens"))
+    if total_tokens is None:
+        total_tokens = _coerce_usage_count(usage.get("totalTokens"))
+    input_tokens = _coerce_usage_count(usage.get("prompt_tokens"))
+    if input_tokens is None:
+        input_tokens = _coerce_usage_count(usage.get("promptTokens"))
+    output_tokens = _coerce_usage_count(usage.get("completion_tokens"))
+    if output_tokens is None:
+        output_tokens = _coerce_usage_count(usage.get("completionTokens"))
+
+    if total_tokens is None and input_tokens is None and output_tokens is None:
+        return None
+
+    return {
+        "total_tokens": total_tokens or 0,
+        "prompt_tokens": input_tokens or 0,
+        "completion_tokens": output_tokens or 0,
+    }
+
+
+def _merge_usage_counts(base: dict[str, int] | None, addition: dict[str, int]) -> dict[str, int]:
+    if base is None:
+        return dict(addition)
+
+    return {
+        "total_tokens": base.get("total_tokens", 0) + addition.get("total_tokens", 0),
+        "prompt_tokens": base.get("prompt_tokens", 0) + addition.get("prompt_tokens", 0),
+        "completion_tokens": base.get("completion_tokens", 0) + addition.get("completion_tokens", 0),
+    }
+
+
+def _extract_usage_from_sse_chunk(chunk: bytes | str) -> dict[str, int] | None:
     if isinstance(chunk, bytes):
         chunk = chunk.decode("utf-8", errors="replace")
 
+    accumulated: dict[str, int] | None = None
     for event in chunk.replace("\r\n", "\n").split("\n\n"):
         if not event.strip():
             continue
@@ -126,10 +162,19 @@ def _record_usage_from_sse_chunk(chunk: bytes | str, *, db: Session, user_id: in
             except (json.JSONDecodeError, ValueError):
                 continue
 
-            if _record_usage(payload.get("usage"), db=db, user_id=user_id, tool_calls=tool_calls):
-                return True
+            usage_counts = _usage_counts_from_raw(payload.get("usage"))
+            if usage_counts is not None:
+                accumulated = _merge_usage_counts(accumulated, usage_counts)
 
-    return False
+    return accumulated
+
+
+def _record_usage_from_sse_chunk(chunk: bytes | str, *, db: Session, user_id: int | None, tool_calls: int = 0) -> bool:
+    usage_counts = _extract_usage_from_sse_chunk(chunk)
+    if usage_counts is None:
+        return False
+
+    return _record_usage(usage_counts, db=db, user_id=user_id, tool_calls=tool_calls)
 
 
 def _count_tool_calls(messages: list[dict]) -> int:
@@ -556,15 +601,24 @@ async def v1_chat_completions(payload: OpenAIChatRequest, current_user: User = D
             _web_search_tool_calls: dict[str, int] = {}
 
             async def web_search_event_stream():
-                usage_recorded = False
+                accumulated_usage: dict[str, int] | None = None
                 current_task = asyncio.current_task()
                 if current_task is not None:
                     task_manager.attach_async_task(task_id, current_task)
                 try:
                     async for chunk in _stream_with_web_search(inference, model.id, request_payload, active_web_search_provider, _tool_calls_container=_web_search_tool_calls):
-                        if not usage_recorded:
-                            usage_recorded = _record_usage_from_sse_chunk(chunk, db=db, user_id=current_user_id, tool_calls=_web_search_tool_calls.get("total", 0))
+                        extracted_usage = _extract_usage_from_sse_chunk(chunk)
+                        if extracted_usage is not None:
+                            accumulated_usage = _merge_usage_counts(accumulated_usage, extracted_usage)
                         yield chunk
+                    total_web_search_calls = _web_search_tool_calls.get("total", 0)
+                    if accumulated_usage is not None or total_web_search_calls > 0:
+                        _record_usage(
+                            accumulated_usage or {},
+                            db=db,
+                            user_id=current_user_id,
+                            tool_calls=total_web_search_calls,
+                        )
                     task_manager.complete_task(task_id)
                 except asyncio.CancelledError:
                     task_manager.mark_cancelled(task_id)

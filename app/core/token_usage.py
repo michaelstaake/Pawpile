@@ -50,17 +50,20 @@ def record_token_usage(
         input_tokens=input_tokens,
         output_tokens=output_tokens,
     )
+    normalized_tool_calls = max(0, int(tool_calls or 0))
     if normalized_usage is None:
-        return False
-
-    normalized_total_tokens, normalized_input_tokens, normalized_output_tokens = normalized_usage
+        if normalized_tool_calls <= 0:
+            return False
+        normalized_total_tokens, normalized_input_tokens, normalized_output_tokens = 0, 0, 0
+    else:
+        normalized_total_tokens, normalized_input_tokens, normalized_output_tokens = normalized_usage
     db.add(
         TokenUsage(
             user_id=user_id if user_id and user_id > 0 else None,
             total_tokens=normalized_total_tokens,
             input_tokens=normalized_input_tokens,
             output_tokens=normalized_output_tokens,
-            tool_calls=max(0, int(tool_calls or 0)),
+            tool_calls=normalized_tool_calls,
         )
     )
     db.commit()
