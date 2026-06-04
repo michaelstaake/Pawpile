@@ -84,6 +84,8 @@ docker compose --profile nvidia --profile vulkan --profile rocm up -d --build
 
 When the ROCm profile is running, AMD GPUs are listed only as `rocm` devices (Vulkan no longer duplicates them). Intel Arc stays on Vulkan; NVIDIA stays on CUDA.
 
+On startup (and whenever the Devices page refreshes), GPUs that are no longer reported by any running inference runtime are **removed from the database**, not left disabled. For example, switching from `--profile vulkan` to `--profile rocm` drops stale Vulkan rows; bringing the Vulkan profile back re-detects and re-adds them. Models pinned to removed devices revert to Auto assignment.
+
 The initial build process may take a while depending on your environment and host performance, as we are building llama-cpp based on your chosen inference runtime.
 
 Large models can also take several minutes to finish loading the first time they are activated during startup. If Docker marks the backend or inference containers unhealthy too early, increase `LLAMA_STARTUP_TIMEOUT_SECONDS` and the `STARTUP_HEALTHCHECK_*` values in `.env`.

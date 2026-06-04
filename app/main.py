@@ -14,7 +14,11 @@ from app.core.app_settings import get_or_create_app_settings
 from app.core.config import get_settings
 from app.core.db import SessionLocal
 from app.core.device_manager import DeviceManager
-from app.core.gpu_pool_manager import delete_pools_with_unavailable_devices, delete_stale_pool_memberships
+from app.core.gpu_pool_manager import (
+    delete_pools_with_insufficient_members,
+    delete_pools_with_unavailable_devices,
+    delete_stale_pool_memberships,
+)
 from app.core.inference_manager import InferenceManager, PoolActivationTarget
 from app.core.logging import configure_logging
 from app.core import token_usage as _token_usage
@@ -53,6 +57,7 @@ async def lifespan(_: FastAPI):
             )
         detected_hardware_ids = {device.hardware_id for device in device_manager.detect_all()}
         removed_pools = delete_pools_with_unavailable_devices(db, detected_hardware_ids, inference_manager)
+        removed_pools.extend(delete_pools_with_insufficient_members(db, inference_manager))
         db.commit()
         for removed_pool in removed_pools:
             log_event(

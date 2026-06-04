@@ -11,6 +11,7 @@ import psutil
 from sqlalchemy.orm import Session
 
 from app.core.config import get_settings
+from app.core.gpu_pool_manager import delete_unavailable_devices
 from app.models.device import Device
 
 logger = logging.getLogger(__name__)
@@ -92,9 +93,14 @@ class DeviceManager:
         detected_ids = {device.hardware_id for device in detected}
         gpu_detected = any(device.device_type == "gpu" and device.vendor != "cpu" for device in detected)
 
-        for row in existing.values():
-            if not is_supported_vendor(row.vendor) or row.hardware_id not in detected_ids:
-                row.enabled = False
+        removed_device_ids = delete_unavailable_devices(db, detected_ids)
+        if removed_device_ids:
+            logger.info(
+                "Removed %s device(s) no longer reported by active runtimes: %s",
+                len(removed_device_ids),
+                removed_device_ids,
+            )
+            existing = {d.hardware_id: d for d in db.query(Device).all()}
 
         for d in detected:
             row = existing.get(d.hardware_id)

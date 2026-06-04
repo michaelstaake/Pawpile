@@ -112,6 +112,42 @@ def delete_pools_with_unavailable_devices(
     return results
 
 
+def delete_unavailable_devices(db: Session, detected_hardware_ids: set[str]) -> list[int]:
+    """Remove DB devices that are no longer reported by any active inference runtime."""
+    from app.models.inference_job import InferenceJob
+
+    to_delete = [row for row in db.query(Device).all() if row.hardware_id not in detected_hardware_ids]
+    if not to_delete:
+        return []
+
+    device_ids = [device.id for device in to_delete]
+    revert_models_pinned_to_devices(db, device_ids, inference=None)
+
+    db.query(InferenceJob).filter(InferenceJob.device_id.in_(device_ids)).update(
+        {InferenceJob.device_id: None},
+        synchronize_session=False,
+    )
+
+    for device in to_delete:
+        db.delete(device)
+
+    return device_ids
+
+
+def delete_pools_with_insufficient_members(
+    db: Session,
+    inference: "InferenceManager | None" = None,
+    *,
+    min_members: int = 2,
+) -> list[PoolCleanupResult]:
+    results: list[PoolCleanupResult] = []
+    for pool in db.query(GpuPool).order_by(GpuPool.id.asc()).all():
+        member_count = db.query(GpuPoolDevice).filter(GpuPoolDevice.pool_id == pool.id).count()
+        if member_count < min_members:
+            results.append(delete_pool_and_revert_models(db, pool, inference))
+    return results
+
+
 def delete_stale_pool_memberships(db: Session) -> StalePoolMembershipCleanupResult:
     existing_pool_ids = {pool_id for (pool_id,) in db.query(GpuPool.id).all()}
     stale_rows = [row for row in db.query(GpuPoolDevice).all() if row.pool_id not in existing_pool_ids]
