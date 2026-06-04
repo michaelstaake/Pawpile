@@ -155,7 +155,7 @@ async def register(payload: UserRegistrationRequest, request: Request, db: Sessi
     if existing_user is not None:
         raise HTTPException(status_code=409, detail="Username or email already exists")
 
-      user = User(
+    user = User(
         username=payload.username,
         email=payload.email,
         password_hash=hash_password(payload.password),
