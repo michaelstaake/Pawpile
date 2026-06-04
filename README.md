@@ -72,7 +72,7 @@ docker compose --profile vulkan up -d --build
 docker compose --profile rocm up -d --build
 ```
 
-On the host, install ROCm user-space (Ubuntu 26.04 ships an older ROCm; for Radeon AI PRO R9700 and other recent AMD GPUs use ROCm 7.2+ from AMD’s repo with `amdgpu-install -y --usecase=rocm --no-dkms`). Add your user to the `render` and `video` groups.
+On the host, install ROCm user-space (Ubuntu 26.04 ships an older ROCm; for Radeon AI PRO R9700 and other recent AMD GPUs use ROCm 7.2+ from AMD’s repo with `amdgpu-install -y --usecase=rocm --no-dkms`). Add your user to the `render` and `video` groups. The `inference-rocm` service runs **privileged** so HIP can open `/dev/kfd` inside Docker (without this, `rocminfo` may report `Unable to open /dev/kfd read-write` and llama-server loads with 0 GPU layers).
 
 Optional build args for `inference-rocm`: `ROCM_DEV_IMAGE` (defaults to `rocm/dev-ubuntu-24.04:7.2.3-complete`, which includes hipBLAS), `AMDGPU_TARGETS` (defaults to `gfx1200;gfx1201` for RDNA4 / R9700 and RX 9070-class GPUs; change in `.env` for other AMD archs), and `GGML_HIP_RCCL=ON` for experimental tensor-parallel pools.
 
