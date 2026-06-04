@@ -299,6 +299,19 @@ function formatContextLength(value: number | null): string {
   return `${Math.floor(value)} Context`;
 }
 
+function getModelThinkingTagLabel(discourageThinking: boolean, capability: string): string | null {
+  if (discourageThinking) {
+    return null;
+  }
+  if (capability === "always") {
+    return "Always Thinks";
+  }
+  if (capability === "hybrid") {
+    return "Can Think";
+  }
+  return null;
+}
+
 export default function ChatPage() {
   const { token, user } = useAuth();
   const { closeMobileNav, setMobileNavSection } = useMobileNav();
@@ -1009,6 +1022,10 @@ export default function ChatPage() {
               {models.map((alias) => {
                 const details = modelCardDetails[alias];
                 const isSelected = selectedModel === alias;
+                const thinkingTagLabel = getModelThinkingTagLabel(
+                  modelThinkingDisabledDefaults[alias] ?? false,
+                  modelThinkingCapabilities[alias] ?? "none"
+                );
 
                 return (
                   <button
@@ -1360,6 +1377,15 @@ export default function ChatPage() {
   );
 }
 
+const THINKING_MARKUP_BLOCK =
+  /<\|?(?:think|thinking|redacted_thinking)\|?>[\s\S]*?<\/\|?(?:think|thinking|redacted_thinking)\|?>/gi;
+const EMPTY_THINKING_MARKUP_PAIR =
+  /<\|?(?:think|thinking|redacted_thinking)\|?>\s*<\/\|?(?:think|thinking|redacted_thinking)\|?>/gi;
+
+function stripThinkingMarkupFromText(text: string): string {
+  return text.replace(THINKING_MARKUP_BLOCK, "").replace(EMPTY_THINKING_MARKUP_PAIR, "");
+}
+
 async function streamCompletion(
   model: string,
   messages: { role: ChatRole; content: ChatMessageContent }[],
@@ -1476,7 +1502,7 @@ async function streamCompletion(
           if (deltaThinking && enableThinking) {
             onDelta(deltaThinking, "thinking");
           } else if (deltaContent) {
-            onDelta(deltaContent, "content");
+            onDelta(enableThinking ? deltaContent : stripThinkingMarkupFromText(deltaContent), "content");
           }
         } catch (error) {
           if (error instanceof Error) {
@@ -1526,7 +1552,7 @@ async function streamCompletion(
         if (deltaThinking && enableThinking) {
           onDelta(deltaThinking, "thinking");
         } else if (deltaContent) {
-          onDelta(deltaContent, "content");
+          onDelta(enableThinking ? deltaContent : stripThinkingMarkupFromText(deltaContent), "content");
         }
       } catch (error) {
         if (error instanceof Error) {

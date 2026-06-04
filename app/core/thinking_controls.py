@@ -44,6 +44,19 @@ _HYBRID_PATTERNS = (
     re.compile(r"gemma[-_]?\d", re.I),
     re.compile(r"gemma3", re.I),
     re.compile(r"granite", re.I),
+    re.compile(r"\blfm", re.I),
+    re.compile(r"liquid", re.I),
+)
+
+# Thinking markup that llama.cpp may leave in message.content when reasoning is disabled
+# or when the template does not honor enable_thinking (e.g. LFM2.5).
+_THINKING_BLOCK_RE = re.compile(
+    r"<\|?(?:think|thinking|redacted_thinking)\|?>.*?</\|?(?:think|thinking|redacted_thinking)\|?>",
+    re.DOTALL | re.IGNORECASE,
+)
+_EMPTY_THINKING_PAIR_RE = re.compile(
+    r"<\|?(?:think|thinking|redacted_thinking)\|?>\s*</\|?(?:think|thinking|redacted_thinking)\|?>",
+    re.IGNORECASE,
 )
 
 _ALWAYS_PATTERNS = (
@@ -109,7 +122,18 @@ def get_thinking_family(model: ModelConfig) -> str:
         return "gemma"
     if "granite" in identity:
         return "granite"
+    if "lfm" in identity or "liquid" in identity:
+        return "lfm"
     return "generic"
+
+
+def strip_thinking_markup_from_text(text: str) -> str:
+    if not text:
+        return text
+
+    cleaned = _THINKING_BLOCK_RE.sub("", text)
+    cleaned = _EMPTY_THINKING_PAIR_RE.sub("", cleaned)
+    return cleaned.strip()
 
 
 def strip_legacy_thinking_control_lines(text: str) -> str:
@@ -282,6 +306,16 @@ def filter_thinking_from_sse_chunk(chunk: bytes | str, enabled: bool) -> bytes |
                 continue
 
             filtered_delta = {key: value for key, value in delta.items() if key not in REASONING_DELTA_KEYS}
+            content = filtered_delta.get("content")
+            if isinstance(content, str):
+                stripped_content = strip_thinking_markup_from_text(content)
+                if stripped_content != content:
+                    changed = True
+                    if stripped_content:
+                        filtered_delta = {**filtered_delta, "content": stripped_content}
+                    else:
+                        filtered_delta = {key: value for key, value in filtered_delta.items() if key != "content"}
+
             if filtered_delta == delta:
                 new_lines.append(line)
                 continue

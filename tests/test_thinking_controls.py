@@ -141,6 +141,38 @@ def test_strips_legacy_system_thinking_lines() -> None:
     assert updated["messages"][0]["content"] == "Be concise."
 
 
+def test_detect_hybrid_lfm() -> None:
+    model = _model(alias="lfm2.5-8b", file_name="LFM2.5-8B-A1B-Q4_K_M.gguf", model_dir_name="LFM2.5-8B")
+    assert detect_thinking_capability(model) == THINKING_CAPABILITY_HYBRID
+
+
+def test_strip_redacted_thinking_empty_tags() -> None:
+    from app.core.thinking_controls import strip_thinking_markup_from_text
+
+    text = "<think></think>\nThe term \"test\" is versatile."
+    assert strip_thinking_markup_from_text(text) == 'The term "test" is versatile.'
+
+
+def test_strip_thinking_block_with_body() -> None:
+    from app.core.thinking_controls import strip_thinking_markup_from_text
+
+    text = (
+        "Hello\n"
+        "<think>internal reasoning</think>\n\n"
+        "Answer here."
+    )
+    assert strip_thinking_markup_from_text(text) == "Hello\n\n\nAnswer here."
+
+
+def test_filter_strips_thinking_from_content_delta() -> None:
+    chunk = (
+        'data: {"choices":[{"delta":{"content":"<think></think>\\nHi"}}]}\n\n'
+    )
+    filtered = filter_thinking_from_sse_chunk(chunk, False)
+    assert "redacted_thinking" not in filtered
+    assert "Hi" in filtered
+
+
 def test_filter_thinking_from_sse_chunk() -> None:
     chunk = (
         'data: {"choices":[{"delta":{"reasoning_content":"secret","content":"hi"}}]}\n\n'
