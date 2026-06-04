@@ -6,6 +6,7 @@ type CodeEditorProps = {
   placeholder?: string;
   maxLength?: number;
   height?: string;
+  language?: string;
 };
 
 export default function CodeEditor({
@@ -14,13 +15,14 @@ export default function CodeEditor({
   placeholder,
   maxLength,
   height = "19rem",
+  language = "markdown",
 }: CodeEditorProps) {
   return (
     <div className="grid overflow-hidden rounded-2xl">
       <MonacoEditor
         height={height}
         value={value}
-        language="markdown"
+        language={language}
         theme="pawpile-dark"
         options={{
           wordWrap: "on",

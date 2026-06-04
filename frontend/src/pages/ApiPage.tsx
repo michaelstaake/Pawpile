@@ -1,6 +1,7 @@
 import { FormEvent, useEffect, useState } from "react";
 import Modal from "../components/ui/Modal";
-import { apiDelete, apiGet, apiPost } from "../lib/api";
+import CodeEditor from "../components/ui/CodeEditor";
+import { apiDelete, apiGet, apiPost, fetchV1Models, type V1ModelEntry } from "../lib/api";
 import { useAuth } from "../context/AuthContext";
 import { useToast } from "../context/ToastContext";
 import { ApiKeyCreateResponse, ApiKeyRecord, ModelRecord } from "../lib/records";
@@ -44,15 +45,21 @@ export default function ApiPage() {
   const [revokingKeyId, setRevokingKeyId] = useState<number | null>(null);
   const [enabledModels, setEnabledModels] = useState<ModelRecord[]>([]);
   const [isLoadingModels, setIsLoadingModels] = useState(false);
+  const [v1Models, setV1Models] = useState<V1ModelEntry[]>([]);
+  const [isLoadingV1Models, setIsLoadingV1Models] = useState(false);
+  const [opencodeConfig, setOpencodeConfig] = useState("");
 
   useEffect(() => {
     if (!token || !user) {
       setApiKeys([]);
       setEnabledModels([]);
+      setV1Models([]);
+      setOpencodeConfig("");
       return;
     }
     void refreshApiKeys(token);
     void refreshEnabledModels(token);
+    void refreshV1Models(token);
   }, [token, user]);
 
   async function refreshApiKeys(activeToken: string) {
@@ -80,6 +87,51 @@ export default function ApiPage() {
       setIsLoadingModels(false);
     }
   }
+
+  async function refreshV1Models(activeToken: string) {
+    setIsLoadingV1Models(true);
+    try {
+      const response = await fetchV1Models(activeToken);
+      setV1Models(response.data);
+    } catch (error) {
+      showError(error instanceof Error ? error.message : "Failed to load v1 models");
+    } finally {
+      setIsLoadingV1Models(false);
+    }
+  }
+
+  function buildOpencodeConfig(): string {
+    const models: Record<string, unknown> = {};
+    for (const model of v1Models) {
+      const entry: Record<string, unknown> = { name: model.id };
+      if (model.vision_enabled) {
+        entry.capabilities = { vision: true, image_input: true };
+      }
+      models[model.id] = entry;
+    }
+
+    const config = {
+      $schema: "https://opencode.ai/config.json",
+      provider: {
+        pawpile: {
+          name: "pawpile",
+          npm: "@ai-sdk/openai-compatible",
+          options: {
+            baseURL: BASE_URL,
+            apiKey: "API_KEY",
+            timeout: 7200000,
+          },
+          models,
+        },
+      },
+    };
+
+    return JSON.stringify(config, null, 2);
+  }
+
+  useEffect(() => {
+    setOpencodeConfig(buildOpencodeConfig());
+  }, [v1Models, BASE_URL]);
 
   async function handleCreateApiKey(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -159,7 +211,7 @@ export default function ApiPage() {
       <article className="rounded-3xl border border-black/10 bg-white/85 p-5 shadow-sm backdrop-blur">
         <div className="flex flex-wrap items-start justify-between gap-4">
           <div className="max-w-2xl">
-            <h2 className="font-display text-2xl">API</h2>
+            <h2 className="font-display text-2xl">API Keys</h2>
           </div>
           <button className="rounded-xl border border-black/15 bg-white px-4 py-3 text-sm font-semibold text-black transition hover:bg-black/5" type="button" onClick={() => setIsCreateModalOpen(true)}>
             Add API key
@@ -243,7 +295,7 @@ export default function ApiPage() {
       </Modal>
 
       <article className="rounded-3xl border border-black/10 bg-white/85 p-5 shadow-sm backdrop-blur">
-        <h2 className="font-display text-2xl">API endpoints</h2>
+        <h2 className="font-display text-2xl">API Documentation</h2>
         <div className="mt-5 space-y-6">
           <div>
             <h3 className="font-display text-lg text-black">Base URL</h3>
@@ -282,6 +334,25 @@ export default function ApiPage() {
               </ul>
             )}
           </div>
+        </div>
+      </article>
+
+      <article className="rounded-3xl border border-black/10 bg-white/85 p-5 shadow-sm backdrop-blur">
+        <h2 className="font-display text-2xl">OpenCode config</h2>
+        <p className="mt-2 text-sm text-black/60">
+          Use this in your OpenCode config file to connect to Pawpile's OpenAI-compatible endpoint. Adjust the models and settings as needed.
+        </p>
+        <div className="mt-4">
+          {isLoadingV1Models ? (
+            <p className="mt-2 text-sm text-black/60">Loading models...</p>
+          ) : (
+            <CodeEditor
+              value={opencodeConfig}
+              onChange={() => {}}
+              language="json"
+              height="26rem"
+            />
+          )}
         </div>
       </article>
     </section>

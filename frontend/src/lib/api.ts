@@ -409,6 +409,30 @@ export async function fetchTaskStatus(taskId: string, token?: string): Promise<T
   return tasks.find(t => t.task_id === taskId) || null as unknown as TaskStatusResponse;
 }
 
+export type V1ModelEntry = {
+  id: string;
+  object: string;
+  created: number;
+  owned_by: string;
+  description?: string;
+  context_length?: number;
+  tool_calling_enabled?: boolean;
+  discourage_thinking?: boolean;
+  vision_enabled?: boolean;
+  web_search_enabled?: boolean;
+  web_search_available?: boolean;
+  rag_enabled?: boolean;
+};
+
+export type V1ModelsResponse = {
+  object: string;
+  data: V1ModelEntry[];
+};
+
+export async function fetchV1Models(token?: string): Promise<V1ModelsResponse> {
+  return apiGet<V1ModelsResponse>("/v1/models", token);
+}
+
 export async function pollUntilTaskComplete(taskId: string, token?: string, maxAttempts: number = 600, intervalMs: number = 1000): Promise<TaskStatusResponse> {
   for (let i = 0; i < maxAttempts; i++) {
     try {
