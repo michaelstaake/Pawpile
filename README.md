@@ -276,6 +276,7 @@ Certificates are stored in `./certs` and renewed automatically when they are wit
     docker exec pawpile-inference-vulkan curl -s http://localhost:8100/runtime/status | jq '.devices[] | select(.hardware_id|startswith("vulkan")) | {hardware_id, memory_total_mb, memory_used_mb, memory_source}'
     ```
   - `memory_total_mb` should be roughly your card's VRAM (e.g. ~6144 for a 6 GB Arc A380). If it is 0, check that `/dev/dri` is passed through and the host has a working Intel GPU driver.
+  - **Used VRAM much lower than nvtop:** Intel Arc used memory comes from the kernel DRM/fdinfo path (`memory_source` `drm-xe` or `fdinfo`), not vulkaninfo alone. Rebuild `inference-vulkan` after updates. The compose profile adds `CAP_PERFMON` so the xe driver can report device-wide usage; without it, per-process fdinfo totals are still used when available.
 
 ## Need Help?
 

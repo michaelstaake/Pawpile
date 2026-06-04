@@ -136,6 +136,8 @@ services:
     group_add:
       - video
       - render
+    cap_add:
+      - PERFMON
     expose:
       - "8100"
     healthcheck:

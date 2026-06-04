@@ -21,12 +21,14 @@ from pydantic import BaseModel
 from app.core.config import get_settings
 from app.core.device_manager import (
     AMD_VENDOR_ID,
+    INTEL_VENDOR_ID,
     DeviceManager,
     get_supported_vendors,
     is_supported_vendor,
     _parse_vulkan_vendor_id,
     _parse_vulkaninfo_gpu_memory_metrics,
 )
+from app.core.intel_drm_memory import parse_vulkan_pci_bdf, read_intel_vram_metrics
 
 logger = logging.getLogger(__name__)
 
@@ -737,6 +739,7 @@ class InferenceRuntime:
         output = self._run_command(["vulkaninfo"])
         metrics: dict[str, dict] = {}
         amd_vulkan_indices: list[int] = []
+        intel_vulkan_by_idx: dict[int, str] = {}
         memory_by_idx = _parse_vulkaninfo_gpu_memory_metrics(output) if output else {}
         if output:
             blocks = re.split(r"GPU(\d+):", output)
@@ -755,6 +758,11 @@ class InferenceRuntime:
                     amd_vulkan_indices.append(idx)
                     if device_manager._should_hide_vulkan_amd():
                         continue
+
+                if vendor_id == INTEL_VENDOR_ID:
+                    pci_bdf = parse_vulkan_pci_bdf(block)
+                    if pci_bdf:
+                        intel_vulkan_by_idx[idx] = pci_bdf
 
                 heap_metrics = memory_by_idx.get(idx)
                 if not heap_metrics or heap_metrics["total_mb"] <= 0:
@@ -806,6 +814,27 @@ class InferenceRuntime:
                     metric["memory_source"] = "sysfs"
         except Exception:
             pass
+
+        for vulkan_idx, pci_bdf in intel_vulkan_by_idx.items():
+            hardware_id = f"vulkan:{vulkan_idx}"
+            metric = metrics.get(hardware_id)
+            if metric is None:
+                continue
+            try:
+                intel_metrics = read_intel_vram_metrics(pci_bdf)
+            except Exception:
+                continue
+            if not intel_metrics:
+                continue
+            if intel_metrics.get("memory_total_mb"):
+                metric["memory_total_mb"] = intel_metrics["memory_total_mb"]
+            if intel_metrics.get("memory_used_mb") is not None:
+                metric["memory_used_mb"] = intel_metrics["memory_used_mb"]
+            if intel_metrics.get("memory_source"):
+                metric["memory_source"] = intel_metrics["memory_source"]
+            process_memory = intel_metrics.get("process_memory_by_pid")
+            if isinstance(process_memory, dict) and process_memory:
+                metric["process_memory_by_pid"] = process_memory
 
         return metrics
 
