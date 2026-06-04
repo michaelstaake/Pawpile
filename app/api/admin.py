@@ -170,6 +170,15 @@ def get_users_token_usage(_: User = Depends(get_admin_user), db: Session = Depen
     return get_user_token_usage(db, user_ids=user_ids, input_price_per_1m=app_settings.input_price_per_1m or 0.0, output_price_per_1m=app_settings.output_price_per_1m or 0.0)
 
 
+@router.get("/users/{user_id}/token-usage")
+def get_single_user_token_usage(user_id: int, _: User = Depends(get_admin_user), db: Session = Depends(get_db)) -> list[dict]:
+    app_settings = get_or_create_app_settings(db)
+    user = db.query(User).filter(User.id == user_id).first()
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found")
+    return get_user_token_usage(db, user_ids=[user.id], input_price_per_1m=app_settings.input_price_per_1m or 0.0, output_price_per_1m=app_settings.output_price_per_1m or 0.0)
+
+
 @router.post("/users")
 def create_user(payload: UserCreateRequest, admin_user: User = Depends(get_admin_user), db: Session = Depends(get_db)) -> dict:
     _ensure_user_uniqueness(db, payload.username, payload.email)
@@ -225,6 +234,88 @@ def update_user(user_id: int, payload: UserUpdateRequest, admin_user: User = Dep
     db.refresh(user)
     log_event(db, "admin.user_updated", user_id=admin_user.id, username=admin_user.username, details={"target_username": user.username})
     return {"status": "ok", "user": _serialize_user(user)}
+
+
+@router.patch("/users/{user_id}/email")
+def update_user_email(user_id: int, payload: UserUpdateRequest, admin_user: User = Depends(get_admin_user), db: Session = Depends(get_db)) -> dict:
+    user = db.query(User).filter(User.id == user_id).first()
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found")
+
+    new_email = payload.email if payload.email is not None else user.email
+    _ensure_user_uniqueness(db, user.username, new_email, excluded_user_id=user.id)
+
+    if payload.email is not None:
+        user.email = payload.email
+
+    db.add(user)
+    db.commit()
+    db.refresh(user)
+    log_event(db, "admin.user_email_updated", user_id=admin_user.id, username=admin_user.username, details={"target_username": user.username})
+    return {"status": "ok", "user": _serialize_user(user)}
+
+
+@router.patch("/users/{user_id}/password")
+def update_user_password(user_id: int, payload: UserUpdateRequest, admin_user: User = Depends(get_admin_user), db: Session = Depends(get_db)) -> dict:
+    user = db.query(User).filter(User.id == user_id).first()
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found")
+
+    if payload.password is not None:
+        user.password_hash = hash_password(payload.password)
+
+    db.add(user)
+    db.commit()
+    db.refresh(user)
+    log_event(db, "admin.user_password_updated", user_id=admin_user.id, username=admin_user.username, details={"target_username": user.username})
+    return {"status": "ok", "user": _serialize_user(user)}
+
+
+@router.patch("/users/{user_id}/toggle")
+def toggle_user_active(user_id: int, admin_user: User = Depends(get_admin_user), db: Session = Depends(get_db)) -> dict:
+    user = db.query(User).filter(User.id == user_id).first()
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found")
+
+    would_be_admin = user.is_admin
+    would_be_active = not user.is_active
+    if user.is_admin and (not would_be_admin or not would_be_active):
+        remaining_admins = (
+            db.query(User)
+            .filter(User.id != user.id, User.is_admin.is_(True), User.is_active.is_(True))
+            .count()
+        )
+        if remaining_admins == 0:
+            raise HTTPException(status_code=400, detail="At least one active admin user is required")
+
+    user.is_active = would_be_active
+
+    db.add(user)
+    db.commit()
+    db.refresh(user)
+    log_event(db, "admin.user_toggled", user_id=admin_user.id, username=admin_user.username, details={"target_username": user.username, "is_active": user.is_active})
+    return {"status": "ok", "user": _serialize_user(user)}
+
+
+@router.delete("/users/{user_id}")
+def delete_user(user_id: int, admin_user: User = Depends(get_admin_user), db: Session = Depends(get_db)) -> dict:
+    user = db.query(User).filter(User.id == user_id).first()
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found")
+
+    if user.is_admin:
+        remaining_admins = (
+            db.query(User)
+            .filter(User.id != user.id, User.is_admin.is_(True), User.is_active.is_(True))
+            .count()
+        )
+        if remaining_admins == 0:
+            raise HTTPException(status_code=400, detail="Cannot delete the last active admin user")
+
+    db.delete(user)
+    db.commit()
+    log_event(db, "admin.user_deleted", user_id=admin_user.id, username=admin_user.username, details={"target_username": user.username})
+    return {"status": "ok"}
 
 
 @router.get("/api-keys")

@@ -1,3 +1,5 @@
+import { UserUpdateResponse } from "./records";
+
 const BASE_URL = import.meta.env.VITE_API_BASE_URL ?? "";
 
 export const BACKEND_UNAVAILABLE_EVENT = "pawpile:backend-unavailable";
@@ -431,6 +433,22 @@ export type V1ModelsResponse = {
 
 export async function fetchV1Models(token?: string): Promise<V1ModelsResponse> {
   return apiGet<V1ModelsResponse>("/v1/models", token);
+}
+
+export async function updateUserEmail(userId: number, email: string, token?: string): Promise<UserUpdateResponse> {
+  return apiPatch<{ email: string }, UserUpdateResponse>(`/api/admin/users/${userId}/email`, { email }, token);
+}
+
+export async function updateUserPassword(userId: number, password: string, token?: string): Promise<UserUpdateResponse> {
+  return apiPatch<{ password: string }, UserUpdateResponse>(`/api/admin/users/${userId}/password`, { password }, token);
+}
+
+export async function toggleUserActive(userId: number, token?: string): Promise<UserUpdateResponse> {
+  return apiPatch<Record<string, never>, UserUpdateResponse>(`/api/admin/users/${userId}/toggle`, {}, token);
+}
+
+export async function deleteUser(userId: number, token?: string): Promise<{ status: string }> {
+  return apiDelete<{ status: string }>(`/api/admin/users/${userId}`, token);
 }
 
 export async function pollUntilTaskComplete(taskId: string, token?: string, maxAttempts: number = 600, intervalMs: number = 1000): Promise<TaskStatusResponse> {

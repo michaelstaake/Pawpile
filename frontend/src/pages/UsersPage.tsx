@@ -1,7 +1,7 @@
 import { FormEvent, useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import Modal from "../components/ui/Modal";
-import { apiGet, apiPatch, apiPost } from "../lib/api";
+import { apiGet, apiPatch, apiPost, deleteUser, toggleUserActive, updateUserEmail, updateUserPassword } from "../lib/api";
 import { useAuth } from "../context/AuthContext";
 import { useToast } from "../context/ToastContext";
 import { UserRecord, UserTokenUsageRecord, UserUpdateResponse } from "../lib/records";
@@ -23,9 +23,31 @@ export default function UsersPage() {
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [isCreatingUser, setIsCreatingUser] = useState(false);
-  const [savingUserId, setSavingUserId] = useState<number | null>(null);
   const [isGeneratingPassword, setIsGeneratingPassword] = useState(false);
   const [isPasswordVisible, setIsPasswordVisible] = useState(false);
+
+  // View usage modal
+  const [isUsageModalOpen, setIsUsageModalOpen] = useState(false);
+  const [selectedUsageUser, setSelectedUsageUser] = useState<UserRecord | null>(null);
+  const [isLoadingUsage, setIsLoadingUsage] = useState(false);
+
+  // Update email modal
+  const [isEmailModalOpen, setIsEmailModalOpen] = useState(false);
+  const [selectedEmailUser, setSelectedEmailUser] = useState<UserRecord | null>(null);
+  const [emailValue, setEmailValue] = useState("");
+  const [isSavingEmail, setIsSavingEmail] = useState(false);
+
+  // Update password modal
+  const [isPasswordModalOpen, setIsPasswordModalOpen] = useState(false);
+  const [selectedPasswordUser, setSelectedPasswordUser] = useState<UserRecord | null>(null);
+  const [passwordValue, setPasswordValue] = useState("");
+  const [confirmPasswordValue, setConfirmPasswordValue] = useState("");
+  const [isSavingPassword, setIsSavingPassword] = useState(false);
+
+  // Delete confirmation modal
+  const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
+  const [selectedDeleteUser, setSelectedDeleteUser] = useState<UserRecord | null>(null);
+  const [isDeleting, setIsDeleting] = useState(false);
 
   useEffect(() => {
     if (!token) {
@@ -60,10 +82,6 @@ export default function UsersPage() {
     }
   }
 
-  function updateUserDraft(userId: number, updates: Partial<UserRecord>) {
-    setUsers((current) => current.map((user) => (user.id === userId ? { ...user, ...updates } : user)));
-  }
-
   async function handleCreateUser(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     if (!token) {
@@ -82,34 +100,6 @@ export default function UsersPage() {
       showError(error instanceof Error ? error.message : "User creation failed");
     } finally {
       setIsCreatingUser(false);
-    }
-  }
-
-  async function handleSaveUser(user: UserRecord) {
-    if (!token) {
-      return;
-    }
-
-    setSavingUserId(user.id);
-
-    try {
-      const payload: Record<string, string | boolean> = {
-        username: user.username,
-        email: user.email,
-        is_admin: user.is_admin,
-        is_active: user.is_active,
-      };
-      if (user.password && user.password.trim()) {
-        payload.password = user.password;
-      }
-
-      const response = await apiPatch<Record<string, string | boolean>, UserUpdateResponse>(`/api/admin/users/${user.id}`, payload, token);
-      setUsers((current) => current.map((item) => (item.id === user.id ? { ...response.user, password: "" } : item)));
-      showSuccess(`Saved ${response.user.username}.`);
-    } catch (error) {
-      showError(error instanceof Error ? error.message : "User update failed");
-    } finally {
-      setSavingUserId(null);
     }
   }
 
@@ -145,6 +135,143 @@ export default function UsersPage() {
     setIsGeneratingPassword(false);
   }
 
+  // View usage
+  async function handleViewUsage(user: UserRecord) {
+    setSelectedUsageUser(user);
+    setIsUsageModalOpen(true);
+    setIsLoadingUsage(true);
+    try {
+      const response = await apiGet<UserTokenUsageRecord[]>(`/api/admin/users/${user.id}/token-usage`, token);
+      if (response.length > 0) {
+        setUserTokenUsages((current) => ({ ...current, [user.id]: response[0] }));
+      }
+    } catch (error) {
+      showError(error instanceof Error ? error.message : "Failed to load token usage");
+    } finally {
+      setIsLoadingUsage(false);
+    }
+  }
+
+  // Update email
+  function openUpdateEmailModal(user: UserRecord) {
+    setSelectedEmailUser(user);
+    setEmailValue(user.email);
+    setIsEmailModalOpen(true);
+  }
+
+  async function handleUpdateEmail(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if (!token || !selectedEmailUser) {
+      return;
+    }
+
+    const trimmedEmail = emailValue.trim();
+    if (!trimmedEmail) {
+      showError("Email is required.");
+      return;
+    }
+
+    if (trimmedEmail === selectedEmailUser.email) {
+      showError("No email changes to save.");
+      return;
+    }
+
+    setIsSavingEmail(true);
+    try {
+      const response = await updateUserEmail(selectedEmailUser.id, trimmedEmail, token);
+      setUsers((current) => current.map((item) => (item.id === selectedEmailUser.id ? { ...response.user, password: "" } : item)));
+      setIsEmailModalOpen(false);
+      showSuccess(`Email updated for ${response.user.username}.`);
+    } catch (error) {
+      showError(error instanceof Error ? error.message : "Unable to update email.");
+    } finally {
+      setIsSavingEmail(false);
+    }
+  }
+
+  // Update password
+  function openUpdatePasswordModal(user: UserRecord) {
+    setSelectedPasswordUser(user);
+    setPasswordValue("");
+    setConfirmPasswordValue("");
+    setIsPasswordModalOpen(true);
+  }
+
+  async function handleUpdatePassword(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if (!token || !selectedPasswordUser) {
+      return;
+    }
+
+    const nextPassword = passwordValue.trim();
+    const nextConfirmPassword = confirmPasswordValue.trim();
+
+    if (!nextPassword) {
+      showError("Password is required.");
+      return;
+    }
+
+    if (nextPassword.length < 8) {
+      showError("Password must be at least 8 characters.");
+      return;
+    }
+
+    if (nextPassword !== nextConfirmPassword) {
+      showError("Password confirmation does not match.");
+      return;
+    }
+
+    setIsSavingPassword(true);
+    try {
+      const response = await updateUserPassword(selectedPasswordUser.id, nextPassword, token);
+      setIsPasswordModalOpen(false);
+      showSuccess(`Password updated for ${response.user.username}.`);
+    } catch (error) {
+      showError(error instanceof Error ? error.message : "Unable to update password.");
+    } finally {
+      setIsSavingPassword(false);
+    }
+  }
+
+  // Toggle active
+  async function handleToggleActive(user: UserRecord) {
+    if (!token) {
+      return;
+    }
+
+    try {
+      const response = await toggleUserActive(user.id, token);
+      setUsers((current) => current.map((item) => (item.id === user.id ? { ...response.user, password: "" } : item)));
+      showSuccess(`${response.user.is_active ? "Enabled" : "Disabled"} ${response.user.username}.`);
+    } catch (error) {
+      showError(error instanceof Error ? error.message : "Unable to toggle user status.");
+    }
+  }
+
+  // Delete user
+  function openDeleteModal(user: UserRecord) {
+    setSelectedDeleteUser(user);
+    setIsDeleteModalOpen(true);
+  }
+
+  async function handleDeleteUser() {
+    if (!token || !selectedDeleteUser) {
+      return;
+    }
+
+    setIsDeleting(true);
+    try {
+      await deleteUser(selectedDeleteUser.id, token);
+      setUsers((current) => current.filter((user) => user.id !== selectedDeleteUser.id));
+      setIsDeleteModalOpen(false);
+      showSuccess(`Deleted user ${selectedDeleteUser.username}.`);
+    } catch (error) {
+      showError(error instanceof Error ? error.message : "Unable to delete user.");
+    } finally {
+      setIsDeleting(false);
+    }
+  }
+
   const visibleUsers = currentUser ? users.filter((user) => user.id !== currentUser.id) : users;
 
   return (
@@ -159,103 +286,34 @@ export default function UsersPage() {
           </button>
         </div>
 
-        <div className="mt-5 space-y-4">
+        <div className="mt-5 grid gap-3 md:grid-cols-2 xl:grid-cols-3">
           {visibleUsers.map((user) => (
-            <form
-              key={user.id}
-              className="rounded-2xl border border-black/10 bg-[#fffdf7] p-4"
-              onSubmit={(event: FormEvent<HTMLFormElement>) => {
-                event.preventDefault();
-                void handleSaveUser(user);
-              }}
-            >
-              <div className="mb-4 flex flex-wrap items-center gap-2">
+            <div key={user.id} className="rounded-2xl border border-black/10 bg-[#fffdf7] p-4">
+              <div className="flex items-center justify-between">
                 <h3 className="font-display text-lg text-black">{user.username}</h3>
+              </div>
+              <div className="mt-1.5 flex flex-wrap items-center gap-1.5">
                 {user.is_admin ? <span className="rounded-full bg-amber-100 px-2.5 py-1 text-xs font-semibold text-amber-800">Admin</span> : null}
-                {!user.is_active ? <span className="rounded-full bg-black/10 px-2.5 py-1 text-xs font-semibold text-black/60">Inactive</span> : null}
+                {user.is_active ? <span className="rounded-full bg-[#e8f5e9] px-2.5 py-1 text-xs font-semibold text-[#2f8f4e]">Enabled</span> : <span className="rounded-full bg-black/10 px-2.5 py-1 text-xs font-semibold text-black/60">Disabled</span>}
               </div>
-              <div className="grid gap-3 md:grid-cols-2">
-                <label className="grid gap-1 text-sm text-black/70">
-                  Username
-                  <input className="rounded-xl border border-black/15 bg-white px-3 py-2 text-sm" value={user.username} onChange={(event) => updateUserDraft(user.id, { username: event.target.value })} />
-                </label>
-                <label className="grid gap-1 text-sm text-black/70">
-                  Email
-                  <input className="rounded-xl border border-black/15 bg-white px-3 py-2 text-sm" type="email" value={user.email} onChange={(event) => updateUserDraft(user.id, { email: event.target.value })} />
-                </label>
-                <label className="grid gap-1 text-sm text-black/70">
-                  Reset Password
-                  <input className="rounded-xl border border-black/15 bg-white px-3 py-2 text-sm" type="password" value={user.password ?? ""} onChange={(event) => updateUserDraft(user.id, { password: event.target.value })} placeholder="Leave blank to keep current password" />
-                </label>
-                <div className="flex flex-wrap gap-3 rounded-xl border border-black/10 bg-white px-3 py-2 text-sm text-black/70 md:self-end">
-                  <label className="flex items-center gap-2">
-                    <input type="checkbox" checked={user.is_admin} onChange={(event) => updateUserDraft(user.id, { is_admin: event.target.checked })} />
-                    Admin
-                  </label>
-                  <label className="flex items-center gap-2">
-                    <input type="checkbox" checked={user.is_active} onChange={(event) => updateUserDraft(user.id, { is_active: event.target.checked })} />
-                    Active
-                  </label>
-                </div>
-              </div>
-              <div className="mt-4">
-                {userTokenUsages[user.id] ? (() => {
-                  const usage = userTokenUsages[user.id];
-                  return (
-                    <div className="grid gap-2 rounded-xl border border-black/10 bg-white/70 p-3">
-                      <div className="flex items-center justify-between">
-                        <span className="text-xs font-semibold text-black/50 uppercase tracking-wide">Token Usage &amp; Estimated Cost</span>
-                        <span className="text-sm font-semibold text-black">
-                          ${usage.estimated_cost.toFixed(4)}
-                        </span>
-                      </div>
-                      <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-5">
-                        <div className="rounded-lg bg-sand/60 px-2 py-1.5 text-center">
-                          <div className="text-[10px] uppercase tracking-wide text-black/50">60 min</div>
-                          <div className="text-sm font-semibold text-black">{formatTokens(usage.last_60_minutes.total_tokens)}</div>
-                          <div className="text-[10px] text-black/50">
-                            {formatTokens(usage.last_60_minutes.input_tokens)} / {formatTokens(usage.last_60_minutes.output_tokens)}
-                          </div>
-                        </div>
-                        <div className="rounded-lg bg-sand/60 px-2 py-1.5 text-center">
-                          <div className="text-[10px] uppercase tracking-wide text-black/50">24 hrs</div>
-                          <div className="text-sm font-semibold text-black">{formatTokens(usage.last_24_hours.total_tokens)}</div>
-                          <div className="text-[10px] text-black/50">
-                            {formatTokens(usage.last_24_hours.input_tokens)} / {formatTokens(usage.last_24_hours.output_tokens)}
-                          </div>
-                        </div>
-                        <div className="rounded-lg bg-sand/60 px-2 py-1.5 text-center">
-                          <div className="text-[10px] uppercase tracking-wide text-black/50">7 days</div>
-                          <div className="text-sm font-semibold text-black">{formatTokens(usage.last_7_days.total_tokens)}</div>
-                          <div className="text-[10px] text-black/50">
-                            {formatTokens(usage.last_7_days.input_tokens)} / {formatTokens(usage.last_7_days.output_tokens)}
-                          </div>
-                        </div>
-                        <div className="rounded-lg bg-sand/60 px-2 py-1.5 text-center">
-                          <div className="text-[10px] uppercase tracking-wide text-black/50">30 days</div>
-                          <div className="text-sm font-semibold text-black">{formatTokens(usage.last_30_days.total_tokens)}</div>
-                          <div className="text-[10px] text-black/50">
-                            {formatTokens(usage.last_30_days.input_tokens)} / {formatTokens(usage.last_30_days.output_tokens)}
-                          </div>
-                        </div>
-                        <div className="rounded-lg bg-sand/60 px-2 py-1.5 text-center">
-                          <div className="text-[10px] uppercase tracking-wide text-black/50">Forever</div>
-                          <div className="text-sm font-semibold text-black">{formatTokens(usage.forever.total_tokens)}</div>
-                          <div className="text-[10px] text-black/50">
-                            {formatTokens(usage.forever.input_tokens)} / {formatTokens(usage.forever.output_tokens)}
-                          </div>
-                        </div>
-                      </div>
-                    </div>
-                  );
-                })() : null}
-              </div>
-              <div className="mt-4 flex justify-end">
-                <button className="rounded-xl bg-ink px-4 py-2 text-sm font-semibold text-white disabled:cursor-not-allowed disabled:opacity-60" type="submit" disabled={savingUserId === user.id}>
-                  {savingUserId === user.id ? "Saving..." : "Save User"}
+              <div className="mt-3 flex flex-wrap gap-1.5">
+                <button className="rounded-lg border border-black/15 bg-white px-2.5 py-1.5 text-xs font-semibold text-black transition hover:bg-black/5" type="button" onClick={() => handleViewUsage(user)}>
+                  View usage
+                </button>
+                <button className="rounded-lg border border-black/15 bg-white px-2.5 py-1.5 text-xs font-semibold text-black transition hover:bg-black/5" type="button" onClick={() => openUpdateEmailModal(user)}>
+                  Update email
+                </button>
+                <button className="rounded-lg border border-black/15 bg-white px-2.5 py-1.5 text-xs font-semibold text-black transition hover:bg-black/5" type="button" onClick={() => openUpdatePasswordModal(user)}>
+                  Update password
+                </button>
+                <button className={`rounded-lg border px-2.5 py-1.5 text-xs font-semibold transition hover:bg-black/5 ${user.is_active ? "border-black/15 bg-white text-black" : "border-[#2f8f4e]/40 bg-[#e8f5e9] text-[#2f8f4e]"}`} type="button" onClick={() => handleToggleActive(user)}>
+                  {user.is_active ? "Disable" : "Enable"}
+                </button>
+                <button className="rounded-lg border border-red-200 bg-red-50 px-2.5 py-1.5 text-xs font-semibold text-red-600 transition hover:bg-red-100" type="button" onClick={() => openDeleteModal(user)}>
+                  Delete
                 </button>
               </div>
-            </form>
+            </div>
           ))}
           {isLoading ? <p className="rounded-2xl border border-black/10 bg-white px-4 py-6 text-sm text-black/60">Loading users...</p> : null}
           {!isLoading && visibleUsers.length === 0 ? (
@@ -273,6 +331,7 @@ export default function UsersPage() {
         </div>
       </article>
 
+      {/* Create user modal */}
       <Modal open={isCreateModalOpen} onClose={() => setIsCreateModalOpen(false)} labelledBy="user-create-title" panelClassName="max-w-3xl">
         <article className="p-5 sm:p-6">
           <div className="flex flex-wrap items-start justify-between gap-3">
@@ -334,6 +393,204 @@ export default function UsersPage() {
             </div>
           </form>
         </article>
+      </Modal>
+
+      {/* View usage modal */}
+      <Modal open={isUsageModalOpen} onClose={() => setIsUsageModalOpen(false)} labelledBy="user-usage-title" panelClassName="max-w-3xl">
+        <div className="p-5 sm:p-6">
+          <div className="flex flex-wrap items-start justify-between gap-3">
+            <div>
+              <h2 id="user-usage-title" className="font-display text-2xl">
+                Usage for {selectedUsageUser?.username}
+              </h2>
+            </div>
+            <button className="rounded-xl border border-black/15 bg-white px-4 py-2 text-sm font-semibold text-black" type="button" onClick={() => setIsUsageModalOpen(false)}>
+              Close
+            </button>
+          </div>
+
+          {isLoadingUsage ? (
+            <p className="mt-5 text-sm text-black/60">Loading token usage...</p>
+          ) : userTokenUsages[selectedUsageUser?.id ?? -1] ? (
+            (() => {
+              const usage = userTokenUsages[selectedUsageUser?.id ?? -1];
+              return (
+                <div className="mt-5 rounded-xl border border-black/10 bg-white/70 p-4">
+                  <div className="flex items-center justify-between">
+                    <span className="text-xs font-semibold text-black/50 uppercase tracking-wide">Token Usage &amp; Estimated Cost</span>
+                    <span className="text-sm font-semibold text-black">
+                      ${usage.estimated_cost.toFixed(4)}
+                    </span>
+                  </div>
+                  <div className="mt-3 grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-5">
+                    <div className="rounded-lg bg-sand/60 px-2 py-1.5 text-center">
+                      <div className="text-[10px] uppercase tracking-wide text-black/50">60 min</div>
+                      <div className="text-sm font-semibold text-black">{formatTokens(usage.last_60_minutes.total_tokens)}</div>
+                      <div className="text-[10px] text-black/50">
+                        {formatTokens(usage.last_60_minutes.input_tokens)} / {formatTokens(usage.last_60_minutes.output_tokens)}
+                      </div>
+                    </div>
+                    <div className="rounded-lg bg-sand/60 px-2 py-1.5 text-center">
+                      <div className="text-[10px] uppercase tracking-wide text-black/50">24 hrs</div>
+                      <div className="text-sm font-semibold text-black">{formatTokens(usage.last_24_hours.total_tokens)}</div>
+                      <div className="text-[10px] text-black/50">
+                        {formatTokens(usage.last_24_hours.input_tokens)} / {formatTokens(usage.last_24_hours.output_tokens)}
+                      </div>
+                    </div>
+                    <div className="rounded-lg bg-sand/60 px-2 py-1.5 text-center">
+                      <div className="text-[10px] uppercase tracking-wide text-black/50">7 days</div>
+                      <div className="text-sm font-semibold text-black">{formatTokens(usage.last_7_days.total_tokens)}</div>
+                      <div className="text-[10px] text-black/50">
+                        {formatTokens(usage.last_7_days.input_tokens)} / {formatTokens(usage.last_7_days.output_tokens)}
+                      </div>
+                    </div>
+                    <div className="rounded-lg bg-sand/60 px-2 py-1.5 text-center">
+                      <div className="text-[10px] uppercase tracking-wide text-black/50">30 days</div>
+                      <div className="text-sm font-semibold text-black">{formatTokens(usage.last_30_days.total_tokens)}</div>
+                      <div className="text-[10px] text-black/50">
+                        {formatTokens(usage.last_30_days.input_tokens)} / {formatTokens(usage.last_30_days.output_tokens)}
+                      </div>
+                    </div>
+                    <div className="rounded-lg bg-sand/60 px-2 py-1.5 text-center">
+                      <div className="text-[10px] uppercase tracking-wide text-black/50">Forever</div>
+                      <div className="text-sm font-semibold text-black">{formatTokens(usage.forever.total_tokens)}</div>
+                      <div className="text-[10px] text-black/50">
+                        {formatTokens(usage.forever.input_tokens)} / {formatTokens(usage.forever.output_tokens)}
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              );
+            })()
+          ) : (
+            <p className="mt-5 text-sm text-black/60">No usage data available for this user.</p>
+          )}
+        </div>
+      </Modal>
+
+      {/* Update email modal */}
+      <Modal open={isEmailModalOpen} onClose={() => setIsEmailModalOpen(false)} labelledBy="update-email-title">
+        <div className="p-5">
+          <div className="flex items-start justify-between">
+            <h2 id="update-email-title" className="font-display text-xl">Update email for {selectedEmailUser?.username}</h2>
+            <button
+              type="button"
+              onClick={() => setIsEmailModalOpen(false)}
+              className="shrink-0 rounded-lg p-1 text-black/45 transition hover:bg-black/5 hover:text-black"
+            >
+              <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+            </button>
+          </div>
+
+          <form className="mt-5 space-y-4" onSubmit={handleUpdateEmail}>
+            <label className="block text-sm text-black/70">
+              <span className="mb-2 block font-semibold text-black">Email</span>
+              <input
+                className="w-full rounded-xl border border-black/10 bg-white px-4 py-3 outline-none transition focus:border-black/25"
+                type="email"
+                value={emailValue}
+                onChange={(event) => setEmail(event.target.value)}
+                autoComplete="email"
+                required
+              />
+            </label>
+            <button
+              className="rounded-xl bg-ink px-4 py-3 font-semibold text-white transition hover:bg-black disabled:cursor-not-allowed disabled:opacity-60"
+              type="submit"
+              disabled={isSavingEmail}
+            >
+              {isSavingEmail ? "Saving..." : "Update email"}
+            </button>
+          </form>
+        </div>
+      </Modal>
+
+      {/* Update password modal */}
+      <Modal open={isPasswordModalOpen} onClose={() => setIsPasswordModalOpen(false)} labelledBy="update-password-title">
+        <div className="p-5">
+          <div className="flex items-start justify-between">
+            <h2 id="update-password-title" className="font-display text-xl">Update password for {selectedPasswordUser?.username}</h2>
+            <button
+              type="button"
+              onClick={() => setIsPasswordModalOpen(false)}
+              className="shrink-0 rounded-lg p-1 text-black/45 transition hover:bg-black/5 hover:text-black"
+            >
+              <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+            </button>
+          </div>
+
+          <form className="mt-5 space-y-4" onSubmit={handleUpdatePassword}>
+            <label className="block text-sm text-black/70">
+              <span className="mb-2 block font-semibold text-black">New password</span>
+              <input
+                className="w-full rounded-xl border border-black/10 bg-white px-4 py-3 outline-none transition focus:border-black/25"
+                type="password"
+                value={passwordValue}
+                onChange={(event) => setPassword(event.target.value)}
+                autoComplete="new-password"
+                placeholder="Enter a new password"
+              />
+            </label>
+            <label className="block text-sm text-black/70">
+              <span className="mb-2 block font-semibold text-black">Confirm new password</span>
+              <input
+                className="w-full rounded-xl border border-black/10 bg-white px-4 py-3 outline-none transition focus:border-black/25"
+                type="password"
+                value={confirmPasswordValue}
+                onChange={(event) => setConfirmPassword(event.target.value)}
+                autoComplete="new-password"
+                placeholder="Repeat the new password"
+              />
+            </label>
+            <button
+              className="rounded-xl bg-ink px-4 py-3 font-semibold text-white transition hover:bg-black disabled:cursor-not-allowed disabled:opacity-60"
+              type="submit"
+              disabled={isSavingPassword}
+            >
+              {isSavingPassword ? "Saving..." : "Update password"}
+            </button>
+          </form>
+        </div>
+      </Modal>
+
+      {/* Delete confirmation modal */}
+      <Modal open={isDeleteModalOpen} onClose={() => setIsDeleteModalOpen(false)} labelledBy="delete-user-title">
+        <div className="p-5">
+          <div className="flex items-start justify-between">
+            <h2 id="delete-user-title" className="font-display text-xl">Delete user</h2>
+            <button
+              type="button"
+              onClick={() => setIsDeleteModalOpen(false)}
+              className="shrink-0 rounded-lg p-1 text-black/45 transition hover:bg-black/5 hover:text-black"
+            >
+              <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+            </button>
+          </div>
+
+          <div className="mt-5">
+            <p className="text-sm text-black/70">
+              Are you sure you want to delete <span className="font-semibold text-black">{selectedDeleteUser?.username}</span>? This action cannot be undone.
+            </p>
+          </div>
+
+          <div className="mt-6 flex justify-end gap-3">
+            <button
+              className="rounded-xl border border-black/15 bg-white px-4 py-3 text-sm font-semibold text-black transition hover:bg-black/5"
+              type="button"
+              onClick={() => setIsDeleteModalOpen(false)}
+            >
+              Cancel
+            </button>
+            <button
+              className="rounded-xl bg-red-600 px-4 py-3 font-semibold text-white transition hover:bg-red-700 disabled:cursor-not-allowed disabled:opacity-60"
+              type="button"
+              onClick={handleDeleteUser}
+              disabled={isDeleting}
+            >
+              {isDeleting ? "Deleting..." : "Delete user"}
+            </button>
+          </div>
+        </div>
       </Modal>
     </section>
   );
