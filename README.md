@@ -74,7 +74,7 @@ docker compose --profile rocm up -d --build
 
 On the host, install ROCm user-space (Ubuntu 26.04 ships an older ROCm; for Radeon AI PRO R9700 and other recent AMD GPUs use ROCm 7.2+ from AMD’s repo with `amdgpu-install -y --usecase=rocm --no-dkms`). Add your user to the `render` and `video` groups.
 
-Optional build args for `inference-rocm`: `ROCM_DEV_IMAGE` (defaults to `rocm/dev-ubuntu-24.04:7.2.3-complete`, which includes hipBLAS), `AMDGPU_TARGETS` (defaults to a multi-arch fat build; set e.g. `gfx1200` for R9700-only to compile faster), and `GGML_HIP_RCCL=ON` for experimental tensor-parallel pools.
+Optional build args for `inference-rocm`: `ROCM_DEV_IMAGE` (defaults to `rocm/dev-ubuntu-24.04:7.2.3-complete`, which includes hipBLAS), `AMDGPU_TARGETS` (defaults to `gfx1201`; change in `.env` for other AMD GPUs, e.g. `gfx1200` for R9700), and `GGML_HIP_RCCL=ON` for experimental tensor-parallel pools.
 
 #### CPU + NVIDIA + Vulkan + ROCm (mixed vendors):
 
