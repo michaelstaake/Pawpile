@@ -13,7 +13,7 @@ for _env_key in (
 ):
     os.environ.pop(_env_key, None)
 
-from app.core.device_manager import AMD_VENDOR_ID, DeviceManager
+from app.core.device_manager import AMD_VENDOR_ID, DeviceManager, get_supported_vendors, is_supported_vendor
 from app.inference_service import ActivateModelRequest, InferenceRuntime
 
 
@@ -29,6 +29,19 @@ ROCM_JSON_SAMPLE = json.dumps(
         },
     }
 )
+
+
+class SupportedVendorTests(unittest.TestCase):
+    def test_rocm_in_default_supported_vendors(self) -> None:
+        with patch.dict(os.environ, {"SUPPORTED_DEVICES": ""}, clear=False):
+            from app.core import config
+
+            config.get_settings.cache_clear()
+            try:
+                self.assertIn("rocm", get_supported_vendors())
+                self.assertTrue(is_supported_vendor("rocm"))
+            finally:
+                config.get_settings.cache_clear()
 
 
 class RocmDetectionTests(unittest.TestCase):

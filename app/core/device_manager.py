@@ -25,7 +25,7 @@ def get_supported_vendors() -> set[str]:
     if configured:
         return set(configured)
 
-    return {"cpu", "nvidia", "vulkan"}
+    return {"cpu", "nvidia", "vulkan", "rocm"}
 
 
 def is_supported_vendor(vendor: str) -> bool:
