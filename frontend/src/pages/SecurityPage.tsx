@@ -26,6 +26,10 @@ export default function SecurityPage() {
     usage_limit_tokens_24_hours: 0,
     usage_limit_tokens_7_days: 0,
     usage_limit_tokens_30_days: 0,
+    usage_limit_tools_60_minutes: 0,
+    usage_limit_tools_24_hours: 0,
+    usage_limit_tools_7_days: 0,
+    usage_limit_tools_30_days: 0,
   });
   const [localSiteKey, setLocalSiteKey] = useState("");
   const [localSecretKey, setLocalSecretKey] = useState("");
