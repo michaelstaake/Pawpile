@@ -439,6 +439,7 @@ class ModelUpdateRequest(BaseModel):
     web_search_enabled: bool | None = None
     rag_enabled: bool | None = None
     flash_attention_enabled: bool | None = None
+    memory_mapping_enabled: bool | None = None
     assignment_mode: str | None = None
     pinned_device_id: int | None = None
     pinned_pool_id: int | None = None

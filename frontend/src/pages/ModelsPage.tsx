@@ -116,6 +116,7 @@ function buildModelPayload(model: ModelRecord) {
     web_search_enabled: model.web_search_enabled,
     rag_enabled: model.rag_enabled,
     flash_attention_enabled: model.flash_attention_enabled,
+    memory_mapping_enabled: model.memory_mapping_enabled,
     assignment_mode: model.assignment_mode,
     pinned_device_id: model.assignment_mode === "pinned" ? model.pinned_device_id : null,
     pinned_pool_id: model.assignment_mode === "pool" ? model.pinned_pool_id : null,
@@ -1045,7 +1046,7 @@ export default function ModelsPage({ setupMode = false, onComplete }: ModelsPage
                   </label>
                   <label className="grid gap-1 text-sm text-black/70">
                     <span>GPU Layers</span>
-                    <span className="text-xs text-black/45">Layers to offload to the GPU. Use -1 to offload all layers.</span>
+                    <span className="text-xs text-black/45">Layers to offload to the GPU. Use 99 to offload all layers.</span>
                     <input className="rounded-xl border border-black/15 bg-white px-3 py-2 text-sm" type="number" min={-1} value={modalNumericDrafts.gpu_layers ?? String(modalDraft.gpu_layers)} onChange={(event) => setModalNumericDraft("gpu_layers", event.target.value)} onBlur={(event) => commitModalNumericDraft("gpu_layers", event.target.value, (n) => (Math.round(n) === -1 ? -1 : Math.max(0, Math.round(n))))} />
                   </label>
                   <label className="grid gap-1 text-sm text-black/70">
@@ -1058,6 +1059,13 @@ export default function ModelsPage({ setupMode = false, onComplete }: ModelsPage
                     <span className="grid gap-0.5">
                       <span className="text-sm text-black/70">Flash Attention</span>
                       <span className="text-xs text-black/45">Use flash attention to speed up inference.</span>
+                    </span>
+                  </label>
+                  <label className="flex gap-3 rounded-xl border border-black/10 bg-white px-3 py-2 text-sm text-black/70">
+                    <input className="mt-1" type="checkbox" checked={modalDraft.memory_mapping_enabled} onChange={(event) => updateModalDraft({ memory_mapping_enabled: event.target.checked })} />
+                    <span className="grid gap-0.5">
+                      <span className="text-sm text-black/70">Memory Mapping</span>
+                      <span className="text-xs text-black/45">Map model weights from disk into memory. Disable if loading fails on your system.</span>
                     </span>
                   </label>
                 </div>

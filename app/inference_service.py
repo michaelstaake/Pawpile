@@ -42,6 +42,7 @@ class ActivateModelRequest(BaseModel):
     threads: int
     gpu_layers: int
     flash_attention_enabled: bool = False
+    memory_mapping_enabled: bool = True
     vendor: str
     hardware_id: str
     hardware_ids: list[str] = []
@@ -95,6 +96,8 @@ class InferenceRuntime:
             "--flash-attn",
             "on" if payload.flash_attention_enabled else "off",
         ]
+        if not payload.memory_mapping_enabled:
+            command.append("--no-mmap")
         if payload.mmproj_path:
             command.extend(["--mmproj", payload.mmproj_path])
         command.extend(self._build_vendor_args(payload.vendor, payload.vram_ratios, payload.split_mode))

@@ -673,6 +673,7 @@ async def update_model(model_id: int, payload: ModelUpdateRequest, _: User = Dep
         "web_search_enabled",
         "rag_enabled",
         "flash_attention_enabled",
+        "memory_mapping_enabled",
     ]:
         value = normalized_alias if field == "alias" else getattr(payload, field)
         if value is not None:
@@ -1036,6 +1037,7 @@ def _serialize_model(model: ModelConfig) -> dict:
         "web_search_enabled": model.web_search_enabled,
         "rag_enabled": model.rag_enabled,
         "flash_attention_enabled": model.flash_attention_enabled,
+        "memory_mapping_enabled": model.memory_mapping_enabled,
         "mmproj_file_name": model.mmproj_file_name,
         "assignment_mode": model.assignment_mode,
         "pinned_device_id": model.pinned_device_id,

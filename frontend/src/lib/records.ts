@@ -98,6 +98,7 @@ export type ModelRecord = {
   web_search_enabled: boolean;
   rag_enabled: boolean;
   flash_attention_enabled: boolean;
+  memory_mapping_enabled: boolean;
   mmproj_file_name: string | null;
   assignment_mode: string;
   pinned_device_id: number | null;

@@ -139,6 +139,7 @@ class InferenceManager:
             "threads": model.threads,
             "gpu_layers": model.gpu_layers,
             "flash_attention_enabled": model.flash_attention_enabled,
+            "memory_mapping_enabled": model.memory_mapping_enabled,
             "vendor": device.vendor,
             "hardware_id": device.hardware_id,
         }
@@ -177,6 +178,7 @@ class InferenceManager:
             "threads": model.threads,
             "gpu_layers": model.gpu_layers,
             "flash_attention_enabled": model.flash_attention_enabled,
+            "memory_mapping_enabled": model.memory_mapping_enabled,
             "vendor": target.runtime_vendor,
             "hardware_id": target.hardware_ids[0],
             "hardware_ids": target.hardware_ids,
