@@ -3,7 +3,7 @@ import Modal from "../components/ui/Modal";
 import { apiDelete, apiGet, apiPost } from "../lib/api";
 import { useAuth } from "../context/AuthContext";
 import { useToast } from "../context/ToastContext";
-import { ApiKeyCreateResponse, ApiKeyRecord } from "../lib/records";
+import { ApiKeyCreateResponse, ApiKeyRecord, ModelRecord } from "../lib/records";
 
 const MINUTE_IN_MS = 60 * 1000;
 const HOUR_IN_MS = 60 * MINUTE_IN_MS;
@@ -42,13 +42,17 @@ export default function ApiPage() {
   const [isLoadingKeys, setIsLoadingKeys] = useState(false);
   const [isCreatingKey, setIsCreatingKey] = useState(false);
   const [revokingKeyId, setRevokingKeyId] = useState<number | null>(null);
+  const [enabledModels, setEnabledModels] = useState<ModelRecord[]>([]);
+  const [isLoadingModels, setIsLoadingModels] = useState(false);
 
   useEffect(() => {
     if (!token || !user) {
       setApiKeys([]);
+      setEnabledModels([]);
       return;
     }
     void refreshApiKeys(token);
+    void refreshEnabledModels(token);
   }, [token, user]);
 
   async function refreshApiKeys(activeToken: string) {
@@ -60,6 +64,20 @@ export default function ApiPage() {
       showError(error instanceof Error ? error.message : "Failed to load API keys");
     } finally {
       setIsLoadingKeys(false);
+    }
+  }
+
+  const BASE_URL = import.meta.env.VITE_API_BASE_URL ?? "";
+
+  async function refreshEnabledModels(activeToken: string) {
+    setIsLoadingModels(true);
+    try {
+      const response = await apiGet<ModelRecord[]>("/api/models", activeToken);
+      setEnabledModels(response.filter((m) => m.activated));
+    } catch (error) {
+      showError(error instanceof Error ? error.message : "Failed to load models");
+    } finally {
+      setIsLoadingModels(false);
     }
   }
 
@@ -223,6 +241,49 @@ export default function ApiPage() {
           )}
         </article>
       </Modal>
+
+      <article className="rounded-3xl border border-black/10 bg-white/85 p-5 shadow-sm backdrop-blur">
+        <h2 className="font-display text-2xl">API endpoints</h2>
+        <div className="mt-5 space-y-6">
+          <div>
+            <h3 className="font-display text-lg text-black">Base URL</h3>
+            <div className="mt-2 flex items-center gap-3">
+              <code className="rounded-xl border border-black/10 bg-[#fffdf7] px-3 py-2 text-sm font-mono text-black">{BASE_URL}</code>
+            </div>
+          </div>
+          <div>
+            <h3 className="font-display text-lg text-black">Chat completions</h3>
+            <div className="mt-2 flex items-center gap-3">
+              <code className="rounded-xl border border-black/10 bg-[#fffdf7] px-3 py-2 text-sm font-mono text-black">{BASE_URL}/v1/chat/completions</code>
+            </div>
+          </div>
+          <div>
+            <h3 className="font-display text-lg text-black">List models (curl)</h3>
+            <div className="mt-2 flex items-center gap-3">
+              <code className="rounded-xl border border-black/10 bg-[#fffdf7] px-3 py-2 text-sm font-mono text-black">curl {BASE_URL}/v1/models -H "Authorization: Bearer YOUR_API_KEY"</code>
+            </div>
+          </div>
+          <div>
+            <h3 className="font-display text-lg text-black">Enabled models</h3>
+            {isLoadingModels ? (
+              <p className="mt-2 text-sm text-black/60">Loading models...</p>
+            ) : enabledModels.length === 0 ? (
+              <p className="mt-2 text-sm text-black/60">No models are currently enabled.</p>
+            ) : (
+              <ul className="mt-2 space-y-2">
+                {enabledModels.map((model) => (
+                  <li key={model.id} className="rounded-xl border border-black/10 bg-[#fffdf7] px-3 py-2">
+                    <span className="text-sm font-mono text-black">{model.alias}</span>
+                    {model.description && (
+                      <span className="ml-2 text-xs text-black/45">- {model.description}</span>
+                    )}
+                  </li>
+                ))}
+              </ul>
+            )}
+          </div>
+        </div>
+      </article>
     </section>
   );
 }
