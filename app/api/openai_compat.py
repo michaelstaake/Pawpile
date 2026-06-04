@@ -9,7 +9,7 @@ from fastapi import APIRouter, Depends, HTTPException
 from fastapi.responses import StreamingResponse
 from sqlalchemy.orm import Session
 
-from app.api.deps import require_api_access
+from app.api.deps import require_api_access, require_models_api_access
 from app.core.activity_logger import log_event
 from app.core.db import get_db
 from app.core.inference_manager import InferenceManager
@@ -336,7 +336,7 @@ async def _stream_with_web_search(
 
 
 @router.get("/models")
-def v1_models(_: User = Depends(require_api_access), db: Session = Depends(get_db)) -> dict:
+def v1_models(_: User = Depends(require_models_api_access), db: Session = Depends(get_db)) -> dict:
     active_web_search_provider = _get_active_web_search_provider(db)
     app_settings = db.query(AppSettings).filter(AppSettings.id == 1).first()
     models = (

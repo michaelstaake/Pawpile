@@ -86,3 +86,19 @@ def require_api_access(credentials: HTTPAuthorizationCredentials | None = Depend
             return _build_anonymous_api_user()
 
     return get_current_user(credentials, db)
+
+
+def require_models_api_access(
+    credentials: HTTPAuthorizationCredentials | None = Depends(bearer_scheme),
+    db: Session = Depends(get_db),
+) -> User:
+    if not get_settings().openai_models_auth_required:
+        if credentials is None:
+            return _build_anonymous_api_user()
+
+        try:
+            return get_current_user(credentials, db)
+        except HTTPException:
+            return _build_anonymous_api_user()
+
+    return get_current_user(credentials, db)

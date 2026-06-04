@@ -25,6 +25,7 @@ class Settings(BaseSettings):
     jwt_algorithm: str = "HS256"
     jwt_access_token_expire_minutes: int = 1440
     openai_api_auth_required: bool = True
+    openai_models_auth_required: bool = False
 
     models_dir: str = "./models"
     data_dir: str = "./data"

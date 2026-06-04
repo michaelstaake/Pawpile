@@ -138,7 +138,14 @@ You can chat with your enabled models through the web interface.
 
 The API is the recommended way to use Pawpile through integrations with other software and platforms. Pawpile's API is OpenAI-Compatible, so you can easily integrate it into your workflow and applications.
 
-By default, an API key is required to communicate with the API. To disable this behavior (not recommended), set OPENAI_API_AUTH_REQUIRED=false.
+By default, an API key is required for chat completions. Model listing is public by default so clients can discover available models before authenticating.
+
+| Setting | Endpoint | Default |
+|---------|----------|---------|
+| `OPENAI_API_AUTH_REQUIRED` | `/v1/chat/completions` | `true` |
+| `OPENAI_MODELS_AUTH_REQUIRED` | `/v1/models` | `false` |
+
+Set `OPENAI_API_AUTH_REQUIRED=false` to allow anonymous chat completions (not recommended). Set `OPENAI_MODELS_AUTH_REQUIRED=true` if you want model listing to require the same JWT or API key as chat.
 
 Pawpile currently supports `/v1/models` and `/v1/chat/completions`.
 
@@ -183,7 +190,7 @@ curl -k https://localhost:8444/v1/chat/completions \
 
 ## OpenCode Config Example
 
-Use this in your OpenCode config file to connect to Pawpile's OpenAI-compatible endpoint. If OPENAI_API_AUTH_REQUIRED=false, apiKey is optional and can be omitted or set to any placeholder value.
+Use this in your OpenCode config file to connect to Pawpile's OpenAI-compatible endpoint. With default auth settings, clients can call `/v1/models` without an API key; `apiKey` is still required for `/v1/chat/completions`. If `OPENAI_API_AUTH_REQUIRED=false`, apiKey is optional for chat as well and can be omitted or set to any placeholder value.
 
 ```json
 {
