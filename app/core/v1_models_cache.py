@@ -11,6 +11,8 @@ _cached_at: float = 0.0
 
 
 def get_cached_v1_models(build: Callable[[], dict[str, Any]]) -> dict[str, Any]:
+    global _cached_payload, _cached_at
+
     now = time.monotonic()
     with _lock:
         if _cached_payload is not None and (now - _cached_at) < _CACHE_TTL_SECONDS:
@@ -19,7 +21,6 @@ def get_cached_v1_models(build: Callable[[], dict[str, Any]]) -> dict[str, Any]:
     payload = build()
 
     with _lock:
-        global _cached_payload, _cached_at
         _cached_payload = copy.deepcopy(payload)
         _cached_at = time.monotonic()
 
@@ -27,7 +28,8 @@ def get_cached_v1_models(build: Callable[[], dict[str, Any]]) -> dict[str, Any]:
 
 
 def invalidate_v1_models_cache() -> None:
+    global _cached_payload, _cached_at
+
     with _lock:
-        global _cached_payload, _cached_at
         _cached_payload = None
         _cached_at = 0.0
