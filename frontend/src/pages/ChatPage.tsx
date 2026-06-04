@@ -979,7 +979,7 @@ export default function ChatPage() {
         ) : isNewChatEmptyState ? (
           <div className="mx-auto mb-6 w-full max-w-5xl">
             <div className="mb-4 text-center">
-              <p className="mt-2 text-sm text-black/60 md:text-[15px]">New chat - choose a model</p>
+              <p className="mt-2 text-sm text-black/60 md:text-[15px]">{models.length === 1 ? "New chat" : "New chat - choose a model"}</p>
             </div>
             <div className={newChatModelGridClassName}>
               {models.map((alias) => {
