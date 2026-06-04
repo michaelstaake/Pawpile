@@ -132,6 +132,28 @@ class SyncDetectedDevicesTests(unittest.TestCase):
         self.assertEqual(hardware_ids, {"rocm:0"})
         self.assertEqual(db.query(Device).filter(Device.vendor == "vulkan").count(), 0)
 
+    def test_default_name_for_device_uses_last_detected_map(self) -> None:
+        db = _make_session()
+        manager = DeviceManager()
+        detected = [
+            DetectedDevice(
+                hardware_id="rocm:0",
+                stable_hardware_id="0000:03:00.0",
+                stable_hardware_id_source="pci_bdf",
+                name="Radeon AI PRO R9700",
+                vendor="rocm",
+                device_type="gpu",
+                memory_mb=32000,
+            )
+        ]
+
+        with unittest.mock.patch.object(DeviceManager, "detect_all", return_value=detected):
+            rows = manager.sync_detected_devices(db)
+
+        device = rows[0]
+        device.name = "Custom GPU Label"
+        self.assertEqual(manager.default_name_for_device(device), "Radeon AI PRO R9700")
+
 
 if __name__ == "__main__":
     unittest.main()

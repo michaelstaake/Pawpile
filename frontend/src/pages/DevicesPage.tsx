@@ -146,6 +146,20 @@ export default function DevicesPage({ setupMode = false, onContinue }: DevicesPa
     scheduleDeviceSave(deviceId);
   }
 
+  function commitDeviceName(deviceId: number) {
+    const device = latestDevicesRef.current.find((item) => item.id === deviceId);
+    if (!device) {
+      return;
+    }
+
+    const normalized = device.name.trim() || device.default_name || device.name;
+    if (normalized === device.name) {
+      return;
+    }
+
+    updateDeviceDraft(deviceId, { name: normalized });
+  }
+
   async function persistDevice(deviceId: number) {
     if (!token) {
       return;
@@ -615,7 +629,12 @@ export default function DevicesPage({ setupMode = false, onContinue }: DevicesPa
                   <label className="grid gap-1 text-sm text-black/70">
                     <span>Name</span>
                     <span className="text-xs text-black/45">Shown throughout the app.</span>
-                    <input className="rounded-xl border border-black/15 bg-white px-3 py-2 text-sm" value={device.name} onChange={(event) => updateDeviceDraft(device.id, { name: event.target.value })} />
+                    <input
+                      className="rounded-xl border border-black/15 bg-white px-3 py-2 text-sm"
+                      value={device.name}
+                      onChange={(event) => updateDeviceDraft(device.id, { name: event.target.value })}
+                      onBlur={() => commitDeviceName(device.id)}
+                    />
                   </label>
                   <label className="grid gap-1 text-sm text-black/70">
                     <span>Priority</span>

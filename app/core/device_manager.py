@@ -87,8 +87,20 @@ class DeviceManager:
 
         return True
 
+    def default_name_for_device(self, device: Device) -> str:
+        cached = getattr(self, "_default_names_by_hardware_id", {}).get(device.hardware_id)
+        if cached:
+            return cached
+
+        for detected in self.detect_all():
+            if detected.hardware_id == device.hardware_id:
+                return detected.name
+
+        return device.name
+
     def sync_detected_devices(self, db: Session, *, auto_enable_defaults: bool = False) -> list[Device]:
         detected = self.detect_all()
+        self._default_names_by_hardware_id = {item.hardware_id: item.name for item in detected}
         existing = {d.hardware_id: d for d in db.query(Device).all()}
         detected_ids = {device.hardware_id for device in detected}
         gpu_detected = any(device.device_type == "gpu" and device.vendor != "cpu" for device in detected)

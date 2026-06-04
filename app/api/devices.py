@@ -20,7 +20,7 @@ device_manager = DeviceManager()
 @router.get("")
 def list_devices(_: User = Depends(get_admin_user), db: Session = Depends(get_db)) -> list[dict]:
     rows = device_manager.sync_detected_devices(db)
-    return [_serialize_device(d) for d in rows]
+    return [_serialize_device(d, device_manager.default_name_for_device(d)) for d in rows]
 
 
 @router.post("/reorder")
@@ -144,6 +144,9 @@ def update_device(device_id: int, payload: DeviceUpdateRequest, _: User = Depend
     for field in ["name", "enabled", "priority", "max_threads", "max_slots"]:
         value = getattr(payload, field)
         if value is not None:
+            if field == "name":
+                stripped = value.strip()
+                value = device_manager.default_name_for_device(device) if not stripped else stripped
             setattr(device, field, value)
 
     db.add(device)
@@ -156,7 +159,7 @@ def update_device(device_id: int, payload: DeviceUpdateRequest, _: User = Depend
     elif payload.enabled is None:
         log_event(db, "device.updated", details={"device_name": device.name, "hardware_id": device.hardware_id})
 
-    return {"status": "ok", "device": _serialize_device(device)}
+    return {"status": "ok", "device": _serialize_device(device, device_manager.default_name_for_device(device))}
 
 
 def _validate_pool_vendor(vendor: str) -> str:
@@ -221,7 +224,8 @@ def _serialize_pool(pool: GpuPool, db: Session) -> dict:
     }
 
 
-def _serialize_device(device: Device) -> dict:
+def _serialize_device(device: Device, default_name: str | None = None) -> dict:
+    resolved_default_name = default_name or device_manager.default_name_for_device(device)
     return {
         "id": device.id,
         "hardware_id": device.hardware_id,
@@ -229,6 +233,7 @@ def _serialize_device(device: Device) -> dict:
         "stable_hardware_id_source": device.stable_hardware_id_source,
         "display_suffix": build_device_display_suffix(device.stable_hardware_id, device.hardware_id),
         "name": device.name,
+        "default_name": resolved_default_name,
         "vendor": device.vendor,
         "device_type": device.device_type,
         "memory_mb": device.memory_mb,

@@ -113,6 +113,7 @@ export type DeviceRecord = {
   stable_hardware_id_source: string | null;
   display_suffix: string;
   name: string;
+  default_name: string;
   vendor: string;
   device_type: string;
   memory_mb: number;
