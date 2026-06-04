@@ -159,7 +159,7 @@ export default function ApiPage() {
       <article className="rounded-3xl border border-black/10 bg-white/85 p-5 shadow-sm backdrop-blur">
         <div className="flex flex-wrap items-start justify-between gap-4">
           <div className="max-w-2xl">
-            <h2 className="font-display text-2xl">API keys</h2>
+            <h2 className="font-display text-2xl">API</h2>
           </div>
           <button className="rounded-xl border border-black/15 bg-white px-4 py-3 text-sm font-semibold text-black transition hover:bg-black/5" type="button" onClick={() => setIsCreateModalOpen(true)}>
             Add API key
@@ -189,7 +189,7 @@ export default function ApiPage() {
             {!isLoadingKeys && apiKeys.length === 0 ? (
               <div className="rounded-2xl border border-dashed border-black/15 bg-sand/60 px-5 py-8 text-center">
                 <h3 className="font-display text-lg text-black">No API keys yet</h3>
-                <p className="mt-2 text-sm text-black/60">Create your first key to connect scripts, local tools, or external clients to the API.</p>
+                <p className="mt-2 text-sm text-black/60">Create your first key to get started!</p>
               </div>
             ) : null}
         </div>
