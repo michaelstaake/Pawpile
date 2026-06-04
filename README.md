@@ -74,7 +74,9 @@ docker compose --profile rocm up -d --build
 
 On the host, install ROCm user-space (Ubuntu 26.04 ships an older ROCm; for Radeon AI PRO R9700 and other recent AMD GPUs use ROCm 7.2+ from AMD’s repo with `amdgpu-install -y --usecase=rocm --no-dkms`). Add your user to the `render` and `video` groups.
 
-Optional build args for `inference-rocm`: `ROCM_DEV_IMAGE` (defaults to `rocm/dev-ubuntu-24.04:7.2.3-complete`, which includes hipBLAS), `AMDGPU_TARGETS` (defaults to `gfx1201`; change in `.env` for other AMD GPUs, e.g. `gfx1200` for R9700), and `GGML_HIP_RCCL=ON` for experimental tensor-parallel pools.
+**Docker GPU access (ROCm profile):** Pawpile’s `inference-rocm` service already mounts `/dev/kfd` and `/dev/dri`, adds the `video`/`render` groups, and relaxes seccomp so HIP can open the AMD devices. You do **not** need `--gpus all` (that is NVIDIA-specific). On the host, confirm `rocm-smi` lists both cards before starting Docker. If product names in the UI are generic (“AMD Radeon Graphics”), that is what `rocm-smi` often reports until `pci.ids` is current (`update-pciids` on the host); Pawpile also shows PCI bus ID (e.g. `0000:01:00.0`) and VRAM so you can tell cards apart. Refresh the Devices page after updating drivers.
+
+Optional build args for `inference-rocm`: `ROCM_DEV_IMAGE` (defaults to `rocm/dev-ubuntu-24.04:7.2.3-complete`, which includes hipBLAS), `AMDGPU_TARGETS` (defaults to `gfx1201` for Radeon AI PRO R9700 / RDNA4), and `GGML_HIP_RCCL=ON` for experimental tensor-parallel pools.
 
 If a model shows on a GPU in Status but VRAM stays near empty and tokens/sec is slow, llama.cpp likely loaded with **0 GPU layers** (CPU-only). Pawpile now passes `--fit off` by default (`LLAMA_FIT_TO_VRAM=false`) so large context lengths do not silently disable offload. Also check the model’s **GPU layers** setting (-1 = all), lower **context length** if VRAM is tight, and inspect `./logs/llama-<model_id>.log` for `offloaded N/N layers to GPU`.
 
