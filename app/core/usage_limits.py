@@ -183,7 +183,11 @@ def get_user_oldest_tool_timestamp_by_period(db: Session, *, user_id: int) -> di
         since = now - window
         result = (
             db.query(func.min(TokenUsage.created_at))
-            .filter(TokenUsage.user_id == user_id, TokenUsage.created_at >= since)
+            .filter(
+                TokenUsage.user_id == user_id,
+                TokenUsage.created_at >= since,
+                TokenUsage.tool_calls > 0,
+            )
             .scalar()
         )
         oldest[period_id] = result
