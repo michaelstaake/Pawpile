@@ -1,4 +1,5 @@
-ARG ROCM_DEV_IMAGE=rocm/dev-ubuntu-24.04:6.4.2
+# Use the -complete image so hipBLAS/rocBLAS CMake packages are available during llama.cpp build.
+ARG ROCM_DEV_IMAGE=rocm/dev-ubuntu-24.04:7.2.3-complete
 FROM ${ROCM_DEV_IMAGE}
 
 WORKDIR /app
@@ -27,18 +28,20 @@ ENV PATH=/opt/venv/bin:/opt/rocm/bin:/opt/rocm/llvm/bin:$PATH
 ENV ROCM_PATH=/opt/rocm
 
 ARG LLAMA_CPP_TAG="b9297"
-ARG AMDGPU_TARGETS=""
+# Docker builds cannot auto-detect GPU arch; default to a fat list (override with a single gfx* for faster builds).
+ARG AMDGPU_TARGETS="gfx1030;gfx1100;gfx1101;gfx1102;gfx1150;gfx1151;gfx1200;gfx1201"
 ARG GGML_HIP_RCCL="OFF"
 
 RUN git clone --depth 1 --branch "${LLAMA_CPP_TAG}" https://github.com/ggml-org/llama.cpp.git /opt/llama.cpp \
-    && cmake -S /opt/llama.cpp -B /opt/llama.cpp/build \
+    && HIPCXX="$(hipconfig -l)/clang" HIP_PATH="$(hipconfig -R)" \
+    cmake -S /opt/llama.cpp -B /opt/llama.cpp/build \
         -DLLAMA_BUILD_SERVER=ON \
         -DGGML_HIP=ON \
         -DGGML_HIP_RCCL=${GGML_HIP_RCCL} \
+        -DAMDGPU_TARGETS="${AMDGPU_TARGETS}" \
         -DCMAKE_C_COMPILER=/opt/rocm/llvm/bin/clang \
         -DCMAKE_CXX_COMPILER=/opt/rocm/llvm/bin/clang++ \
         -DCMAKE_BUILD_TYPE=Release \
-        $( [ -n "$AMDGPU_TARGETS" ] && echo "-DAMDGPU_TARGETS=$AMDGPU_TARGETS" ) \
     && cmake --build /opt/llama.cpp/build --config Release --target llama-server -j2
 
 COPY app ./app
