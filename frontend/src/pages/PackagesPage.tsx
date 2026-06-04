@@ -468,12 +468,6 @@ export default function PackagesPage() {
                 Name
                 <input className="rounded-xl border border-black/15 bg-white px-3 py-2 text-sm" value={createDraft.name} onChange={(event) => setCreateDraft((current) => ({ ...current, name: event.target.value }))} required />
               </label>
-              <div className="flex flex-wrap gap-3 rounded-xl border border-black/10 bg-white px-3 py-2 text-sm text-black/70 md:col-span-1">
-                <label className="flex items-center gap-2">
-                  <input type="checkbox" checked={createDraft.is_admin_package} onChange={(event) => setCreateDraft((current) => ({ ...current, is_admin_package: event.target.checked }))} disabled />
-                  Admin package
-                </label>
-              </div>
               <div className="md:col-span-2">
                 <p className="text-xs text-black/50">Token Usage Limits</p>
                 <div className="mt-2 grid grid-cols-2 gap-3">
@@ -526,12 +520,6 @@ export default function PackagesPage() {
                 Name
                 <input className="rounded-xl border border-black/15 bg-white px-3 py-2 text-sm" value={editDraft.name} onChange={(event) => setEditDraft((current) => ({ ...current, name: event.target.value }))} required />
               </label>
-              <div className="flex flex-wrap gap-3 rounded-xl border border-black/10 bg-white px-3 py-2 text-sm text-black/70 md:col-span-1">
-                <label className="flex items-center gap-2">
-                  <input type="checkbox" checked={editDraft.is_admin_package} disabled />
-                  Admin package
-                </label>
-              </div>
               <div className="md:col-span-2">
                 <p className="text-xs text-black/50">Token Usage Limits</p>
                 <div className="mt-2 grid grid-cols-2 gap-3">
