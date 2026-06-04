@@ -48,6 +48,8 @@ class ActivateModelRequest(BaseModel):
     hardware_ids: list[str] = []
     vram_ratios: list[int] = []
     split_mode: str = "layer"
+    stable_hardware_id: str | None = None
+    stable_hardware_ids: list[str] = []
 
 
 @dataclass
@@ -58,6 +60,7 @@ class RunningModel:
     vendor: str
     port: int
     process: subprocess.Popen
+    stable_hardware_ids: list[str] = field(default_factory=list, compare=False)
     command: list[str] = field(default_factory=list, compare=False)
     log_path: str = field(default="", compare=False)
     log_file: Optional[IO[bytes]] = field(default=None, compare=False)
@@ -76,6 +79,8 @@ class InferenceRuntime:
             raise RuntimeError(f"Unsupported device vendor for this inference service: {payload.vendor}")
         if payload.model_id in self._running:
             return
+
+        self._ensure_stable_hardware_available(payload)
 
         port = self.settings.llama_base_port + payload.model_id
         env = self._build_env(payload.vendor, payload.hardware_id, payload.threads, payload.hardware_ids)
@@ -128,6 +133,7 @@ class InferenceRuntime:
             vendor=payload.vendor,
             port=port,
             process=process,
+            stable_hardware_ids=self._stable_hardware_ids_from_payload(payload),
             command=command,
             log_path=str(log_path),
             log_file=log_file,
@@ -246,6 +252,12 @@ class InferenceRuntime:
             ids = hardware_ids if hardware_ids else [hardware_id]
             indices = [hid.split(":")[-1] for hid in ids]
             env["GGML_VK_VISIBLE_DEVICES"] = ",".join(indices)
+        elif vendor == "rocm_pool":
+            ids = hardware_ids if hardware_ids else [hardware_id]
+            indices = [hid.split(":")[-1] for hid in ids]
+            env["HIP_VISIBLE_DEVICES"] = ",".join(indices)
+        elif vendor == "rocm":
+            env["HIP_VISIBLE_DEVICES"] = hardware_id.split(":")[-1]
         elif vendor == "nvidia":
             env["CUDA_VISIBLE_DEVICES"] = hardware_id.split(":")[-1]
         elif vendor == "vulkan":
@@ -265,6 +277,28 @@ class InferenceRuntime:
             return args
 
         return []
+
+    @staticmethod
+    def _stable_hardware_ids_from_payload(payload: ActivateModelRequest) -> list[str]:
+        ids = [value.strip() for value in payload.stable_hardware_ids if value and value.strip()]
+        if not ids and payload.stable_hardware_id and payload.stable_hardware_id.strip():
+            ids = [payload.stable_hardware_id.strip()]
+        return ids
+
+    def _ensure_stable_hardware_available(self, payload: ActivateModelRequest) -> None:
+        requested = self._stable_hardware_ids_from_payload(payload)
+        if not requested:
+            return
+
+        requested_set = set(requested)
+        for running in self._running.values():
+            if running.process.poll() is not None:
+                continue
+            overlap = requested_set.intersection(running.stable_hardware_ids)
+            if overlap:
+                raise RuntimeError(
+                    f"GPU already in use by model {running.alias} (stable id: {', '.join(sorted(overlap))})"
+                )
 
     def status_payload(self) -> dict:
         supported_vendors = get_supported_vendors()
@@ -424,6 +458,103 @@ class InferenceRuntime:
 
         metrics.update(self._collect_nvidia_metrics())
         metrics.update(self._collect_vulkan_metrics())
+        metrics.update(self._collect_rocm_metrics())
+        return metrics
+
+    def _collect_rocm_metrics(self) -> dict[str, dict]:
+        if not is_supported_vendor("rocm"):
+            return {}
+
+        json_output = self._run_command(
+            ["rocm-smi", "--showproductname", "--showmeminfo", "vram", "--showuse", "--json"]
+        )
+        devices = DeviceManager._parse_rocm_json(json_output)
+        if not devices:
+            text_output = self._run_command(["rocm-smi", "--showproductname", "--showmeminfo", "vram"])
+            devices = DeviceManager._parse_rocm_text(text_output)
+
+        metrics: dict[str, dict] = {}
+        for device in devices:
+            metrics[device.hardware_id] = {
+                "usage_percent": None,
+                "usage_source": "unavailable",
+                "memory_used_mb": 0,
+                "memory_total_mb": device.memory_mb,
+                "memory_source": "rocm-smi",
+                "process_memory_by_pid": {},
+            }
+
+        if json_output:
+            try:
+                data = json.loads(json_output)
+            except json.JSONDecodeError:
+                data = None
+            if isinstance(data, dict):
+                for card_key, entry in data.items():
+                    if not card_key.lower().startswith("card") or not isinstance(entry, dict):
+                        continue
+                    index = int(re.sub(r"\D", "", card_key) or "0")
+                    hardware_id = f"rocm:{index}"
+                    metric = metrics.setdefault(
+                        hardware_id,
+                        {
+                            "usage_percent": None,
+                            "usage_source": "unavailable",
+                            "memory_used_mb": 0,
+                            "memory_total_mb": 0,
+                            "memory_source": "rocm-smi",
+                            "process_memory_by_pid": {},
+                        },
+                    )
+                    for key, value in entry.items():
+                        key_lower = key.lower()
+                        if "gpu use" in key_lower or "gpu utilization" in key_lower:
+                            usage = self._parse_percentage(str(value))
+                            if usage is not None:
+                                metric["usage_percent"] = usage
+                                metric["usage_source"] = "rocm-smi"
+                        if "vram total memory" in key_lower:
+                            total_bytes = self._parse_int(str(value))
+                            if total_bytes is not None:
+                                metric["memory_total_mb"] = int(total_bytes / (1024 * 1024))
+                        if "vram used memory" in key_lower:
+                            used_bytes = self._parse_int(str(value))
+                            if used_bytes is not None:
+                                metric["memory_used_mb"] = int(used_bytes / (1024 * 1024))
+
+        try:
+            amd_card_paths = sorted(
+                p.parent for p in Path("/sys/class/drm").glob("card*/device/gpu_busy_percent") if p.is_file()
+            )
+            rocm_indices = sorted(int(device.hardware_id.split(":")[1]) for device in devices)
+            for rocm_idx, device_path in zip(rocm_indices, amd_card_paths, strict=False):
+                hardware_id = f"rocm:{rocm_idx}"
+                metric = metrics.setdefault(
+                    hardware_id,
+                    {
+                        "usage_percent": None,
+                        "usage_source": "unavailable",
+                        "memory_used_mb": 0,
+                        "memory_total_mb": 0,
+                        "memory_source": "rocm-smi",
+                        "process_memory_by_pid": {},
+                    },
+                )
+                usage = self._read_sysfs_percentage(device_path / "gpu_busy_percent")
+                if usage is not None:
+                    metric["usage_percent"] = usage
+                    metric["usage_source"] = "sysfs"
+                total_bytes = self._read_sysfs_int(device_path / "mem_info_vram_total")
+                used_bytes = self._read_sysfs_int(device_path / "mem_info_vram_used")
+                if total_bytes is not None and total_bytes > 0:
+                    metric["memory_total_mb"] = int(total_bytes / (1024 * 1024))
+                if used_bytes is not None and used_bytes >= 0:
+                    metric["memory_used_mb"] = int(used_bytes / (1024 * 1024))
+                if total_bytes is not None or used_bytes is not None:
+                    metric["memory_source"] = "sysfs"
+        except Exception:
+            pass
+
         return metrics
 
     def _collect_vulkan_metrics(self) -> dict[str, dict]:
@@ -448,6 +579,8 @@ class InferenceRuntime:
                 vendor_id = _parse_vulkan_vendor_id(block)
                 if vendor_id == AMD_VENDOR_ID:
                     amd_vulkan_indices.append(idx)
+                    if device_manager._should_hide_vulkan_amd():
+                        continue
                 heap_blocks = re.split(r"memoryHeaps\[\d+\]:", block)
                 for heap_block in heap_blocks[1:]:
                     if "VK_MEMORY_HEAP_DEVICE_LOCAL_BIT" not in heap_block:
@@ -739,6 +872,7 @@ def runtime_devices() -> dict:
             "memory_mb": device.memory_mb,
             "max_threads": device.max_threads,
             "max_slots": device.max_slots,
+            "pci_vendor_id": device.pci_vendor_id,
         }
         for device in device_manager.detect_local()
         if is_supported_vendor(device.vendor)

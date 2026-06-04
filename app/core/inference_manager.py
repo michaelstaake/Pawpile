@@ -67,6 +67,7 @@ class RunningModel:
     device_id: int | None
     vendor: str
     pool_device_ids: list[int] = field(default_factory=list)
+    stable_hardware_ids: list[str] = field(default_factory=list)
 
 
 class InferenceManager:
@@ -122,9 +123,39 @@ class InferenceManager:
 
         return result
 
+    @staticmethod
+    def _stable_hardware_ids_for_device(device: Device) -> list[str]:
+        if device.stable_hardware_id and device.stable_hardware_id.strip():
+            return [device.stable_hardware_id.strip()]
+        return []
+
+    @staticmethod
+    def _stable_hardware_ids_for_pool(target: PoolActivationTarget) -> list[str]:
+        return [
+            device.stable_hardware_id.strip()
+            for device in target.devices
+            if device.stable_hardware_id and device.stable_hardware_id.strip()
+        ]
+
+    def _ensure_stable_hardware_available(self, stable_ids: list[str], *, exclude_model_id: int | None = None) -> None:
+        if not stable_ids:
+            return
+
+        requested = set(stable_ids)
+        for running_model_id, running in self._running.items():
+            if exclude_model_id is not None and running_model_id == exclude_model_id:
+                continue
+            overlap = requested.intersection(running.stable_hardware_ids)
+            if overlap:
+                joined = ", ".join(sorted(overlap))
+                raise RuntimeError(f"GPU already in use (stable id: {joined})")
+
     async def activate_model(self, model: ModelConfig, device: Device) -> None:
         if model.id in self._running:
             return
+
+        stable_ids = self._stable_hardware_ids_for_device(device)
+        self._ensure_stable_hardware_available(stable_ids, exclude_model_id=model.id)
 
         runtime_url = self.runtime_url_for_vendor(device.vendor)
         if not runtime_url:
@@ -142,6 +173,8 @@ class InferenceManager:
             "memory_mapping_enabled": model.memory_mapping_enabled,
             "vendor": device.vendor,
             "hardware_id": device.hardware_id,
+            "stable_hardware_id": device.stable_hardware_id,
+            "stable_hardware_ids": stable_ids,
         }
         timeout = self.settings.inference_service_timeout_seconds
         async with httpx.AsyncClient(timeout=timeout) as client:
@@ -154,6 +187,7 @@ class InferenceManager:
             base_url=runtime_url,
             device_id=device.id,
             vendor=device.vendor,
+            stable_hardware_ids=stable_ids,
         )
 
         ok = await self.wait_until_healthy(model.id)
@@ -164,6 +198,9 @@ class InferenceManager:
     async def activate_model_on_pool(self, model: ModelConfig, target: PoolActivationTarget) -> None:
         if model.id in self._running:
             return
+
+        stable_ids = self._stable_hardware_ids_for_pool(target)
+        self._ensure_stable_hardware_available(stable_ids, exclude_model_id=model.id)
 
         runtime_url = self.runtime_url_for_vendor(target.runtime_vendor)
         if not runtime_url:
@@ -184,6 +221,7 @@ class InferenceManager:
             "hardware_ids": target.hardware_ids,
             "vram_ratios": target.vram_ratios,
             "split_mode": target.split_mode,
+            "stable_hardware_ids": stable_ids,
         }
         timeout = self.settings.inference_service_timeout_seconds
         async with httpx.AsyncClient(timeout=timeout) as client:
@@ -197,6 +235,7 @@ class InferenceManager:
             device_id=None,
             vendor=target.runtime_vendor,
             pool_device_ids=[d.id for d in target.devices],
+            stable_hardware_ids=stable_ids,
         )
 
         ok = await self.wait_until_healthy(model.id)

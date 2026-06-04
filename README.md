@@ -9,9 +9,9 @@ It supports x86_64 CPUs, NVIDIA GPUs, AMD GPUs, and Intel Arc GPUs. You can have
 ### Supported Devices
 
 - **CPU**: x86_64
-- **NVIDIA GPU**: CUDA
-- **AMD GPU**: Vulkan
-- **Intel Arc GPU**: Vulkan
+- **NVIDIA GPU**: CUDA (`--profile nvidia`)
+- **AMD GPU**: ROCm (`--profile rocm`, recommended) or Vulkan (`--profile vulkan` when ROCm is not enabled)
+- **Intel Arc GPU**: Vulkan (`--profile vulkan`)
 
 ### Ubuntu 26.04
 
@@ -60,17 +60,29 @@ docker compose up -d --build
 docker compose --profile nvidia up -d --build
 ```
 
-#### CPU + Vulkan (AMD/Intel Arc):
+#### CPU + Vulkan (Intel Arc, or AMD without ROCm):
 
 ```bash
 docker compose --profile vulkan up -d --build
 ```
 
-#### CPU + NVIDIA + Vulkan (AMD/Intel Arc):
+#### CPU + ROCm (AMD discrete / AI Pro):
 
 ```bash
-docker compose --profile nvidia --profile vulkan up -d --build
+docker compose --profile rocm up -d --build
 ```
+
+On the host, install ROCm user-space (Ubuntu 26.04 ships an older ROCm; for Radeon AI PRO R9700 and other recent AMD GPUs use ROCm 7.2+ from AMD’s repo with `amdgpu-install -y --usecase=rocm --no-dkms`). Add your user to the `render` and `video` groups.
+
+Optional build args for `inference-rocm`: `AMDGPU_TARGETS` (e.g. gfx1200) and `GGML_HIP_RCCL=ON` for experimental tensor-parallel pools.
+
+#### CPU + NVIDIA + Vulkan + ROCm (mixed vendors):
+
+```bash
+docker compose --profile nvidia --profile vulkan --profile rocm up -d --build
+```
+
+When the ROCm profile is running, AMD GPUs are listed only as `rocm` devices (Vulkan no longer duplicates them). Intel Arc stays on Vulkan; NVIDIA stays on CUDA.
 
 The initial build process may take a while depending on your environment and host performance, as we are building llama-cpp based on your chosen inference runtime.
 
@@ -102,8 +114,11 @@ To stop Pawpile, use the command that matches the profiles you started with to e
 docker compose down
 docker compose --profile nvidia down
 docker compose --profile vulkan down
-docker compose --profile nvidia --profile vulkan down
+docker compose --profile rocm down
+docker compose --profile nvidia --profile vulkan --profile rocm down
 ```
+
+**Multi-GPU AMD pools:** create a pool with vendor `rocm` and try split mode `layer` first. `tensor` mode is experimental; rebuild with `GGML_HIP_RCCL=ON` if you want to test it. PCIe bandwidth (e.g. PCIe 3.0) still limits cross-GPU performance.
 
 ## Interacting with the AI Models
 
@@ -234,7 +249,7 @@ Certificates are stored in `./certs` and renewed automatically when they are wit
 
 - **Device not detected**:
   - Check vendor tooling is installed on the host system:
-    - Ubuntu 26.04: `nvidia-smi` (NVIDIA) or `vulkaninfo` (AMD/Intel Arc)
+    - Ubuntu 26.04: `nvidia-smi` (NVIDIA), `rocm-smi` (AMD with ROCm profile), or `vulkaninfo` (Intel Arc / AMD without ROCm)
   - Ensure the appropriate GPU Docker runtime is configured and accessible to the environment.
   - Restart the application after installing drivers on the host.
 

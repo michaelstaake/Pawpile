@@ -7,7 +7,7 @@ import { formatDeviceIdLabel } from "../lib/deviceIds";
 import { DeviceRecord, DeviceUpdateResponse, GpuPoolRecord } from "../lib/records";
 
 const AUTO_SAVE_DELAY_MS = 700;
-const POOL_VENDORS = ["nvidia", "vulkan"] as const;
+const POOL_VENDORS = ["nvidia", "vulkan", "rocm"] as const;
 const SPLIT_MODES = ["layer", "tensor"] as const;
 
 function normalizePoolSplitMode(mode: string): (typeof SPLIT_MODES)[number] {
@@ -45,7 +45,10 @@ function sortPools(pools: GpuPoolRecord[]) {
 }
 
 function vendorLabel(vendor: string) {
-  return vendor === "nvidia" ? "NVIDIA" : vendor === "vulkan" ? "Vulkan" : vendor;
+  if (vendor === "nvidia") return "NVIDIA";
+  if (vendor === "vulkan") return "Vulkan";
+  if (vendor === "rocm") return "ROCm";
+  return vendor;
 }
 
 function parseNonNegativeInput(value: string) {

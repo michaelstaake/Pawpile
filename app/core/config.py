@@ -3,7 +3,7 @@ from pathlib import Path
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
-RUNTIME_VENDOR_KEYS = {"cpu", "nvidia", "vulkan", "default"}
+RUNTIME_VENDOR_KEYS = {"cpu", "nvidia", "vulkan", "rocm", "default"}
 
 
 def _default_llama_server_path() -> str:
@@ -11,7 +11,7 @@ def _default_llama_server_path() -> str:
 
 
 class Settings(BaseSettings):
-    model_config = SettingsConfigDict(env_file=".env", env_file_encoding="utf-8")
+    model_config = SettingsConfigDict(env_file=".env", env_file_encoding="utf-8", extra="ignore")
 
     app_name: str = "Pawpile"
     app_env: str = "development"
