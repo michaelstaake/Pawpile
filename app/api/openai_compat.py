@@ -270,38 +270,43 @@ async def _run_web_search_non_streaming(
     model_id: int,
     request_payload: dict[str, Any],
     provider: Any,
-) -> dict[str, Any]:
+) -> tuple[dict[str, Any], int]:
     """Run the agentic web search loop for non-streaming requests.
 
     Executes up to _WEB_SEARCH_MAX_ITERATIONS tool call turns, then returns
     the final text response.
+
+    Returns a tuple of (result, total_web_search_tool_calls).
     """
     messages = list(request_payload["messages"])
     tools = list(request_payload.get("tools") or [])
+    total_tool_calls = 0
 
     for _ in range(_WEB_SEARCH_MAX_ITERATIONS):
         result = await inference.chat_completion(model_id, {**request_payload, "messages": messages, "tools": tools})
         choices = result.get("choices", [])
         if not choices:
-            return result
+            return result, total_tool_calls
 
         choice = choices[0]
         if choice.get("finish_reason") != "tool_calls":
-            return result
+            return result, total_tool_calls
 
         message = choice.get("message", {})
         tool_calls = message.get("tool_calls", [])
         web_search_calls = [tc for tc in tool_calls if tc.get("function", {}).get("name") == "web_search"]
         if not web_search_calls:
             # Non-web-search tool calls — return as-is so the client can handle them
-            return result
+            return result, total_tool_calls
 
+        total_tool_calls += len(web_search_calls)
         messages = messages + [message]
         tool_results = await _execute_web_searches(web_search_calls, provider)
         messages = messages + tool_results
 
     # Exhausted iterations — request a final text answer without tools
-    return await inference.chat_completion(model_id, {**request_payload, "messages": messages, "tools": []})
+    final_result = await inference.chat_completion(model_id, {**request_payload, "messages": messages, "tools": []})
+    return final_result, total_tool_calls
 
 
 async def _stream_with_web_search(
@@ -309,10 +314,15 @@ async def _stream_with_web_search(
     model_id: int,
     request_payload: dict[str, Any],
     provider: Any,
+    *,
+    _tool_calls_container: dict[str, int] | None = None,
 ):
     """Async generator for streaming responses with web search support.
 
     Runs tool call turns as non-streaming internally, then streams the final answer.
+
+    If _tool_calls_container is provided, the total web_search tool call count is
+    stored in it under the "total" key.
     """
     messages = list(request_payload["messages"])
     tools = list(request_payload.get("tools") or [])
@@ -342,6 +352,10 @@ async def _stream_with_web_search(
         if finish_reason != "tool_calls" or not web_search_calls:
             # Final answer — already streamed above, just return
             return
+
+        # Count this iteration's web search tool calls
+        if _tool_calls_container is not None:
+            _tool_calls_container["total"] = _tool_calls_container.get("total", 0) + len(web_search_calls)
 
         # Execute searches and continue loop
         messages = messages + [message]
@@ -539,15 +553,17 @@ async def v1_chat_completions(payload: OpenAIChatRequest, current_user: User = D
             request_payload["tools"] = existing_tools + [WEB_SEARCH_TOOL_DEFINITION]
 
         if payload.stream:
+            _web_search_tool_calls: dict[str, int] = {}
+
             async def web_search_event_stream():
                 usage_recorded = False
                 current_task = asyncio.current_task()
                 if current_task is not None:
                     task_manager.attach_async_task(task_id, current_task)
                 try:
-                    async for chunk in _stream_with_web_search(inference, model.id, request_payload, active_web_search_provider):
+                    async for chunk in _stream_with_web_search(inference, model.id, request_payload, active_web_search_provider, _tool_calls_container=_web_search_tool_calls):
                         if not usage_recorded:
-                            usage_recorded = _record_usage_from_sse_chunk(chunk, db=db, user_id=current_user_id, tool_calls=request_payload.get("tool_calls", 0))
+                            usage_recorded = _record_usage_from_sse_chunk(chunk, db=db, user_id=current_user_id, tool_calls=_web_search_tool_calls.get("total", 0))
                         yield chunk
                     task_manager.complete_task(task_id)
                 except asyncio.CancelledError:
@@ -563,7 +579,7 @@ async def v1_chat_completions(payload: OpenAIChatRequest, current_user: User = D
 
         task_manager.attach_async_task(task_id, asyncio.current_task())
         try:
-            result = await _run_web_search_non_streaming(inference, model.id, request_payload, active_web_search_provider)
+            result, total_tool_calls = await _run_web_search_non_streaming(inference, model.id, request_payload, active_web_search_provider)
         except asyncio.CancelledError:
             task_manager.mark_cancelled(task_id)
             raise
@@ -571,7 +587,7 @@ async def v1_chat_completions(payload: OpenAIChatRequest, current_user: User = D
             task_manager.fail_task(task_id, str(exc))
             raise
         task_manager.complete_task(task_id)
-        _record_usage(result.get("usage"), db=db, user_id=current_user_id, tool_calls=request_payload.get("tool_calls", 0))
+        _record_usage(result.get("usage"), db=db, user_id=current_user_id, tool_calls=total_tool_calls)
         return {
             "id": f"chatcmpl-{uuid.uuid4().hex}",
             "object": "chat.completion",
