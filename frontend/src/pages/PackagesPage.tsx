@@ -177,14 +177,14 @@ export default function PackagesPage() {
       return;
     }
 
-    const tokenLimitsValid = validateTokenLimits(createDraft);
-    const toolLimitsValid = validateToolLimits(createDraft);
-    if (!tokenLimitsValid || !toolLimitsValid) {
-      if (tokenLimitsValid !== null) {
-        showError(tokenLimitsValid);
+    const tokenLimitsError = validateTokenLimits(createDraft);
+    const toolLimitsError = validateToolLimits(createDraft);
+    if (tokenLimitsError !== null || toolLimitsError !== null) {
+      if (tokenLimitsError !== null) {
+        showError(tokenLimitsError);
       }
-      if (toolLimitsValid !== null) {
-        showError(toolLimitsValid);
+      if (toolLimitsError !== null) {
+        showError(toolLimitsError);
       }
       return;
     }
@@ -238,14 +238,14 @@ export default function PackagesPage() {
       return;
     }
 
-    const tokenLimitsValid = validateTokenLimits(editDraft);
-    const toolLimitsValid = validateToolLimits(editDraft);
-    if (!tokenLimitsValid || !toolLimitsValid) {
-      if (tokenLimitsValid !== null) {
-        showError(tokenLimitsValid);
+    const tokenLimitsError = validateTokenLimits(editDraft);
+    const toolLimitsError = validateToolLimits(editDraft);
+    if (tokenLimitsError !== null || toolLimitsError !== null) {
+      if (tokenLimitsError !== null) {
+        showError(tokenLimitsError);
       }
-      if (toolLimitsValid !== null) {
-        showError(toolLimitsValid);
+      if (toolLimitsError !== null) {
+        showError(toolLimitsError);
       }
       return;
     }
