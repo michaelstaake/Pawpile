@@ -14,7 +14,13 @@ for _env_key in (
     os.environ.pop(_env_key, None)
 
 from app.core.device_manager import AMD_VENDOR_ID, DeviceManager, get_supported_vendors, is_supported_vendor
-from app.inference_service import ActivateModelRequest, InferenceRuntime
+from app.inference_service import (
+    ActivateModelRequest,
+    InferenceRuntime,
+    _format_gpu_layers_for_cli,
+    _llama_offload_extra_args,
+    _validate_gpu_offload_from_log,
+)
 
 
 ROCM_JSON_SAMPLE = json.dumps(
@@ -84,11 +90,37 @@ class RocmDetectionTests(unittest.TestCase):
         self.assertNotEqual(devices[0].pci_vendor_id, AMD_VENDOR_ID)
 
 
+class LlamaOffloadCliTests(unittest.TestCase):
+    def test_format_gpu_layers_for_cli(self) -> None:
+        self.assertEqual(_format_gpu_layers_for_cli(-1), "all")
+        self.assertEqual(_format_gpu_layers_for_cli(42), "42")
+
+    def test_llama_offload_extra_args_disable_fit_for_rocm(self) -> None:
+        self.assertEqual(
+            _llama_offload_extra_args("rocm", -1, fit_to_vram=False),
+            ["--fit", "off", "--main-gpu", "0"],
+        )
+        self.assertEqual(_llama_offload_extra_args("cpu", -1, fit_to_vram=False), [])
+
+    def test_validate_gpu_offload_from_log_rejects_zero_layers(self) -> None:
+        import tempfile
+
+        with tempfile.NamedTemporaryFile("w", encoding="utf-8", delete=False) as handle:
+            handle.write("load_tensors: offloaded 0/35 layers to GPU\n")
+            path = handle.name
+        try:
+            with self.assertRaises(RuntimeError):
+                _validate_gpu_offload_from_log(path, "rocm", -1)
+        finally:
+            os.unlink(path)
+
+
 class RocmInferenceEnvTests(unittest.TestCase):
     def test_build_env_rocm_single(self) -> None:
         runtime = InferenceRuntime()
         env = runtime._build_env("rocm", "rocm:1", threads=4)
         self.assertEqual(env["HIP_VISIBLE_DEVICES"], "1")
+        self.assertEqual(env.get("HSA_OVERRIDE_GFX_VERSION"), "12.0.1")
 
     def test_build_env_rocm_pool(self) -> None:
         runtime = InferenceRuntime()

@@ -36,6 +36,10 @@ class Settings(BaseSettings):
     llama_health_timeout_seconds: int = 5
     llama_startup_timeout_seconds: int = 120
     llama_request_timeout_seconds: int = 300
+    # When true, llama-server may reduce GPU layers / context to fit VRAM (--fit on).
+    llama_fit_to_vram: bool = False
+    # RDNA4 / R9700 (gfx1201): helps HIP find the GPU when ROCm mis-detects the arch.
+    rocm_hsa_override_gfx_version: str = "12.0.1"
 
     default_context_length: int = 32768
     default_threads: int = 8

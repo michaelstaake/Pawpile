@@ -23,6 +23,59 @@ from app.core.device_manager import AMD_VENDOR_ID, DeviceManager, get_supported_
 
 logger = logging.getLogger(__name__)
 
+_GPU_OFFLOAD_VENDORS = frozenset({"nvidia", "vulkan", "rocm"})
+
+
+def _format_gpu_layers_for_cli(gpu_layers: int) -> str:
+    if gpu_layers <= -1:
+        return "all"
+    return str(max(0, gpu_layers))
+
+
+def _llama_offload_extra_args(vendor: str, gpu_layers: int, *, fit_to_vram: bool) -> list[str]:
+    effective_vendor = vendor.removesuffix("_pool")
+    if effective_vendor not in _GPU_OFFLOAD_VENDORS or gpu_layers == 0:
+        return []
+
+    args: list[str] = []
+    if not fit_to_vram:
+        args.extend(["--fit", "off"])
+    if not vendor.endswith("_pool"):
+        args.extend(["--main-gpu", "0"])
+    return args
+
+
+def _apply_rocm_runtime_env(env: dict[str, str]) -> None:
+    override = get_settings().rocm_hsa_override_gfx_version.strip()
+    if override:
+        env["HSA_OVERRIDE_GFX_VERSION"] = override
+
+
+def _validate_gpu_offload_from_log(log_path: str, vendor: str, gpu_layers: int) -> None:
+    effective_vendor = vendor.removesuffix("_pool")
+    if effective_vendor not in _GPU_OFFLOAD_VENDORS or gpu_layers == 0:
+        return
+
+    try:
+        text = Path(log_path).read_text(encoding="utf-8", errors="ignore")
+    except OSError:
+        logger.warning("Could not read llama log at %s for GPU offload verification", log_path)
+        return
+
+    lowered = text.lower()
+    if "no usable gpu found" in lowered or "gpu-layers option will be ignored" in lowered:
+        raise RuntimeError(
+            "llama-server has no usable GPU backend. Rebuild with the correct inference profile "
+            "(for AMD: docker compose --profile rocm) and verify AMDGPU_TARGETS matches your GPU."
+        )
+
+    match = re.search(r"offloaded\s+(\d+)/(\d+)\s+layers", text, re.IGNORECASE)
+    if match and int(match.group(1)) == 0 and int(match.group(2)) > 0:
+        raise RuntimeError(
+            "Model loaded with 0 GPU layers (CPU-only). Lower context length, keep GPU layers at -1 (all), "
+            "set LLAMA_FIT_TO_VRAM=false, and confirm ROCm sees the GPU inside the inference-rocm container."
+        )
+
 
 def _coalesce_int(value: object) -> int | None:
     if value is None or value == "":
@@ -97,10 +150,17 @@ class InferenceRuntime:
             "--threads",
             str(payload.threads),
             "--n-gpu-layers",
-            str(payload.gpu_layers),
+            _format_gpu_layers_for_cli(payload.gpu_layers),
             "--flash-attn",
             "on" if payload.flash_attention_enabled else "off",
         ]
+        command.extend(
+            _llama_offload_extra_args(
+                payload.vendor,
+                payload.gpu_layers,
+                fit_to_vram=self.settings.llama_fit_to_vram,
+            )
+        )
         if not payload.memory_mapping_enabled:
             command.append("--no-mmap")
         if payload.mmproj_path:
@@ -141,6 +201,12 @@ class InferenceRuntime:
         if not await self.wait_until_healthy(payload.model_id):
             self.deactivate_model(payload.model_id)
             raise RuntimeError(f"Model {payload.alias} failed health check")
+
+        try:
+            _validate_gpu_offload_from_log(str(log_path), payload.vendor, payload.gpu_layers)
+        except RuntimeError:
+            self.deactivate_model(payload.model_id)
+            raise
 
     def deactivate_model(self, model_id: int) -> None:
         running = self._running.pop(model_id, None)
@@ -256,8 +322,10 @@ class InferenceRuntime:
             ids = hardware_ids if hardware_ids else [hardware_id]
             indices = [hid.split(":")[-1] for hid in ids]
             env["HIP_VISIBLE_DEVICES"] = ",".join(indices)
+            _apply_rocm_runtime_env(env)
         elif vendor == "rocm":
             env["HIP_VISIBLE_DEVICES"] = hardware_id.split(":")[-1]
+            _apply_rocm_runtime_env(env)
         elif vendor == "nvidia":
             env["CUDA_VISIBLE_DEVICES"] = hardware_id.split(":")[-1]
         elif vendor == "vulkan":
