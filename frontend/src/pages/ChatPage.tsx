@@ -329,10 +329,8 @@ export default function ChatPage() {
   const shouldAutoScrollRef = useRef(true);
   const inputRef = useRef<HTMLInputElement | null>(null);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
-  const inputSettingsRef = useRef<HTMLDivElement | null>(null);
   const abortControllerRef = useRef<AbortController | null>(null);
   const [attachments, setAttachments] = useState<Attachment[]>([]);
-  const [isInputSettingsOpen, setIsInputSettingsOpen] = useState(false);
   const [useWebSearch, setUseWebSearch] = useState(false);
   const [useThinking, setUseThinking] = useState(true);
   const selectedModelSupportsVision = selectedModel ? (modelVisionDefaults[selectedModel] ?? false) : false;
@@ -341,9 +339,7 @@ export default function ChatPage() {
   const selectedModelThinkingCapability = selectedModel ? (modelThinkingCapabilities[selectedModel] ?? "none") : "none";
   const selectedModelAllowsThinkingPreference = selectedModel !== "" && (modelThinkingControllable[selectedModel] ?? false);
   const selectedModelAlwaysThinks = selectedModelThinkingCapability === "always";
-  const selectedModelHasPreferences = selectedModelSupportsWebSearch || selectedModelAllowsThinkingPreference || selectedModelAlwaysThinks;
   const effectiveUseThinking = selectedModelAllowsThinkingPreference ? useThinking : selectedModelAlwaysThinks;
-  const hasActiveInputPreference = useWebSearch || (selectedModelAllowsThinkingPreference && !useThinking);
   const shouldShowTranscript = activeChatId !== null || messages.length > 0;
   const isNewChatEmptyState = activeChatId === null && messages.length === 0;
   const shouldShowNoModelsEmptyState = isNewChatEmptyState && !isLoadingModels && models.length === 0;
@@ -428,36 +424,10 @@ export default function ChatPage() {
       setUseWebSearch(false);
     }
 
-    if (!selectedModelHasPreferences) {
-      setIsInputSettingsOpen(false);
+    if (!selectedModelAllowsThinkingPreference && !selectedModelAlwaysThinks) {
+      setUseThinking(true);
     }
-  }, [selectedModelHasPreferences, selectedModelSupportsWebSearch]);
-
-  useEffect(() => {
-    if (!isInputSettingsOpen) {
-      return;
-    }
-
-    const handlePointerDown = (event: MouseEvent) => {
-      if (inputSettingsRef.current && !inputSettingsRef.current.contains(event.target as Node)) {
-        setIsInputSettingsOpen(false);
-      }
-    };
-
-    const handleEscape = (event: KeyboardEvent) => {
-      if (event.key === "Escape") {
-        setIsInputSettingsOpen(false);
-      }
-    };
-
-    document.addEventListener("mousedown", handlePointerDown);
-    document.addEventListener("keydown", handleEscape);
-
-    return () => {
-      document.removeEventListener("mousedown", handlePointerDown);
-      document.removeEventListener("keydown", handleEscape);
-    };
-  }, [isInputSettingsOpen]);
+  }, [selectedModelSupportsWebSearch, selectedModelAllowsThinkingPreference, selectedModelAlwaysThinks]);
 
   useEffect(() => {
     setMobileNavSection({
@@ -1244,73 +1214,33 @@ export default function ChatPage() {
           )}
 
           <div className="flex gap-2">
-            <div className="relative" ref={inputSettingsRef}>
+            {selectedModelSupportsWebSearch ? (
               <button
                 type="button"
-                onClick={() => setIsInputSettingsOpen((current) => !current)}
-                disabled={isSending || models.length === 0}
-                className={`flex h-12 w-12 items-center justify-center rounded-xl border border-black/20 bg-white text-black transition hover:bg-black/5 disabled:opacity-50 ${hasActiveInputPreference ? "border-amber/70 bg-amber/15 text-black" : ""}`}
-                title="Preferences"
-                aria-label="Preferences"
-                aria-haspopup="dialog"
-                aria-expanded={isInputSettingsOpen}
+                onClick={() => setUseWebSearch((current) => !current)}
+                disabled={isSending || isModelsUnavailable}
+                className={`flex h-12 w-12 items-center justify-center rounded-xl border border-black/20 bg-white text-black transition disabled:opacity-50 ${useWebSearch ? "border-amber/70 bg-amber/15 text-black" : "hover:bg-black/5"}`}
+                title="Web Search"
+                aria-label="Toggle Web Search"
+                aria-pressed={useWebSearch}
               >
-                <i className="bi bi-sliders text-[18px] leading-none" aria-hidden="true" />
+                <i className="bi bi-globe2 text-[18px] leading-none" aria-hidden="true" />
               </button>
-
-              {isInputSettingsOpen ? (
-                <div className="absolute bottom-[calc(100%+0.5rem)] left-0 z-20 w-72 rounded-2xl border border-black/10 bg-[#fffdf7] p-3 shadow-xl shadow-black/10">
-                  <div className="mb-2 text-xs font-semibold uppercase tracking-[0.18em] text-black/40">Preferences</div>
-                  {selectedModelHasPreferences ? (
-                    <div className="grid gap-2">
-                      {selectedModelAllowsThinkingPreference ? (
-                        <label className="flex cursor-pointer items-start gap-3 rounded-xl border border-black/10 bg-white px-3 py-3 text-sm text-black/75 transition hover:border-black/15 hover:bg-black/[0.02]">
-                          <input
-                            type="checkbox"
-                            checked={useThinking}
-                            onChange={(event) => setUseThinking(event.target.checked)}
-                            className="mt-0.5"
-                          />
-                          <span className="grid gap-1">
-                            <span className="font-semibold text-black">Thinking</span>
-                            <span className="text-xs leading-5 text-black/50">
-                              Uses the model&apos;s reasoning mode when supported.
-                            </span>
-                          </span>
-                        </label>
-                      ) : selectedModelAlwaysThinks ? (
-                        <div className="rounded-xl border border-black/10 bg-white px-3 py-3 text-sm text-black/75">
-                          <span className="font-semibold text-black">Thinking</span>
-                          <p className="mt-1 text-xs leading-5 text-black/50">
-                            This model always shows its reasoning and cannot disable it.
-                          </p>
-                        </div>
-                      ) : null}
-                      {selectedModelSupportsWebSearch ? (
-                        <label className="flex cursor-pointer items-start gap-3 rounded-xl border border-black/10 bg-white px-3 py-3 text-sm text-black/75 transition hover:border-black/15 hover:bg-black/[0.02]">
-                          <input
-                            type="checkbox"
-                            checked={useWebSearch}
-                            onChange={(event) => setUseWebSearch(event.target.checked)}
-                            className="mt-0.5"
-                          />
-                          <span className="grid gap-1">
-                            <span className="font-semibold text-black">Search</span>
-                            <span className="text-xs leading-5 text-black/50">
-                              Let this message use the configured web search provider.
-                            </span>
-                          </span>
-                        </label>
-                      ) : null}
-                    </div>
-                  ) : (
-                    <div className="rounded-xl border border-dashed border-black/10 bg-black/[0.02] px-3 py-3 text-sm text-black/50">
-                      No settings are available for the current model.
-                    </div>
-                  )}
-                </div>
-              ) : null}
-            </div>
+            ) : null}
+            {selectedModelAllowsThinkingPreference || selectedModelAlwaysThinks ? (
+              <button
+                type="button"
+                onClick={() => setUseThinking((current) => !current)}
+                disabled={isSending || isModelsUnavailable || !selectedModelAllowsThinkingPreference}
+                className={`flex h-12 w-12 items-center justify-center rounded-xl border border-black/20 bg-white text-black transition disabled:opacity-50 ${selectedModelAllowsThinkingPreference ? (useThinking ? "border-amber/70 bg-amber/15 text-black" : "hover:bg-black/5") : "border-amber/70 bg-amber/15 text-black"}`}
+                title={selectedModelAllowsThinkingPreference ? (useThinking ? "Disable Thinking" : "Enable Thinking") : "Thinking enabled by default"}
+                aria-label={selectedModelAllowsThinkingPreference ? (useThinking ? "Toggle Thinking off" : "Toggle Thinking on") : "Thinking enabled by default"}
+                aria-pressed={useThinking}
+                aria-disabled={!selectedModelAllowsThinkingPreference}
+              >
+                <i className="bi bi-stars text-[18px] leading-none" aria-hidden="true" />
+              </button>
+            ) : null}
             <button
               type="button"
               onClick={() => fileInputRef.current?.click()}
