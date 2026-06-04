@@ -623,6 +623,7 @@ class PackageResponse(BaseModel):
     id: int
     name: str
     is_admin_package: bool
+    is_default_package: bool
     usage_limit_tokens_60_minutes: int
     usage_limit_tokens_24_hours: int
     usage_limit_tokens_7_days: int
@@ -636,6 +637,7 @@ class PackageResponse(BaseModel):
 class PackageCreateRequest(BaseModel):
     name: str = Field(min_length=1, max_length=120)
     is_admin_package: bool = False
+    is_default_package: bool = False
     usage_limit_tokens_60_minutes: int = Field(default=0, ge=0)
     usage_limit_tokens_24_hours: int = Field(default=0, ge=0)
     usage_limit_tokens_7_days: int = Field(default=0, ge=0)
@@ -656,6 +658,7 @@ class PackageCreateRequest(BaseModel):
 class PackageUpdateRequest(BaseModel):
     name: str | None = Field(default=None, min_length=1, max_length=120)
     is_admin_package: bool | None = None
+    is_default_package: bool | None = None
     usage_limit_tokens_60_minutes: int | None = Field(default=None, ge=0)
     usage_limit_tokens_24_hours: int | None = Field(default=None, ge=0)
     usage_limit_tokens_7_days: int | None = Field(default=None, ge=0)

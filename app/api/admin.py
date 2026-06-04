@@ -424,6 +424,9 @@ def update_package(package_id: int, payload: PackageUpdateRequest, admin_user: U
     if not package:
         raise HTTPException(status_code=404, detail="Package not found")
 
+    if package.is_admin_package or package.is_default_package:
+        raise HTTPException(status_code=400, detail="Cannot edit the admin or default package")
+
     if payload.name is not None:
         existing = db.query(Package).filter(Package.name == payload.name, Package.id != package_id).first()
         if existing:
@@ -463,8 +466,8 @@ def delete_package(package_id: int, admin_user: User = Depends(get_admin_user), 
     if not package:
         raise HTTPException(status_code=404, detail="Package not found")
 
-    if package.is_admin_package:
-        raise HTTPException(status_code=400, detail="Cannot delete the admin package")
+    if package.is_admin_package or package.is_default_package:
+        raise HTTPException(status_code=400, detail="Cannot delete the admin or default package")
 
     users_with_package = db.query(User).filter(User.package_id == package_id).count()
     if users_with_package > 0:

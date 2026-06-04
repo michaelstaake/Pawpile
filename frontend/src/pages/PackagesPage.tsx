@@ -276,8 +276,8 @@ export default function PackagesPage() {
   }
 
   function openEditModal(pkg: PackageRecord) {
-    if (pkg.is_admin_package) {
-      showError("Cannot edit the admin package.");
+    if (pkg.is_admin_package || pkg.is_default_package) {
+      showError("Cannot edit the admin or default package.");
       return;
     }
     setEditingPackage(pkg);
@@ -297,8 +297,8 @@ export default function PackagesPage() {
   }
 
   function openDeleteModal(pkg: PackageRecord) {
-    if (pkg.is_admin_package) {
-      showError("Cannot delete the admin package.");
+    if (pkg.is_admin_package || pkg.is_default_package) {
+      showError("Cannot delete the admin or default package.");
       return;
     }
     setDeletingPackage(pkg);
@@ -399,11 +399,13 @@ export default function PackagesPage() {
                 <h3 className="font-display text-lg text-black">{pkg.name}</h3>
                 {pkg.is_admin_package ? (
                   <span className="rounded-full bg-amber-100 px-2.5 py-1 text-xs font-semibold text-amber-800">Admin</span>
+                ) : pkg.is_default_package ? (
+                  <span className="rounded-full bg-sky-100 px-2.5 py-1 text-xs font-semibold text-sky-800">Default</span>
                 ) : null}
               </div>
 
               <div className="mt-3 flex flex-wrap gap-1.5">
-                {!pkg.is_admin_package ? (
+                {!pkg.is_admin_package && !pkg.is_default_package ? (
                   <>
                     <button
                       className="rounded-lg border border-black/15 bg-white px-2.5 py-1.5 text-xs font-semibold text-black transition hover:bg-black/5"
