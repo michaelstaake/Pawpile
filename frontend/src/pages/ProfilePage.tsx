@@ -147,7 +147,7 @@ export default function ProfilePage() {
       <article className="rounded-3xl border border-black/10 bg-white/85 p-5 shadow-sm backdrop-blur">
         <div className="flex flex-wrap items-start justify-between gap-4">
           <div className="max-w-2xl">
-            <p className="text-xs font-semibold uppercase tracking-[0.18em] text-black/45">{roleLabel}{packageLabel}</p>
+            <p className="text-xs font-semibold uppercase tracking-[0.18em] text-black/45">{roleLabel}</p>
             <h2 className="mt-2 font-display text-2xl text-black">Profile</h2>
             <p className="mt-2 text-sm text-black/60">
               Signed in as <span className="font-semibold text-black">{user?.username ?? "Unknown user"}</span>
@@ -181,7 +181,7 @@ export default function ProfilePage() {
 
       {(showAccountUsage || showAccountToolUsage) && (
         <article className="rounded-3xl border border-black/10 bg-white/85 p-5 shadow-sm backdrop-blur">
-          <p className="text-xs font-semibold uppercase tracking-[0.18em] text-black/45">Your Usage</p>
+          <p className="text-xs font-semibold uppercase tracking-[0.18em] text-black/45">Your Usage{packageLabel}</p>
           <p className="mt-1 text-sm text-black/60">
             {adminUsage
               ? "Token and web search usage."
