@@ -194,6 +194,7 @@ export default function PackagesPage() {
       const payload: Omit<PackageRecord, "id"> = {
         name: createDraft.name,
         is_admin_package: createDraft.is_admin_package,
+        is_default_package: false,
         usage_limit_tokens_60_minutes: Number(createDraft.usage_limit_tokens_60_minutes),
         usage_limit_tokens_24_hours: Number(createDraft.usage_limit_tokens_24_hours),
         usage_limit_tokens_7_days: Number(createDraft.usage_limit_tokens_7_days),
@@ -254,6 +255,7 @@ export default function PackagesPage() {
       const payload: Omit<PackageRecord, "id"> = {
         name: editDraft.name,
         is_admin_package: editDraft.is_admin_package,
+        is_default_package: false,
         usage_limit_tokens_60_minutes: Number(editDraft.usage_limit_tokens_60_minutes),
         usage_limit_tokens_24_hours: Number(editDraft.usage_limit_tokens_24_hours),
         usage_limit_tokens_7_days: Number(editDraft.usage_limit_tokens_7_days),
