@@ -1,8 +1,10 @@
+import { useNavigate } from "react-router-dom";
 import { useAuth } from "../context/AuthContext";
 import { useToast } from "../context/ToastContext";
 import MarkdownRenderer from "../components/ui/MarkdownRenderer";
 
 export default function TermsAcceptancePage() {
+  const navigate = useNavigate();
   const { user, termsSettings, acceptTerms, declineTerms } = useAuth();
   const { showError } = useToast();
 
@@ -43,7 +45,9 @@ export default function TermsAcceptancePage() {
           <button
             type="button"
             onClick={() => {
-              void acceptTerms();
+              void acceptTerms().then(() => {
+                navigate("/", { replace: true });
+              });
             }}
             className="rounded-2xl bg-ink px-5 py-3 text-sm font-semibold text-white transition hover:bg-ink/90"
           >
