@@ -447,6 +447,18 @@ class ModelUpdateRequest(BaseModel):
     repetition_penalty: float | None = Field(default=None, ge=0.0)
     tool_calling_enabled: bool | None = None
     discourage_thinking: bool | None = None
+    default_thinking_enabled: bool | None = None
+    thinking_capability: str | None = None
+
+    @field_validator("thinking_capability")
+    @classmethod
+    def _validate_thinking_capability(cls, value: str | None) -> str | None:
+        if value is None:
+            return value
+        allowed = {"auto", "hybrid", "always", "none"}
+        if value not in allowed:
+            raise ValueError(f"thinking_capability must be one of: {', '.join(sorted(allowed))}")
+        return value
     vision_enabled: bool | None = None
     web_search_enabled: bool | None = None
     rag_enabled: bool | None = None

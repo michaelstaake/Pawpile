@@ -175,6 +175,7 @@ class InferenceManager:
             "hardware_id": device.hardware_id,
             "stable_hardware_id": device.stable_hardware_id,
             "stable_hardware_ids": stable_ids,
+            "discourage_thinking": model.discourage_thinking,
         }
         timeout = self.settings.inference_service_timeout_seconds
         async with httpx.AsyncClient(timeout=timeout) as client:
@@ -222,6 +223,7 @@ class InferenceManager:
             "vram_ratios": target.vram_ratios,
             "split_mode": target.split_mode,
             "stable_hardware_ids": stable_ids,
+            "discourage_thinking": model.discourage_thinking,
         }
         timeout = self.settings.inference_service_timeout_seconds
         async with httpx.AsyncClient(timeout=timeout) as client:

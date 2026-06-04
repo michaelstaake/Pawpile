@@ -112,6 +112,8 @@ function buildModelPayload(model: ModelRecord) {
     repetition_penalty: model.repetition_penalty,
     tool_calling_enabled: model.tool_calling_enabled,
     discourage_thinking: model.discourage_thinking,
+    default_thinking_enabled: model.default_thinking_enabled,
+    thinking_capability: model.thinking_capability,
     vision_enabled: model.vision_enabled,
     web_search_enabled: model.web_search_enabled,
     rag_enabled: model.rag_enabled,
@@ -943,11 +945,39 @@ export default function ModelsPage({ setupMode = false, onComplete }: ModelsPage
               <section>
                 <p className="mb-3 text-xs font-semibold uppercase tracking-[0.2em] text-black/45">Features</p>
                 <div className="grid gap-3">
+                  <label className="grid gap-1 text-sm text-black/70">
+                    <span>Thinking capability</span>
+                    <span className="text-xs text-black/45">Auto detects hybrid models (Qwen, Gemma). Override if detection is wrong.</span>
+                    <select
+                      className="rounded-xl border border-black/15 bg-white px-3 py-2 text-sm"
+                      value={modalDraft.thinking_capability}
+                      onChange={(event) => updateModalDraft({ thinking_capability: event.target.value })}
+                    >
+                      <option value="auto">Auto</option>
+                      <option value="hybrid">Hybrid (toggle in chat)</option>
+                      <option value="always">Always thinks</option>
+                      <option value="none">No thinking support</option>
+                    </select>
+                  </label>
+                  {!modalDraft.discourage_thinking && (modalDraft.thinking_capability === "auto" || modalDraft.thinking_capability === "hybrid") ? (
+                    <label className="flex gap-3 rounded-xl border border-black/10 bg-white px-3 py-2 text-sm text-black/70">
+                      <input
+                        className="mt-1"
+                        type="checkbox"
+                        checked={modalDraft.default_thinking_enabled}
+                        onChange={(event) => updateModalDraft({ default_thinking_enabled: event.target.checked })}
+                      />
+                      <span className="grid gap-0.5">
+                        <span className="text-sm text-black/70">Default thinking on</span>
+                        <span className="text-xs text-black/45">Initial state of the chat Thinking toggle for this model.</span>
+                      </span>
+                    </label>
+                  ) : null}
                   <label className="flex gap-3 rounded-xl border border-black/10 bg-white px-3 py-2 text-sm text-black/70">
                     <input className="mt-1" type="checkbox" checked={modalDraft.discourage_thinking} onChange={(event) => updateModalDraft({ discourage_thinking: event.target.checked })} />
                     <span className="grid gap-0.5">
-                      <span className="text-sm text-black/70">Discourage thinking</span>
-                      <span className="text-xs text-black/45">Some models may think regardless of this setting.</span>
+                      <span className="text-sm text-black/70">Always disable thinking</span>
+                      <span className="text-xs text-black/45">Locks thinking off for this model and hides the chat toggle.</span>
                     </span>
                   </label>
                   <label className="flex gap-3 rounded-xl border border-black/10 bg-white px-3 py-2 text-sm text-black/70">

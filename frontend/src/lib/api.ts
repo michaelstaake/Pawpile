@@ -420,6 +420,9 @@ export type V1ModelEntry = {
   context_length?: number;
   tool_calling_enabled?: boolean;
   discourage_thinking?: boolean;
+  default_thinking_enabled?: boolean;
+  thinking_capability?: string;
+  thinking_controllable?: boolean;
   vision_enabled?: boolean;
   web_search_enabled?: boolean;
   web_search_available?: boolean;

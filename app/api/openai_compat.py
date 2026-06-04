@@ -24,6 +24,12 @@ from app.models.knowledge_base import KnowledgeBaseDocument
 from app.models.model_config import ModelConfig
 from app.models.user import User
 from app.models.web_search_provider import WebSearchProvider as WebSearchProviderModel
+from app.core.thinking_controls import (
+    apply_thinking_to_request,
+    filter_thinking_from_sse_chunk,
+    model_thinking_metadata,
+    resolve_thinking_enabled,
+)
 from app.utils.schemas import OpenAIChatRequest
 
 logger = logging.getLogger(__name__)
@@ -31,27 +37,6 @@ logger = logging.getLogger(__name__)
 _WEB_SEARCH_MAX_ITERATIONS = 5
 
 router = APIRouter(prefix="/v1", tags=["openai"])
-
-
-THINKING_DISABLED_PROMPT = "Thinking mode: off. Do not include reasoning, chain-of-thought, or thought process. Reply with only the final answer."
-THINKING_ENABLED_PROMPT = "Thinking mode: on. Include your reasoning before the final answer when the model supports it."
-THINKING_CONTROL_RULES = {
-    "qwen": {
-        True: ["/think", THINKING_ENABLED_PROMPT],
-        False: ["/no_think", THINKING_DISABLED_PROMPT],
-    },
-    "gemma": {
-        True: [THINKING_ENABLED_PROMPT],
-        False: [THINKING_DISABLED_PROMPT],
-    },
-}
-KNOWN_THINKING_CONTROL_LINES = {
-    line
-    for controls in THINKING_CONTROL_RULES.values()
-    for lines in controls.values()
-    for line in lines
-}
-KNOWN_THINKING_CONTROL_LINES.update({THINKING_DISABLED_PROMPT, THINKING_ENABLED_PROMPT})
 
 
 def _coerce_usage_count(value: Any) -> int | None:
@@ -186,74 +171,6 @@ def _count_tool_calls(messages: list[dict]) -> int:
     return count
 
 
-def _model_family(model: ModelConfig) -> str | None:
-    model_identity = " ".join(
-        part.lower()
-        for part in (model.alias, model.file_name, model.model_dir_name)
-        if part
-    )
-    for family in THINKING_CONTROL_RULES:
-        if family in model_identity:
-            return family
-    return None
-
-
-def _resolve_enable_thinking(payload: OpenAIChatRequest, model: ModelConfig) -> bool:
-    if model.discourage_thinking:
-        return False
-    if payload.enable_thinking is not None:
-        return payload.enable_thinking
-    return True
-
-
-def _strip_known_thinking_control_lines(text: str) -> str:
-    cleaned_lines = [
-        line
-        for line in text.splitlines()
-        if line.strip() not in KNOWN_THINKING_CONTROL_LINES
-    ]
-    return "\n".join(cleaned_lines).strip()
-
-
-def _thinking_control_lines(model: ModelConfig, enabled: bool) -> list[str]:
-    lines = [THINKING_ENABLED_PROMPT if enabled else THINKING_DISABLED_PROMPT]
-    family = _model_family(model)
-    if family is None:
-        return lines
-
-    for line in THINKING_CONTROL_RULES[family][enabled]:
-        if line not in lines:
-            lines.append(line)
-    return lines
-
-
-def _prepend_system_lines(content: str | list[dict], prefix_lines: list[str]) -> str | list[dict]:
-    prefix = "\n".join(prefix_lines)
-    if isinstance(content, str):
-        existing = _strip_known_thinking_control_lines(content)
-        return f"{prefix}\n{existing}" if existing else prefix
-
-    for index, part in enumerate(content):
-        if isinstance(part, dict) and part.get("type") == "text":
-            existing = _strip_known_thinking_control_lines(part.get("text") or "")
-            updated = {**part, "text": f"{prefix}\n{existing}" if existing else prefix}
-            return [*content[:index], updated, *content[index + 1:]]
-
-    return [{"type": "text", "text": prefix}, *content]
-
-
-def _apply_thinking_controls(messages: list[dict], model: ModelConfig, enabled: bool) -> list[dict]:
-    prefix_lines = _thinking_control_lines(model, enabled)
-    if messages and messages[0].get("role") == "system":
-        existing = messages[0].get("content") or ""
-        return [
-            {**messages[0], "content": _prepend_system_lines(existing, prefix_lines)},
-            *messages[1:],
-        ]
-
-    return [{"role": "system", "content": "\n".join(prefix_lines)}, *messages]
-
-
 def _prepend_rag_context(messages: list[dict], rag_context: str) -> list[dict]:
     """Prepend RAG context as a system message at the beginning of the messages list."""
     if not rag_context:
@@ -360,6 +277,7 @@ async def _stream_with_web_search(
     request_payload: dict[str, Any],
     provider: Any,
     *,
+    thinking_enabled: bool = True,
     _tool_calls_container: dict[str, int] | None = None,
 ):
     """Async generator for streaming responses with web search support.
@@ -388,7 +306,7 @@ async def _stream_with_web_search(
         intermediate_payload["stream_options"] = stream_options
         async for chunk in inference.stream_chat_completion(model_id, intermediate_payload):
             buffered.append(chunk)
-            yield chunk  # Stream to client immediately to prevent timeout
+            yield filter_thinking_from_sse_chunk(chunk, thinking_enabled)
 
         message, finish_reason = parse_sse_chunks(buffered)
         tool_calls = message.get("tool_calls", [])
@@ -414,7 +332,7 @@ async def _stream_with_web_search(
     final_payload["tools"] = []
     final_payload["stream_options"] = stream_options
     async for chunk in inference.stream_chat_completion(model_id, final_payload):
-        yield chunk
+        yield filter_thinking_from_sse_chunk(chunk, thinking_enabled)
 
 
 @router.get("/models")
@@ -438,7 +356,7 @@ def v1_models(_: User = Depends(require_api_access), db: Session = Depends(get_d
                 "description": m.description,
                 "context_length": m.context_length,
                 "tool_calling_enabled": m.tool_calling_enabled,
-                "discourage_thinking": m.discourage_thinking,
+                **model_thinking_metadata(m),
                 "vision_enabled": m.vision_enabled,
                 "web_search_enabled": m.web_search_enabled,
                 "web_search_available": m.web_search_enabled and m.tool_calling_enabled and active_web_search_provider is not None,
@@ -528,7 +446,8 @@ async def v1_chat_completions(payload: OpenAIChatRequest, current_user: User = D
         request_payload["presence_penalty"] = model.presence_penalty
     if "repetition_penalty" not in request_payload:
         request_payload["repetition_penalty"] = model.repetition_penalty
-    request_payload["enable_thinking"] = _resolve_enable_thinking(payload, model)
+    request_payload["enable_thinking"] = resolve_thinking_enabled(model, payload.enable_thinking)
+    thinking_enabled = bool(request_payload["enable_thinking"])
     request_payload["tool_calls"] = _count_tool_calls(request_payload["messages"])
     request_payload["messages"] = [
         {
@@ -539,14 +458,7 @@ async def v1_chat_completions(payload: OpenAIChatRequest, current_user: User = D
         for message in payload.messages
     ]
 
-    # Some llama-server/model combinations do not reliably honor the generic
-    # enable_thinking flag. Inject a model-aware system directive so saved
-    # model defaults and API overrides stay effective for affected families.
-    request_payload["messages"] = _apply_thinking_controls(
-        request_payload["messages"],
-        model,
-        bool(request_payload.get("enable_thinking", True)),
-    )
+    request_payload = apply_thinking_to_request(request_payload, model, thinking_enabled)
 
     # RAG: retrieve relevant documents and inject as context if enabled
     rag_context = ""
@@ -606,7 +518,14 @@ async def v1_chat_completions(payload: OpenAIChatRequest, current_user: User = D
                 if current_task is not None:
                     task_manager.attach_async_task(task_id, current_task)
                 try:
-                    async for chunk in _stream_with_web_search(inference, model.id, request_payload, active_web_search_provider, _tool_calls_container=_web_search_tool_calls):
+                    async for chunk in _stream_with_web_search(
+                        inference,
+                        model.id,
+                        request_payload,
+                        active_web_search_provider,
+                        thinking_enabled=thinking_enabled,
+                        _tool_calls_container=_web_search_tool_calls,
+                    ):
                         extracted_usage = _extract_usage_from_sse_chunk(chunk)
                         if extracted_usage is not None:
                             accumulated_usage = _merge_usage_counts(accumulated_usage, extracted_usage)
@@ -664,7 +583,7 @@ async def v1_chat_completions(payload: OpenAIChatRequest, current_user: User = D
                 }):
                     if not usage_recorded:
                         usage_recorded = _record_usage_from_sse_chunk(chunk, db=db, user_id=current_user_id, tool_calls=request_payload.get("tool_calls", 0))
-                    yield chunk
+                    yield filter_thinking_from_sse_chunk(chunk, thinking_enabled)
                 task_manager.complete_task(task_id)
             except asyncio.CancelledError:
                 task_manager.mark_cancelled(task_id)

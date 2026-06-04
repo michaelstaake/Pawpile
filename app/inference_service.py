@@ -169,6 +169,7 @@ class ActivateModelRequest(BaseModel):
     split_mode: str = "layer"
     stable_hardware_id: str | None = None
     stable_hardware_ids: list[str] = []
+    discourage_thinking: bool = False
 
 
 @dataclass
@@ -247,6 +248,9 @@ class InferenceRuntime:
                 flash_attn_enabled=flash_attn_enabled,
             )
         )
+        command.append("--jinja")
+        if payload.discourage_thinking:
+            command.extend(["--reasoning", "off", "--reasoning-budget", "0"])
 
         logs_dir = Path(self.settings.logs_dir)
         logs_dir.mkdir(parents=True, exist_ok=True)

@@ -96,6 +96,8 @@ export type ModelRecord = {
   repetition_penalty: number;
   tool_calling_enabled: boolean;
   discourage_thinking: boolean;
+  default_thinking_enabled: boolean;
+  thinking_capability: string;
   vision_enabled: boolean;
   web_search_enabled: boolean;
   rag_enabled: boolean;

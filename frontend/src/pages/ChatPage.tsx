@@ -46,6 +46,9 @@ type ModelListResponse = {
     context_length?: number;
     tool_calling_enabled?: boolean;
     discourage_thinking?: boolean;
+    default_thinking_enabled?: boolean;
+    thinking_capability?: string;
+    thinking_controllable?: boolean;
     vision_enabled?: boolean;
     web_search_enabled?: boolean;
     web_search_available?: boolean;
@@ -305,6 +308,9 @@ export default function ChatPage() {
   const [modelVisionDefaults, setModelVisionDefaults] = useState<Record<string, boolean>>({});
   const [modelSearchAvailability, setModelSearchAvailability] = useState<Record<string, boolean>>({});
   const [modelThinkingDisabledDefaults, setModelThinkingDisabledDefaults] = useState<Record<string, boolean>>({});
+  const [modelThinkingDefaults, setModelThinkingDefaults] = useState<Record<string, boolean>>({});
+  const [modelThinkingControllable, setModelThinkingControllable] = useState<Record<string, boolean>>({});
+  const [modelThinkingCapabilities, setModelThinkingCapabilities] = useState<Record<string, string>>({});
   const [selectedModel, setSelectedModel] = useState<string>("");
   const [thinkingExpandedByIndex, setThinkingExpandedByIndex] = useState<Record<number, boolean>>({});
   const [messages, setMessages] = useState<ChatMessage[]>([]);
@@ -329,9 +335,11 @@ export default function ChatPage() {
   const selectedModelSupportsVision = selectedModel ? (modelVisionDefaults[selectedModel] ?? false) : false;
   const selectedModelSupportsWebSearch = selectedModel ? (modelSearchAvailability[selectedModel] ?? false) : false;
   const selectedModelDiscouragesThinking = selectedModel ? (modelThinkingDisabledDefaults[selectedModel] ?? false) : false;
-  const selectedModelAllowsThinkingPreference = selectedModel !== "" && !selectedModelDiscouragesThinking;
-  const selectedModelHasPreferences = selectedModelSupportsWebSearch || selectedModelAllowsThinkingPreference;
-  const effectiveUseThinking = selectedModelAllowsThinkingPreference ? useThinking : false;
+  const selectedModelThinkingCapability = selectedModel ? (modelThinkingCapabilities[selectedModel] ?? "none") : "none";
+  const selectedModelAllowsThinkingPreference = selectedModel !== "" && (modelThinkingControllable[selectedModel] ?? false);
+  const selectedModelAlwaysThinks = selectedModelThinkingCapability === "always";
+  const selectedModelHasPreferences = selectedModelSupportsWebSearch || selectedModelAllowsThinkingPreference || selectedModelAlwaysThinks;
+  const effectiveUseThinking = selectedModelAllowsThinkingPreference ? useThinking : selectedModelAlwaysThinks;
   const hasActiveInputPreference = useWebSearch || (selectedModelAllowsThinkingPreference && !useThinking);
   const shouldShowTranscript = activeChatId !== null || messages.length > 0;
   const isNewChatEmptyState = activeChatId === null && messages.length === 0;
@@ -374,6 +382,13 @@ export default function ChatPage() {
       window.removeEventListener("resize", handleResize);
     };
   }, [shouldShowTranscript]);
+
+  useEffect(() => {
+    if (!selectedModel) {
+      return;
+    }
+    setUseThinking(modelThinkingDefaults[selectedModel] ?? true);
+  }, [selectedModel, modelThinkingDefaults]);
 
   useEffect(() => {
     if (!isLoadingModels && models.length > 0 && !isSending) {
@@ -453,6 +468,9 @@ export default function ChatPage() {
       const visionDefaults: Record<string, boolean> = {};
       const searchAvailability: Record<string, boolean> = {};
       const thinkingDisabledDefaults: Record<string, boolean> = {};
+      const thinkingDefaults: Record<string, boolean> = {};
+      const thinkingControllable: Record<string, boolean> = {};
+      const thinkingCapabilities: Record<string, string> = {};
       for (const entry of response.data) {
         cardDetails[entry.id] = {
           description: entry.description?.trim() ?? "",
@@ -465,11 +483,17 @@ export default function ChatPage() {
         visionDefaults[entry.id] = entry.vision_enabled ?? false;
         searchAvailability[entry.id] = entry.web_search_available ?? false;
         thinkingDisabledDefaults[entry.id] = entry.discourage_thinking ?? false;
+        thinkingDefaults[entry.id] = entry.default_thinking_enabled ?? true;
+        thinkingControllable[entry.id] = entry.thinking_controllable ?? false;
+        thinkingCapabilities[entry.id] = entry.thinking_capability ?? "none";
       }
       setModelCardDetails(cardDetails);
       setModelVisionDefaults(visionDefaults);
       setModelSearchAvailability(searchAvailability);
       setModelThinkingDisabledDefaults(thinkingDisabledDefaults);
+      setModelThinkingDefaults(thinkingDefaults);
+      setModelThinkingControllable(thinkingControllable);
+      setModelThinkingCapabilities(thinkingCapabilities);
       setModels(aliases);
       setSelectedModel((current: string) => current || aliases[0] || "");
     } catch (error) {
@@ -724,7 +748,7 @@ export default function ChatPage() {
     enableTranscriptAutoScroll();
     setMessages([
       ...nextMessages,
-      { role: "assistant", content: "", phase: hasUploadStage ? "uploading" : "thinking", modelName: selectedModel, stats: null },
+      { role: "assistant", content: "", phase: hasUploadStage ? "uploading" : effectiveUseThinking ? "thinking" : "streaming", modelName: selectedModel, stats: null },
     ]);
     setInput("");
     setAttachments([]);
@@ -1250,10 +1274,17 @@ export default function ChatPage() {
                           <span className="grid gap-1">
                             <span className="font-semibold text-black">Thinking</span>
                             <span className="text-xs leading-5 text-black/50">
-                              Some models may disregard this setting.
+                              Uses the model&apos;s reasoning mode when supported.
                             </span>
                           </span>
                         </label>
+                      ) : selectedModelAlwaysThinks ? (
+                        <div className="rounded-xl border border-black/10 bg-white px-3 py-3 text-sm text-black/75">
+                          <span className="font-semibold text-black">Thinking</span>
+                          <p className="mt-1 text-xs leading-5 text-black/50">
+                            This model always shows its reasoning and cannot disable it.
+                          </p>
+                        </div>
                       ) : null}
                       {selectedModelSupportsWebSearch ? (
                         <label className="flex cursor-pointer items-start gap-3 rounded-xl border border-black/10 bg-white px-3 py-3 text-sm text-black/75 transition hover:border-black/15 hover:bg-black/[0.02]">
@@ -1383,7 +1414,9 @@ async function streamCompletion(
     throw new Error(detail);
   }
 
-  onStageChange("thinking");
+  if (enableThinking) {
+    onStageChange("thinking");
+  }
 
   if (!response.body) {
     throw new Error("Streaming response has no body");
@@ -1440,7 +1473,7 @@ async function streamCompletion(
           const delta = parsed.choices?.[0]?.delta;
           const deltaContent = delta?.content;
           const deltaThinking = delta?.reasoning_content || delta?.reasoning || delta?.thought;
-          if (deltaThinking) {
+          if (deltaThinking && enableThinking) {
             onDelta(deltaThinking, "thinking");
           } else if (deltaContent) {
             onDelta(deltaContent, "content");
@@ -1490,7 +1523,7 @@ async function streamCompletion(
         const delta = parsed.choices?.[0]?.delta;
         const deltaContent = delta?.content;
         const deltaThinking = delta?.reasoning_content || delta?.reasoning || delta?.thought;
-        if (deltaThinking) {
+        if (deltaThinking && enableThinking) {
           onDelta(deltaThinking, "thinking");
         } else if (deltaContent) {
           onDelta(deltaContent, "content");
