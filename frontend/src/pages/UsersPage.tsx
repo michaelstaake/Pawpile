@@ -489,7 +489,7 @@ export default function UsersPage() {
                 className="w-full rounded-xl border border-black/10 bg-white px-4 py-3 outline-none transition focus:border-black/25"
                 type="email"
                 value={emailValue}
-                onChange={(event) => setEmail(event.target.value)}
+                onChange={(event) => setEmailValue(event.target.value)}
                 autoComplete="email"
                 required
               />
@@ -526,7 +526,7 @@ export default function UsersPage() {
                 className="w-full rounded-xl border border-black/10 bg-white px-4 py-3 outline-none transition focus:border-black/25"
                 type="password"
                 value={passwordValue}
-                onChange={(event) => setPassword(event.target.value)}
+                onChange={(event) => setPasswordValue(event.target.value)}
                 autoComplete="new-password"
                 placeholder="Enter a new password"
               />
@@ -537,7 +537,7 @@ export default function UsersPage() {
                 className="w-full rounded-xl border border-black/10 bg-white px-4 py-3 outline-none transition focus:border-black/25"
                 type="password"
                 value={confirmPasswordValue}
-                onChange={(event) => setConfirmPassword(event.target.value)}
+                onChange={(event) => setConfirmPasswordValue(event.target.value)}
                 autoComplete="new-password"
                 placeholder="Repeat the new password"
               />
