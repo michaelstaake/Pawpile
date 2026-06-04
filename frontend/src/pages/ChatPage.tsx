@@ -1106,7 +1106,7 @@ export default function ChatPage() {
               ) : (
                 <div className="space-y-3">
                   {messages.map((message, index) => (
-                  message.role === "assistant" && (message.phase === "uploading" || message.phase === "thinking") && !message.content && !message.thinking ? (
+                  message.role === "assistant" && (message.phase === "uploading" || message.phase === "thinking" || message.phase === "streaming") && !message.content && !message.thinking ? (
                     <div key={index} className="px-1 py-1 text-sm font-medium text-black/45">
                       <span className="inline-flex items-center gap-2">
                         <span className="animate-pulse">{message.phase === "uploading" ? "Uploading..." : "Processing..."}</span>
