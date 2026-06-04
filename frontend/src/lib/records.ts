@@ -50,6 +50,8 @@ export type UserRecord = {
   is_admin: boolean;
   is_active: boolean;
   password?: string;
+  package_id?: number | null;
+  package_name?: string | null;
 };
 
 export type UserTokenUsageRecord = {
@@ -227,6 +229,7 @@ export type StatusResponse = {
     base_url: string;
     detail: string;
   }[];
+  package_name?: string | null;
 };
 
 export type ScanResponse = {
@@ -267,6 +270,20 @@ export type DeviceUpdateResponse = {
 export type UserUpdateResponse = {
   status: string;
   user: UserRecord;
+};
+
+export type PackageRecord = {
+  id: number;
+  name: string;
+  is_admin_package: boolean;
+  usage_limit_tokens_60_minutes: number;
+  usage_limit_tokens_24_hours: number;
+  usage_limit_tokens_7_days: number;
+  usage_limit_tokens_30_days: number;
+  usage_limit_tools_60_minutes: number;
+  usage_limit_tools_24_hours: number;
+  usage_limit_tools_7_days: number;
+  usage_limit_tools_30_days: number;
 };
 
 export type AppSettingsRecord = {

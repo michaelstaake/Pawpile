@@ -15,6 +15,7 @@ from app.core.security import create_access_token, generate_api_key, hash_api_ke
 from app.models.api_key import ApiKey
 from app.models.device import Device
 from app.models.model_config import ModelConfig
+from app.models.package import Package
 from app.models.user import User
 from app.utils.schemas import ApiKeyCreateRequest, BootstrapAdminRequest, BootstrapStatusResponse, LoginRequest, LoginResponse, ProfileUpdateRequest, UserRegistrationRequest, UserResponse
 
@@ -62,6 +63,7 @@ def bootstrap_admin(payload: BootstrapAdminRequest, request: Request, db: Sessio
             password_hash=hash_password(payload.password),
             is_admin=True,
             is_active=True,
+            package_id=1,
         )
         db.add(admin_user)
         db.commit()
@@ -153,12 +155,13 @@ async def register(payload: UserRegistrationRequest, request: Request, db: Sessi
     if existing_user is not None:
         raise HTTPException(status_code=409, detail="Username or email already exists")
 
-    user = User(
+      user = User(
         username=payload.username,
         email=payload.email,
         password_hash=hash_password(payload.password),
         is_admin=False,
         is_active=True,
+        package_id=2,
     )
     db.add(user)
     db.commit()
@@ -173,7 +176,12 @@ async def register(payload: UserRegistrationRequest, request: Request, db: Sessi
 
 
 @router.get("/me", response_model=UserResponse)
-def current_user(current_user: User = Depends(get_current_user)) -> UserResponse:
+def current_user(current_user: User = Depends(get_current_user), db: Session = Depends(get_db)) -> UserResponse:
+    package_name = None
+    if current_user.package_id is not None:
+        package = db.query(Package).filter(Package.id == current_user.package_id).first()
+        if package:
+            package_name = package.name
     return UserResponse(
         id=current_user.id,
         username=current_user.username,
@@ -181,6 +189,8 @@ def current_user(current_user: User = Depends(get_current_user)) -> UserResponse
         is_admin=current_user.is_admin,
         is_active=current_user.is_active,
         terms_accepted=current_user.terms_accepted_at is not None,
+        package_id=current_user.package_id,
+        package_name=package_name,
     )
 
 
@@ -214,6 +224,12 @@ def update_current_user(
     db.commit()
     db.refresh(current_user)
 
+    package_name = None
+    if current_user.package_id is not None:
+        package = db.query(Package).filter(Package.id == current_user.package_id).first()
+        if package:
+            package_name = package.name
+
     ip = request.client.host if request.client else None
     if email_changed:
         log_event(db, "auth.email_changed", user_id=current_user.id, username=current_user.username, ip_address=ip)
@@ -226,6 +242,8 @@ def update_current_user(
         email=current_user.email,
         is_admin=current_user.is_admin,
         is_active=current_user.is_active,
+        package_id=current_user.package_id,
+        package_name=package_name,
     )
 
 

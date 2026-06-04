@@ -9,6 +9,7 @@ from app.api.deps import get_optional_current_user
 from app.core.app_settings import get_or_create_app_settings
 from app.core.config import get_settings
 from app.core.usage_limits import build_account_tool_usage_status, build_account_usage_status
+from app.models.package import Package
 from app.models.user import User
 from app.core.device_manager import build_device_display_suffix
 from app.core.db import get_db
@@ -113,10 +114,15 @@ async def get_status(
     disk = psutil.disk_usage("/")
     account_usage = None
     account_tool_usage = None
+    package_name = None
     if current_user is not None:
         app_settings = get_or_create_app_settings(db)
         account_usage = build_account_usage_status(db, user=current_user, app_settings=app_settings)
         account_tool_usage = build_account_tool_usage_status(db, user=current_user, app_settings=app_settings)
+        if current_user.package_id is not None:
+            package = db.query(Package).filter(Package.id == current_user.package_id).first()
+            if package:
+                package_name = package.name
 
     return {
         "status": "ok",
@@ -131,6 +137,7 @@ async def get_status(
         "account_tool_usage": account_tool_usage,
         "devices": serialized_devices,
         "runtime_errors": runtime_errors,
+        "package_name": package_name,
     }
 
 

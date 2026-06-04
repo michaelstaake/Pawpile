@@ -7,6 +7,7 @@ from app.models.gpu_pool import GpuPool, GpuPoolDevice
 from app.models.inference_job import InferenceJob
 from app.models.knowledge_base import KnowledgeBaseCategory, KnowledgeBaseDocument
 from app.models.model_config import ModelConfig
+from app.models.package import Package
 from app.models.token_usage import TokenUsage
 from app.models.user import User
 from app.models.web_search_provider import WebSearchProvider
@@ -24,6 +25,7 @@ __all__ = [
     "KnowledgeBaseCategory",
     "KnowledgeBaseDocument",
     "ModelConfig",
+    "Package",
     "TokenUsage",
     "User",
     "WebSearchProvider",

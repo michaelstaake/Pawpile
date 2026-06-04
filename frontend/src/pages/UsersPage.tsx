@@ -1,10 +1,10 @@
 import { FormEvent, useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import Modal from "../components/ui/Modal";
-import { apiGet, apiPatch, apiPost, deleteUser, toggleUserActive, updateUserEmail, updateUserPassword } from "../lib/api";
+import { apiGet, apiPatch, apiPost, deleteUser, toggleUserActive, updateUserEmail, updateUserPassword, fetchPackages } from "../lib/api";
 import { useAuth } from "../context/AuthContext";
 import { useToast } from "../context/ToastContext";
-import { UserRecord, UserTokenUsageRecord, UserUpdateResponse } from "../lib/records";
+import { PackageRecord, UserRecord, UserTokenUsageRecord, UserUpdateResponse } from "../lib/records";
 
 type CreateUserPayload = {
   username: string;
@@ -12,6 +12,7 @@ type CreateUserPayload = {
   password: string;
   is_admin: boolean;
   is_active: boolean;
+  package_id?: number | null;
 };
 
 export default function UsersPage() {
@@ -19,7 +20,8 @@ export default function UsersPage() {
   const { showError, showSuccess } = useToast();
   const [users, setUsers] = useState<UserRecord[]>([]);
   const [userTokenUsages, setUserTokenUsages] = useState<Record<number, UserTokenUsageRecord>>({});
-  const [newUser, setNewUser] = useState<CreateUserPayload>({ username: "", email: "", password: "", is_admin: false, is_active: true });
+  const [packages, setPackages] = useState<PackageRecord[]>([]);
+  const [newUser, setNewUser] = useState<CreateUserPayload>({ username: "", email: "", password: "", is_admin: false, is_active: true, package_id: 2 });
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [isCreatingUser, setIsCreatingUser] = useState(false);
@@ -55,6 +57,7 @@ export default function UsersPage() {
     }
     void refreshUsers(token);
     void refreshTokenUsage(token);
+    void loadPackages(token);
   }, [token]);
 
   async function refreshUsers(activeToken: string) {
@@ -82,6 +85,15 @@ export default function UsersPage() {
     }
   }
 
+  async function loadPackages(activeToken: string) {
+    try {
+      const response = await apiGet<PackageRecord[]>("/api/admin/packages", activeToken);
+      setPackages(response);
+    } catch (error) {
+      showError(error instanceof Error ? error.message : "Failed to load packages");
+    }
+  }
+
   async function handleCreateUser(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     if (!token) {
@@ -91,9 +103,19 @@ export default function UsersPage() {
     setIsCreatingUser(true);
 
     try {
-      const response = await apiPost<CreateUserPayload, UserUpdateResponse>("/api/admin/users", newUser, token);
+      const payload: CreateUserPayload = {
+        username: newUser.username,
+        email: newUser.email,
+        password: newUser.password,
+        is_admin: newUser.is_admin,
+        is_active: newUser.is_active,
+      };
+      if (!newUser.is_admin) {
+        payload.package_id = newUser.package_id;
+      }
+      const response = await apiPost<CreateUserPayload, UserUpdateResponse>("/api/admin/users", payload, token);
       setUsers((current) => [...current, { ...response.user, password: "" }].sort((left, right) => left.username.localeCompare(right.username)));
-      setNewUser({ username: "", email: "", password: "", is_admin: false, is_active: true });
+      setNewUser({ username: "", email: "", password: "", is_admin: false, is_active: true, package_id: 2 });
       setIsCreateModalOpen(false);
       showSuccess(`Created user ${response.user.username}.`);
     } catch (error) {
@@ -294,6 +316,7 @@ export default function UsersPage() {
               </div>
               <div className="mt-1.5 flex flex-wrap items-center gap-1.5">
                 {user.is_admin ? <span className="rounded-full bg-amber-100 px-2.5 py-1 text-xs font-semibold text-amber-800">Admin</span> : null}
+                {user.package_name ? <span className="rounded-full bg-blue-100 px-2.5 py-1 text-xs font-semibold text-blue-800">{user.package_name}</span> : null}
                 {user.is_active ? <span className="rounded-full bg-[#e8f5e9] px-2.5 py-1 text-xs font-semibold text-[#2f8f4e]">Enabled</span> : <span className="rounded-full bg-black/10 px-2.5 py-1 text-xs font-semibold text-black/60">Disabled</span>}
               </div>
               <div className="mt-3 flex flex-wrap gap-1.5">
@@ -385,6 +408,22 @@ export default function UsersPage() {
                   Active
                 </label>
               </div>
+              {!newUser.is_admin && (
+                <div className="md:col-span-2">
+                  <label className="block text-sm text-black/70">
+                    <span className="mb-2 block font-semibold text-black">Package</span>
+                    <select
+                      className="w-full rounded-xl border border-black/15 bg-white px-3 py-2 text-sm"
+                      value={newUser.package_id ?? ""}
+                      onChange={(event) => setNewUser((current) => ({ ...current, package_id: event.target.value ? Number(event.target.value) : null }))}
+                    >
+                      {packages.filter((p) => !p.is_admin_package).map((pkg) => (
+                        <option key={pkg.id} value={pkg.id}>{pkg.name}</option>
+                      ))}
+                    </select>
+                  </label>
+                </div>
+              )}
             </div>
             <div>
               <button className="rounded-xl bg-ink px-4 py-2 text-sm font-semibold text-white disabled:cursor-not-allowed disabled:opacity-60" type="submit" disabled={isCreatingUser}>

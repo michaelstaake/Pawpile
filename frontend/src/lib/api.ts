@@ -451,6 +451,23 @@ export async function deleteUser(userId: number, token?: string): Promise<{ stat
   return apiDelete<{ status: string }>(`/api/admin/users/${userId}`, token);
 }
 
+// Package API functions
+export async function fetchPackages<T>(token?: string): Promise<T> {
+  return apiGet<T>("/api/admin/packages", token);
+}
+
+export async function createPackage<TRequest, TResponse>(payload: TRequest, token?: string): Promise<TResponse> {
+  return apiPost<TRequest, TResponse>("/api/admin/packages", payload, token);
+}
+
+export async function updatePackage<TRequest, TResponse>(packageId: number, payload: TRequest, token?: string): Promise<TResponse> {
+  return apiPatch<TRequest, TResponse>(`/api/admin/packages/${packageId}`, payload, token);
+}
+
+export async function deletePackage<TResponse>(packageId: number, token?: string): Promise<TResponse> {
+  return apiDelete<TResponse>(`/api/admin/packages/${packageId}`, token);
+}
+
 export async function pollUntilTaskComplete(taskId: string, token?: string, maxAttempts: number = 600, intervalMs: number = 1000): Promise<TaskStatusResponse> {
   for (let i = 0; i < maxAttempts; i++) {
     try {

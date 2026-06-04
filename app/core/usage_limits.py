@@ -5,6 +5,7 @@ from sqlalchemy import func
 from sqlalchemy.orm import Session
 
 from app.models.app_settings import AppSettings
+from app.models.package import Package
 from app.models.token_usage import TokenUsage
 from app.models.user import User
 
@@ -52,12 +53,34 @@ def get_tool_usage_limit_values(app_settings: AppSettings) -> dict[str, int]:
     }
 
 
+def get_package_usage_limit_values(package: Package) -> dict[str, int]:
+    return {
+        period_id: max(0, int(getattr(package, limit_attr, 0) or 0))
+        for period_id, limit_attr, _ in USAGE_PERIOD_SPECS
+    }
+
+
+def get_package_tool_usage_limit_values(package: Package) -> dict[str, int]:
+    return {
+        period_id: max(0, int(getattr(package, limit_attr, 0) or 0))
+        for period_id, limit_attr, _ in TOOL_USAGE_PERIOD_SPECS
+    }
+
+
 def are_usage_limits_enabled(app_settings: AppSettings) -> bool:
     return any(value > 0 for value in get_usage_limit_values(app_settings).values())
 
 
 def are_tool_usage_limits_enabled(app_settings: AppSettings) -> bool:
     return any(value > 0 for value in get_tool_usage_limit_values(app_settings).values())
+
+
+def are_package_usage_limits_enabled(package: Package) -> bool:
+    return any(value > 0 for value in get_package_usage_limit_values(package).values())
+
+
+def are_package_tool_usage_limits_enabled(package: Package) -> bool:
+    return any(value > 0 for value in get_package_tool_usage_limit_values(package).values())
 
 
 def validate_usage_limit_values(
@@ -198,6 +221,20 @@ def is_user_over_usage_limit(db: Session, *, user: User, app_settings: AppSettin
     if user.is_admin:
         return False
 
+    if user.package_id is not None:
+        package = db.query(Package).filter(Package.id == user.package_id).first()
+        if package:
+            limits = get_package_usage_limit_values(package)
+            if any(limit > 0 for limit in limits.values()):
+                user_id = getattr(user, "id", None)
+                if not user_id or user_id <= 0:
+                    return False
+                usage = get_user_token_usage_by_period(db, user_id=user_id)
+                for period_id, limit in limits.items():
+                    if limit > 0 and usage[period_id] >= limit:
+                        return True
+            return False
+
     limits = get_usage_limit_values(app_settings)
     if not any(limit > 0 for limit in limits.values()):
         return False
@@ -216,6 +253,20 @@ def is_user_over_usage_limit(db: Session, *, user: User, app_settings: AppSettin
 def is_user_over_tool_usage_limit(db: Session, *, user: User, app_settings: AppSettings) -> bool:
     if user.is_admin:
         return False
+
+    if user.package_id is not None:
+        package = db.query(Package).filter(Package.id == user.package_id).first()
+        if package:
+            limits = get_package_tool_usage_limit_values(package)
+            if any(limit > 0 for limit in limits.values()):
+                user_id = getattr(user, "id", None)
+                if not user_id or user_id <= 0:
+                    return False
+                usage = get_user_tool_usage_by_period(db, user_id=user_id)
+                for period_id, limit in limits.items():
+                    if limit > 0 and usage[period_id] >= limit:
+                        return True
+            return False
 
     limits = get_tool_usage_limit_values(app_settings)
     if not any(limit > 0 for limit in limits.values()):
@@ -245,6 +296,21 @@ def check_usage_limit_for_request(
     if not user_id or user_id <= 0:
         return UsageLimitCheckResult(allowed=True, at_limit=False)
 
+    if user.package_id is not None:
+        package = db.query(Package).filter(Package.id == user.package_id).first()
+        if package:
+            limits = get_package_usage_limit_values(package)
+            if any(limit > 0 for limit in limits.values()):
+                usage = get_user_token_usage_by_period(db, user_id=user_id)
+                exceeded_periods = [period_id for period_id, limit in limits.items() if limit > 0 and usage[period_id] >= limit]
+                if exceeded_periods:
+                    return UsageLimitCheckResult(
+                        allowed=False,
+                        at_limit=True,
+                        detail="Token usage limit reached. Try again after your usage resets.",
+                    )
+            return UsageLimitCheckResult(allowed=True, at_limit=False)
+
     limits = get_usage_limit_values(app_settings)
     if not any(limit > 0 for limit in limits.values()):
         return UsageLimitCheckResult(allowed=True, at_limit=False)
@@ -273,6 +339,21 @@ def check_tool_usage_limit_for_request(
     user_id = getattr(user, "id", None)
     if not user_id or user_id <= 0:
         return UsageLimitCheckResult(allowed=True, at_limit=False)
+
+    if user.package_id is not None:
+        package = db.query(Package).filter(Package.id == user.package_id).first()
+        if package:
+            limits = get_package_tool_usage_limit_values(package)
+            if any(limit > 0 for limit in limits.values()):
+                usage = get_user_tool_usage_by_period(db, user_id=user_id)
+                exceeded_periods = [period_id for period_id, limit in limits.items() if limit > 0 and usage[period_id] >= limit]
+                if exceeded_periods:
+                    return UsageLimitCheckResult(
+                        allowed=False,
+                        at_limit=True,
+                        detail="Tool usage limit reached. Try again after your usage resets.",
+                    )
+            return UsageLimitCheckResult(allowed=True, at_limit=False)
 
     limits = get_tool_usage_limit_values(app_settings)
     if not any(limit > 0 for limit in limits.values()):
@@ -304,6 +385,41 @@ def build_account_usage_status(db: Session, *, user: User, app_settings: AppSett
         "7_days": "7 Days",
         "30_days": "30 Days",
     }
+
+    if user.package_id is not None:
+        package = db.query(Package).filter(Package.id == user.package_id).first()
+        if package:
+            limits = get_package_usage_limit_values(package)
+            periods = []
+            for period_id, limit in limits.items():
+                used = usage[period_id]
+                effective_limit = 0 if user.is_admin else limit
+                percent = min(100.0, (used / effective_limit) * 100) if effective_limit > 0 else 0.0
+                _, _, window = next(s for s in USAGE_PERIOD_SPECS if s[0] == period_id)
+                oldest_ts = _as_utc_aware(oldest[period_id])
+                if oldest_ts is not None:
+                    resets_in = int((oldest_ts + window - now).total_seconds())
+                    resets_in = max(0, resets_in)
+                else:
+                    resets_in = None
+                periods.append(
+                    {
+                        "id": period_id,
+                        "label": period_labels[period_id],
+                        "limit_tokens": effective_limit,
+                        "used_tokens": used,
+                        "percent": round(percent, 1),
+                        "resets_in_seconds": resets_in,
+                    }
+                )
+
+            return {
+                "enabled": True,
+                "is_admin": user.is_admin,
+                "at_limit": is_user_over_usage_limit(db, user=user, app_settings=app_settings),
+                "periods": periods,
+            }
+
     limits = get_usage_limit_values(app_settings)
     periods = []
     for period_id, limit in limits.items():
@@ -350,6 +466,41 @@ def build_account_tool_usage_status(db: Session, *, user: User, app_settings: Ap
         "7_days": "7 Days",
         "30_days": "30 Days",
     }
+
+    if user.package_id is not None:
+        package = db.query(Package).filter(Package.id == user.package_id).first()
+        if package:
+            limits = get_package_tool_usage_limit_values(package)
+            periods = []
+            for period_id, limit in limits.items():
+                used = usage[period_id]
+                effective_limit = 0 if user.is_admin else limit
+                percent = min(100.0, (used / effective_limit) * 100) if effective_limit > 0 else 0.0
+                _, _, window = next(s for s in TOOL_USAGE_PERIOD_SPECS if s[0] == period_id)
+                oldest_ts = _as_utc_aware(oldest[period_id])
+                if oldest_ts is not None:
+                    resets_in = int((oldest_ts + window - now).total_seconds())
+                    resets_in = max(0, resets_in)
+                else:
+                    resets_in = None
+                periods.append(
+                    {
+                        "id": period_id,
+                        "label": period_labels[period_id],
+                        "limit_tokens": effective_limit,
+                        "used_tokens": used,
+                        "percent": round(percent, 1),
+                        "resets_in_seconds": resets_in,
+                    }
+                )
+
+            return {
+                "enabled": True,
+                "is_admin": user.is_admin,
+                "at_limit": is_user_over_tool_usage_limit(db, user=user, app_settings=app_settings),
+                "periods": periods,
+            }
+
     limits = get_tool_usage_limit_values(app_settings)
     periods = []
     for period_id, limit in limits.items():

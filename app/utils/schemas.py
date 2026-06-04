@@ -186,6 +186,8 @@ class UserResponse(BaseModel):
     is_admin: bool
     is_active: bool
     terms_accepted: bool = False
+    package_id: int | None = None
+    package_name: str | None = None
 
 
 class ProfileUpdateRequest(BaseModel):
@@ -374,6 +376,7 @@ class UserCreateRequest(BaseModel):
     password: str = Field(min_length=8, max_length=255)
     is_admin: bool = False
     is_active: bool = True
+    package_id: int | None = None
 
 
 class UserUpdateRequest(BaseModel):
@@ -382,6 +385,7 @@ class UserUpdateRequest(BaseModel):
     password: str | None = Field(default=None, min_length=8, max_length=255)
     is_admin: bool | None = None
     is_active: bool | None = None
+    package_id: int | None = None
 
 
 class ApiKeyCreateRequest(BaseModel):
@@ -613,3 +617,57 @@ class KnowledgeBaseDocumentResponse(BaseModel):
 class KnowledgeBaseRagContextResponse(BaseModel):
     context: str
     document_count: int
+
+
+class PackageResponse(BaseModel):
+    id: int
+    name: str
+    is_admin_package: bool
+    usage_limit_tokens_60_minutes: int
+    usage_limit_tokens_24_hours: int
+    usage_limit_tokens_7_days: int
+    usage_limit_tokens_30_days: int
+    usage_limit_tools_60_minutes: int
+    usage_limit_tools_24_hours: int
+    usage_limit_tools_7_days: int
+    usage_limit_tools_30_days: int
+
+
+class PackageCreateRequest(BaseModel):
+    name: str = Field(min_length=1, max_length=120)
+    is_admin_package: bool = False
+    usage_limit_tokens_60_minutes: int = Field(default=0, ge=0)
+    usage_limit_tokens_24_hours: int = Field(default=0, ge=0)
+    usage_limit_tokens_7_days: int = Field(default=0, ge=0)
+    usage_limit_tokens_30_days: int = Field(default=0, ge=0)
+    usage_limit_tools_60_minutes: int = Field(default=0, ge=0)
+    usage_limit_tools_24_hours: int = Field(default=0, ge=0)
+    usage_limit_tools_7_days: int = Field(default=0, ge=0)
+    usage_limit_tools_30_days: int = Field(default=0, ge=0)
+
+    @field_validator("name", mode="before")
+    @classmethod
+    def validate_name(cls, value: str | None) -> str:
+        if value is None:
+            raise ValueError("Package name is required")
+        return value.strip()
+
+
+class PackageUpdateRequest(BaseModel):
+    name: str | None = Field(default=None, min_length=1, max_length=120)
+    is_admin_package: bool | None = None
+    usage_limit_tokens_60_minutes: int | None = Field(default=None, ge=0)
+    usage_limit_tokens_24_hours: int | None = Field(default=None, ge=0)
+    usage_limit_tokens_7_days: int | None = Field(default=None, ge=0)
+    usage_limit_tokens_30_days: int | None = Field(default=None, ge=0)
+    usage_limit_tools_60_minutes: int | None = Field(default=None, ge=0)
+    usage_limit_tools_24_hours: int | None = Field(default=None, ge=0)
+    usage_limit_tools_7_days: int | None = Field(default=None, ge=0)
+    usage_limit_tools_30_days: int | None = Field(default=None, ge=0)
+
+    @field_validator("name", mode="before")
+    @classmethod
+    def validate_name(cls, value: str | None) -> str | None:
+        if value is None:
+            return None
+        return value.strip()

@@ -13,8 +13,18 @@ from app.core.security import generate_api_key, hash_api_key, hash_password
 from app.core.token_usage import get_user_token_usage, get_user_tool_usage
 from app.core.usage_limits import are_tool_usage_limits_enabled, are_usage_limits_enabled, validate_tool_usage_limit_values, validate_usage_limit_values
 from app.models.api_key import ApiKey
+from app.models.package import Package
 from app.models.user import User
-from app.utils.schemas import ApiKeyCreateRequest, AppSettingsResponse, AppSettingsUpdateRequest, UserCreateRequest, UserUpdateRequest
+from app.utils.schemas import (
+    ApiKeyCreateRequest,
+    AppSettingsResponse,
+    AppSettingsUpdateRequest,
+    PackageCreateRequest,
+    PackageResponse,
+    PackageUpdateRequest,
+    UserCreateRequest,
+    UserUpdateRequest,
+)
 
 router = APIRouter(prefix="/api/admin", tags=["admin"])
 app_config = get_settings()
@@ -159,7 +169,7 @@ def delete_background_image(admin_user: User = Depends(get_admin_user), db: Sess
 @router.get("/users")
 def list_users(_: User = Depends(get_admin_user), db: Session = Depends(get_db)) -> list[dict]:
     rows = db.query(User).order_by(User.id.asc()).all()
-    return [_serialize_user(u) for u in rows]
+    return [_serialize_user(u, db) for u in rows]
 
 
 @router.get("/users/token-usage")
@@ -201,18 +211,25 @@ def get_single_user_token_usage(user_id: int, _: User = Depends(get_admin_user),
 def create_user(payload: UserCreateRequest, admin_user: User = Depends(get_admin_user), db: Session = Depends(get_db)) -> dict:
     _ensure_user_uniqueness(db, payload.username, payload.email)
 
+    package_id = payload.package_id
+    if payload.is_admin and payload.package_id is None:
+        package_id = 1
+    elif not payload.is_admin and payload.package_id is None:
+        package_id = 2
+
     user = User(
         username=payload.username,
         email=payload.email,
         password_hash=hash_password(payload.password),
         is_admin=payload.is_admin,
         is_active=payload.is_active,
+        package_id=package_id,
     )
     db.add(user)
     db.commit()
     db.refresh(user)
     log_event(db, "admin.user_created", user_id=admin_user.id, username=admin_user.username, details={"new_username": user.username})
-    return {"status": "ok", "user": _serialize_user(user)}
+    return {"status": "ok", "user": _serialize_user(user, db)}
 
 
 @router.patch("/users/{user_id}")
@@ -246,12 +263,16 @@ def update_user(user_id: int, payload: UserUpdateRequest, admin_user: User = Dep
         user.is_admin = payload.is_admin
     if payload.is_active is not None:
         user.is_active = payload.is_active
+    if payload.package_id is not None:
+        user.package_id = payload.package_id
+    elif user.is_admin and user.package_id is None:
+        user.package_id = 1
 
     db.add(user)
     db.commit()
     db.refresh(user)
     log_event(db, "admin.user_updated", user_id=admin_user.id, username=admin_user.username, details={"target_username": user.username})
-    return {"status": "ok", "user": _serialize_user(user)}
+    return {"status": "ok", "user": _serialize_user(user, db)}
 
 
 @router.patch("/users/{user_id}/email")
@@ -270,7 +291,7 @@ def update_user_email(user_id: int, payload: UserUpdateRequest, admin_user: User
     db.commit()
     db.refresh(user)
     log_event(db, "admin.user_email_updated", user_id=admin_user.id, username=admin_user.username, details={"target_username": user.username})
-    return {"status": "ok", "user": _serialize_user(user)}
+    return {"status": "ok", "user": _serialize_user(user, db)}
 
 
 @router.patch("/users/{user_id}/password")
@@ -286,7 +307,7 @@ def update_user_password(user_id: int, payload: UserUpdateRequest, admin_user: U
     db.commit()
     db.refresh(user)
     log_event(db, "admin.user_password_updated", user_id=admin_user.id, username=admin_user.username, details={"target_username": user.username})
-    return {"status": "ok", "user": _serialize_user(user)}
+    return {"status": "ok", "user": _serialize_user(user, db)}
 
 
 @router.patch("/users/{user_id}/toggle")
@@ -312,7 +333,7 @@ def toggle_user_active(user_id: int, admin_user: User = Depends(get_admin_user),
     db.commit()
     db.refresh(user)
     log_event(db, "admin.user_toggled", user_id=admin_user.id, username=admin_user.username, details={"target_username": user.username, "is_active": user.is_active})
-    return {"status": "ok", "user": _serialize_user(user)}
+    return {"status": "ok", "user": _serialize_user(user, db)}
 
 
 @router.delete("/users/{user_id}")
@@ -366,13 +387,109 @@ def revoke_api_key(key_id: int, _: User = Depends(get_admin_user), db: Session =
     return {"status": "ok"}
 
 
-def _serialize_user(user: User) -> dict:
+@router.get("/packages")
+def list_packages(_: User = Depends(get_admin_user), db: Session = Depends(get_db)) -> list[dict]:
+    rows = db.query(Package).order_by(Package.id.asc()).all()
+    return [_serialize_package(p) for p in rows]
+
+
+@router.post("/packages")
+def create_package(payload: PackageCreateRequest, admin_user: User = Depends(get_admin_user), db: Session = Depends(get_db)) -> dict:
+    existing = db.query(Package).filter(Package.name == payload.name).first()
+    if existing:
+        raise HTTPException(status_code=409, detail="A package with that name already exists")
+
+    package = Package(
+        name=payload.name,
+        is_admin_package=payload.is_admin_package,
+        usage_limit_tokens_60_minutes=payload.usage_limit_tokens_60_minutes,
+        usage_limit_tokens_24_hours=payload.usage_limit_tokens_24_hours,
+        usage_limit_tokens_7_days=payload.usage_limit_tokens_7_days,
+        usage_limit_tokens_30_days=payload.usage_limit_tokens_30_days,
+        usage_limit_tools_60_minutes=payload.usage_limit_tools_60_minutes,
+        usage_limit_tools_24_hours=payload.usage_limit_tools_24_hours,
+        usage_limit_tools_7_days=payload.usage_limit_tools_7_days,
+        usage_limit_tools_30_days=payload.usage_limit_tools_30_days,
+    )
+    db.add(package)
+    db.commit()
+    db.refresh(package)
+    log_event(db, "admin.package_created", user_id=admin_user.id, username=admin_user.username, details={"package_name": package.name})
+    return {"status": "ok", "package": _serialize_package(package)}
+
+
+@router.patch("/packages/{package_id}")
+def update_package(package_id: int, payload: PackageUpdateRequest, admin_user: User = Depends(get_admin_user), db: Session = Depends(get_db)) -> dict:
+    package = db.query(Package).filter(Package.id == package_id).first()
+    if not package:
+        raise HTTPException(status_code=404, detail="Package not found")
+
+    if payload.name is not None:
+        existing = db.query(Package).filter(Package.name == payload.name, Package.id != package_id).first()
+        if existing:
+            raise HTTPException(status_code=409, detail="A package with that name already exists")
+        package.name = payload.name
+
+    if payload.is_admin_package is not None:
+        package.is_admin_package = payload.is_admin_package
+
+    if payload.usage_limit_tokens_60_minutes is not None:
+        package.usage_limit_tokens_60_minutes = payload.usage_limit_tokens_60_minutes
+    if payload.usage_limit_tokens_24_hours is not None:
+        package.usage_limit_tokens_24_hours = payload.usage_limit_tokens_24_hours
+    if payload.usage_limit_tokens_7_days is not None:
+        package.usage_limit_tokens_7_days = payload.usage_limit_tokens_7_days
+    if payload.usage_limit_tokens_30_days is not None:
+        package.usage_limit_tokens_30_days = payload.usage_limit_tokens_30_days
+    if payload.usage_limit_tools_60_minutes is not None:
+        package.usage_limit_tools_60_minutes = payload.usage_limit_tools_60_minutes
+    if payload.usage_limit_tools_24_hours is not None:
+        package.usage_limit_tools_24_hours = payload.usage_limit_tools_24_hours
+    if payload.usage_limit_tools_7_days is not None:
+        package.usage_limit_tools_7_days = payload.usage_limit_tools_7_days
+    if payload.usage_limit_tools_30_days is not None:
+        package.usage_limit_tools_30_days = payload.usage_limit_tools_30_days
+
+    db.add(package)
+    db.commit()
+    db.refresh(package)
+    log_event(db, "admin.package_updated", user_id=admin_user.id, username=admin_user.username, details={"package_name": package.name})
+    return {"status": "ok", "package": _serialize_package(package)}
+
+
+@router.delete("/packages/{package_id}")
+def delete_package(package_id: int, admin_user: User = Depends(get_admin_user), db: Session = Depends(get_db)) -> dict:
+    package = db.query(Package).filter(Package.id == package_id).first()
+    if not package:
+        raise HTTPException(status_code=404, detail="Package not found")
+
+    if package.is_admin_package:
+        raise HTTPException(status_code=400, detail="Cannot delete the admin package")
+
+    users_with_package = db.query(User).filter(User.package_id == package_id).count()
+    if users_with_package > 0:
+        raise HTTPException(status_code=400, detail="Cannot delete a package that is assigned to users")
+
+    db.delete(package)
+    db.commit()
+    log_event(db, "admin.package_deleted", user_id=admin_user.id, username=admin_user.username, details={"package_name": package.name})
+    return {"status": "ok"}
+
+
+def _serialize_user(user: User, db: Session) -> dict:
+    package_name = None
+    if user.package_id is not None:
+        package = db.query(Package).filter(Package.id == user.package_id).first()
+        if package:
+            package_name = package.name
     return {
         "id": user.id,
         "username": user.username,
         "email": user.email,
         "is_admin": user.is_admin,
         "is_active": user.is_active,
+        "package_id": user.package_id,
+        "package_name": package_name,
     }
 
 
@@ -383,6 +500,22 @@ def _serialize_api_key(api_key: ApiKey, user: User) -> dict:
         "user_username": user.username,
         "name": api_key.name,
         "created_at": api_key.created_at.isoformat() if api_key.created_at else None,
+    }
+
+
+def _serialize_package(package: Package) -> dict:
+    return {
+        "id": package.id,
+        "name": package.name,
+        "is_admin_package": package.is_admin_package,
+        "usage_limit_tokens_60_minutes": package.usage_limit_tokens_60_minutes,
+        "usage_limit_tokens_24_hours": package.usage_limit_tokens_24_hours,
+        "usage_limit_tokens_7_days": package.usage_limit_tokens_7_days,
+        "usage_limit_tokens_30_days": package.usage_limit_tokens_30_days,
+        "usage_limit_tools_60_minutes": package.usage_limit_tools_60_minutes,
+        "usage_limit_tools_24_hours": package.usage_limit_tools_24_hours,
+        "usage_limit_tools_7_days": package.usage_limit_tools_7_days,
+        "usage_limit_tools_30_days": package.usage_limit_tools_30_days,
     }
 
 

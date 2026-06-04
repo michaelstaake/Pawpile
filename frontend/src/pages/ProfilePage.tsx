@@ -1,6 +1,6 @@
 import { FormEvent, useEffect, useState } from "react";
 import { apiGet } from "../lib/api";
-import { AccountToolUsageStatusRecord, AccountUsageStatusRecord } from "../lib/records";
+import { AccountToolUsageStatusRecord, AccountUsageStatusRecord, StatusResponse } from "../lib/records";
 import { useAuth } from "../context/AuthContext";
 import { useToast } from "../context/ToastContext";
 import Modal from "../components/ui/Modal";
@@ -17,6 +17,7 @@ export default function ProfilePage() {
   const [passwordModalOpen, setPasswordModalOpen] = useState(false);
   const [accountUsage, setAccountUsage] = useState<AccountUsageStatusRecord | null>(null);
   const [accountToolUsage, setAccountToolUsage] = useState<AccountToolUsageStatusRecord | null>(null);
+  const [packageName, setPackageName] = useState<string | null>(null);
 
   useEffect(() => {
     setEmail(user?.email ?? "");
@@ -26,13 +27,10 @@ export default function ProfilePage() {
     if (!token) {
       return;
     }
-    apiGet<unknown>("/api/status", token).then((response) => {
-      const status = response as {
-        account_usage: AccountUsageStatusRecord | null;
-        account_tool_usage: AccountToolUsageStatusRecord | null;
-      };
-      setAccountUsage(status.account_usage ?? null);
-      setAccountToolUsage(status.account_tool_usage ?? null);
+    apiGet<StatusResponse>("/api/status", token).then((response) => {
+      setAccountUsage(response.account_usage ?? null);
+      setAccountToolUsage(response.account_tool_usage ?? null);
+      setPackageName(response.package_name ?? null);
     }).catch(() => {});
   }, [token]);
 
@@ -97,6 +95,7 @@ export default function ProfilePage() {
   }
 
   const roleLabel = user?.is_admin ? "Admin" : "Standard";
+  const packageLabel = packageName ? ` • ${packageName}` : "";
   const showAccountUsage = accountUsage?.enabled;
   const showAccountToolUsage = accountToolUsage?.enabled;
   const numberFormatter = new Intl.NumberFormat();
@@ -148,7 +147,7 @@ export default function ProfilePage() {
       <article className="rounded-3xl border border-black/10 bg-white/85 p-5 shadow-sm backdrop-blur">
         <div className="flex flex-wrap items-start justify-between gap-4">
           <div className="max-w-2xl">
-            <p className="text-xs font-semibold uppercase tracking-[0.18em] text-black/45">{roleLabel}</p>
+            <p className="text-xs font-semibold uppercase tracking-[0.18em] text-black/45">{roleLabel}{packageLabel}</p>
             <h2 className="mt-2 font-display text-2xl text-black">Profile</h2>
             <p className="mt-2 text-sm text-black/60">
               Signed in as <span className="font-semibold text-black">{user?.username ?? "Unknown user"}</span>

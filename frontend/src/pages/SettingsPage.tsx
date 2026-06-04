@@ -7,15 +7,15 @@ import UsersPage from "./UsersPage";
 import SslPage from "./SslPage";
 import WebSearchPage from "./WebSearchPage";
 import SecurityPage from "./SecurityPage";
-import UsageLimitsPage from "./UsageLimitsPage";
+import PackagesPage from "./PackagesPage";
 import TermsAndPoliciesPage from "./TermsAndPoliciesPage";
 
-type SettingsTab = "general" | "security" | "usage_limits" | "running_tasks" | "users" | "web_search" | "kb_settings" | "ssl" | "terms" | "logs";
+type SettingsTab = "general" | "security" | "packages" | "running_tasks" | "users" | "web_search" | "kb_settings" | "ssl" | "terms" | "logs";
 
 const tabs: { id: SettingsTab; label: string }[] = [
   { id: "general", label: "Configuration" },
   { id: "security", label: "Security" },
-  { id: "usage_limits", label: "Usage Limits" },
+  { id: "packages", label: "Packages" },
   { id: "running_tasks", label: "Running Tasks" },
   { id: "users", label: "Users" },
   { id: "web_search", label: "Web Search" },
@@ -45,7 +45,7 @@ export default function SettingsPage() {
 
       {activeTab === "general" && <ConfigurationPage />}
       {activeTab === "security" && <SecurityPage />}
-      {activeTab === "usage_limits" && <UsageLimitsPage />}
+      {activeTab === "packages" && <PackagesPage />}
       {activeTab === "running_tasks" && <RunningTasksPage />}
       {activeTab === "users" && <UsersPage />}
       {activeTab === "web_search" && <WebSearchPage />}
