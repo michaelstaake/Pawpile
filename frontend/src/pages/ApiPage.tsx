@@ -4,7 +4,7 @@ import CodeEditor from "../components/ui/CodeEditor";
 import { apiDelete, apiGet, apiPost, fetchV1Models, type V1ModelEntry } from "../lib/api";
 import { useAuth } from "../context/AuthContext";
 import { useToast } from "../context/ToastContext";
-import { ApiKeyCreateResponse, ApiKeyRecord, ModelRecord } from "../lib/records";
+import { ApiKeyCreateResponse, ApiKeyRecord, AppSettingsRecord, ModelRecord } from "../lib/records";
 
 const MINUTE_IN_MS = 60 * 1000;
 const HOUR_IN_MS = 60 * MINUTE_IN_MS;
@@ -48,6 +48,7 @@ export default function ApiPage() {
   const [v1Models, setV1Models] = useState<V1ModelEntry[]>([]);
   const [isLoadingV1Models, setIsLoadingV1Models] = useState(false);
   const [opencodeConfig, setOpencodeConfig] = useState("");
+  const [publicUrl, setPublicUrl] = useState("");
 
   useEffect(() => {
     if (!token || !user) {
@@ -55,11 +56,13 @@ export default function ApiPage() {
       setEnabledModels([]);
       setV1Models([]);
       setOpencodeConfig("");
+      setPublicUrl("");
       return;
     }
     void refreshApiKeys(token);
     void refreshEnabledModels(token);
     void refreshV1Models(token);
+    void refreshPublicUrl(token);
   }, [token, user]);
 
   async function refreshApiKeys(activeToken: string) {
@@ -74,7 +77,18 @@ export default function ApiPage() {
     }
   }
 
-  const BASE_URL = import.meta.env.VITE_API_BASE_URL ?? "";
+  const DEFAULT_API_BASE_URL = "https://EXAMPLE.PUP:8443";
+
+  async function refreshPublicUrl(activeToken: string) {
+    try {
+      const response = await apiGet<AppSettingsRecord>("/api/admin/settings", activeToken);
+      setPublicUrl(response.public_url || "");
+    } catch {
+      // Ignore errors loading public_url
+    }
+  }
+
+  const BASE_URL = publicUrl || import.meta.env.VITE_API_BASE_URL || DEFAULT_API_BASE_URL;
 
   async function refreshEnabledModels(activeToken: string) {
     setIsLoadingModels(true);
@@ -131,7 +145,7 @@ export default function ApiPage() {
 
   useEffect(() => {
     setOpencodeConfig(buildOpencodeConfig());
-  }, [v1Models, BASE_URL]);
+  }, [v1Models, publicUrl, BASE_URL]);
 
   async function handleCreateApiKey(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();

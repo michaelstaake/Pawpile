@@ -180,10 +180,10 @@ export default function PackagesPage() {
     const tokenLimitsValid = validateTokenLimits(createDraft);
     const toolLimitsValid = validateToolLimits(createDraft);
     if (!tokenLimitsValid || !toolLimitsValid) {
-      if (!tokenLimitsValid) {
+      if (tokenLimitsValid !== null) {
         showError(tokenLimitsValid);
       }
-      if (!toolLimitsValid) {
+      if (toolLimitsValid !== null) {
         showError(toolLimitsValid);
       }
       return;
@@ -191,7 +191,7 @@ export default function PackagesPage() {
 
     setIsCreating(true);
     try {
-      const payload = {
+      const payload: Omit<PackageRecord, "id"> = {
         name: createDraft.name,
         is_admin_package: createDraft.is_admin_package,
         usage_limit_tokens_60_minutes: Number(createDraft.usage_limit_tokens_60_minutes),
@@ -203,7 +203,7 @@ export default function PackagesPage() {
         usage_limit_tools_7_days: Number(createDraft.usage_limit_tools_7_days),
         usage_limit_tools_30_days: Number(createDraft.usage_limit_tools_30_days),
       };
-      const response = await apiPost<PackageRecord, { status: string; package: PackageRecord }>("/api/admin/packages", payload, token);
+      const response = await apiPost<Omit<PackageRecord, "id">, { status: string; package: PackageRecord }>("/api/admin/packages", payload, token);
       setPackages((current) => [...current, response.package].sort((a, b) => a.name.localeCompare(b.name)));
       setCreateDraft({
         name: "",
@@ -240,10 +240,10 @@ export default function PackagesPage() {
     const tokenLimitsValid = validateTokenLimits(editDraft);
     const toolLimitsValid = validateToolLimits(editDraft);
     if (!tokenLimitsValid || !toolLimitsValid) {
-      if (!tokenLimitsValid) {
+      if (tokenLimitsValid !== null) {
         showError(tokenLimitsValid);
       }
-      if (!toolLimitsValid) {
+      if (toolLimitsValid !== null) {
         showError(toolLimitsValid);
       }
       return;
@@ -251,7 +251,7 @@ export default function PackagesPage() {
 
     setIsSaving(true);
     try {
-      const payload = {
+      const payload: Omit<PackageRecord, "id"> = {
         name: editDraft.name,
         is_admin_package: editDraft.is_admin_package,
         usage_limit_tokens_60_minutes: Number(editDraft.usage_limit_tokens_60_minutes),
@@ -263,7 +263,7 @@ export default function PackagesPage() {
         usage_limit_tools_7_days: Number(editDraft.usage_limit_tools_7_days),
         usage_limit_tools_30_days: Number(editDraft.usage_limit_tools_30_days),
       };
-      const response = await apiPatch<Record<string, unknown>, { status: string; package: PackageRecord }>(`/api/admin/packages/${editingPackage.id}`, payload, token);
+      const response = await apiPatch<Omit<PackageRecord, "id">, { status: string; package: PackageRecord }>(`/api/admin/packages/${editingPackage.id}`, payload, token);
       setPackages((current) => current.map((p) => (p.id === editingPackage.id ? response.package : p)));
       setIsEditModalOpen(false);
       setEditingPackage(null);
