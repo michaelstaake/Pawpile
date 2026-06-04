@@ -582,7 +582,11 @@ def _parse_vulkaninfo_heap_field_mb(heap_block: str, field: str) -> int | None:
 
 
 def _parse_vulkaninfo_gpu_memory_metrics(output: str) -> dict[int, dict[str, int]]:
-    """Parse device-local heap total and usage (MiB) per GPU index from full vulkaninfo text."""
+    """Parse heap total and usage (MiB) per GPU index from full vulkaninfo text.
+
+    total_mb is the max device-local heap size (physical VRAM). used_mb sums usage
+    across all heaps so Intel ANV GTT/system allocations are included.
+    """
     memory_by_idx: dict[int, dict[str, int]] = {}
     blocks = re.split(r"GPU(\d+):", output)
     i = 1
@@ -598,14 +602,14 @@ def _parse_vulkaninfo_gpu_memory_metrics(output: str) -> dict[int, dict[str, int
         total_mb = 0
         used_mb = 0
         for heap_block in re.split(r"memoryHeaps\[\d+\]:", block)[1:]:
+            usage_mb = _parse_vulkaninfo_heap_field_mb(heap_block, "usage")
+            if usage_mb is not None:
+                used_mb += usage_mb
             if not _is_vulkan_device_local_heap(heap_block):
                 continue
             size_mb = _parse_vulkaninfo_heap_field_mb(heap_block, "size")
             if size_mb is not None:
                 total_mb = max(total_mb, size_mb)
-            usage_mb = _parse_vulkaninfo_heap_field_mb(heap_block, "usage")
-            if usage_mb is not None:
-                used_mb = max(used_mb, usage_mb)
 
         if total_mb > 0:
             memory_by_idx[idx] = {"total_mb": total_mb, "used_mb": used_mb}
