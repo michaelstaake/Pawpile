@@ -3,6 +3,7 @@ import { apiGet } from "../lib/api";
 import { AccountToolUsageStatusRecord, AccountUsageStatusRecord } from "../lib/records";
 import { useAuth } from "../context/AuthContext";
 import { useToast } from "../context/ToastContext";
+import Modal from "../components/ui/Modal";
 
 export default function ProfilePage() {
   const { token, logout, updateProfile, user } = useAuth();
@@ -12,6 +13,8 @@ export default function ProfilePage() {
   const [confirmPassword, setConfirmPassword] = useState("");
   const [isSavingEmail, setIsSavingEmail] = useState(false);
   const [isSavingPassword, setIsSavingPassword] = useState(false);
+  const [emailModalOpen, setEmailModalOpen] = useState(false);
+  const [passwordModalOpen, setPasswordModalOpen] = useState(false);
   const [accountUsage, setAccountUsage] = useState<AccountUsageStatusRecord | null>(null);
   const [accountToolUsage, setAccountToolUsage] = useState<AccountToolUsageStatusRecord | null>(null);
 
@@ -151,13 +154,29 @@ export default function ProfilePage() {
               Signed in as <span className="font-semibold text-black">{user?.username ?? "Unknown user"}</span>
             </p>
           </div>
-          <button
-            type="button"
-            onClick={logout}
-            className="shrink-0 rounded-xl border border-black/15 bg-white px-4 py-3 text-sm font-semibold text-black transition hover:bg-black/5"
-          >
-            Log out
-          </button>
+          <div className="flex shrink-0 items-start gap-2">
+            <button
+              type="button"
+              onClick={() => setEmailModalOpen(true)}
+              className="shrink-0 rounded-xl border border-black/15 bg-white px-4 py-3 text-sm font-semibold text-black transition hover:bg-black/5"
+            >
+              Update email
+            </button>
+            <button
+              type="button"
+              onClick={() => setPasswordModalOpen(true)}
+              className="shrink-0 rounded-xl border border-black/15 bg-white px-4 py-3 text-sm font-semibold text-black transition hover:bg-black/5"
+            >
+              Update password
+            </button>
+            <button
+              type="button"
+              onClick={logout}
+              className="shrink-0 rounded-xl border border-black/15 bg-white px-4 py-3 text-sm font-semibold text-black transition hover:bg-black/5"
+            >
+              Log out
+            </button>
+          </div>
         </div>
       </article>
 
@@ -246,9 +265,18 @@ export default function ProfilePage() {
         </article>
       )}
 
-      <div className="grid gap-4 xl:grid-cols-2">
-        <article className="rounded-2xl border border-black/10 bg-white/80 p-5 shadow-sm backdrop-blur">
-          <h2 className="font-display text-xl">Update email</h2>
+      <Modal open={emailModalOpen} onClose={() => setEmailModalOpen(false)} labelledBy="update-email-title">
+        <div className="p-5">
+          <div className="flex items-start justify-between">
+            <h2 id="update-email-title" className="font-display text-xl">Update email</h2>
+            <button
+              type="button"
+              onClick={() => setEmailModalOpen(false)}
+              className="shrink-0 rounded-lg p-1 text-black/45 transition hover:bg-black/5 hover:text-black"
+            >
+              <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+            </button>
+          </div>
 
           <form className="mt-5 space-y-4" onSubmit={handleEmailSubmit}>
             <label className="block text-sm text-black/70">
@@ -270,10 +298,21 @@ export default function ProfilePage() {
               {isSavingEmail ? "Saving..." : "Update email"}
             </button>
           </form>
-        </article>
+        </div>
+      </Modal>
 
-        <article className="rounded-2xl border border-black/10 bg-white/80 p-5 shadow-sm backdrop-blur">
-          <h2 className="font-display text-xl">Update password</h2>
+      <Modal open={passwordModalOpen} onClose={() => setPasswordModalOpen(false)} labelledBy="update-password-title">
+        <div className="p-5">
+          <div className="flex items-start justify-between">
+            <h2 id="update-password-title" className="font-display text-xl">Update password</h2>
+            <button
+              type="button"
+              onClick={() => setPasswordModalOpen(false)}
+              className="shrink-0 rounded-lg p-1 text-black/45 transition hover:bg-black/5 hover:text-black"
+            >
+              <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+            </button>
+          </div>
 
           <form className="mt-5 space-y-4" onSubmit={handlePasswordSubmit}>
             <label className="block text-sm text-black/70">
@@ -306,8 +345,8 @@ export default function ProfilePage() {
               {isSavingPassword ? "Saving..." : "Update password"}
             </button>
           </form>
-        </article>
-      </div>
+        </div>
+      </Modal>
     </section>
   );
 }
