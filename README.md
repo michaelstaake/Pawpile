@@ -10,7 +10,7 @@ It supports x86_64 CPUs, NVIDIA GPUs, AMD GPUs, and Intel Arc GPUs. You can have
 
 - **CPU**: x86_64
 - **NVIDIA GPU**: CUDA (`--profile nvidia`)
-- **AMD GPU**: ROCm (`--profile rocm`, recommended) or Vulkan (`--profile vulkan` when ROCm is not enabled)
+- **AMD GPU**: Vulkan (`--profile vulkan`, recommended) or ROCm (`--profile rocm`, experimental — only if you are willing to troubleshoot known issues)
 - **Intel Arc GPU**: Vulkan (`--profile vulkan`)
 
 ### Ubuntu 26.04
@@ -60,13 +60,15 @@ docker compose up -d --build
 docker compose --profile nvidia up -d --build
 ```
 
-#### CPU + Vulkan (Intel Arc, or AMD without ROCm):
+#### CPU + Vulkan (Intel Arc, or AMD — recommended):
 
 ```bash
 docker compose --profile vulkan up -d --build
 ```
 
-#### CPU + ROCm (AMD discrete / AI Pro):
+#### CPU + ROCm (AMD discrete / AI Pro — experimental):
+
+ROCm support is available but currently buggy. Use Vulkan for AMD GPUs unless you specifically need ROCm and are willing to troubleshoot driver, offload, and pool issues.
 
 ```bash
 docker compose --profile rocm up -d --build
@@ -122,7 +124,7 @@ docker compose --profile rocm down
 docker compose --profile nvidia --profile vulkan --profile rocm down
 ```
 
-**Multi-GPU AMD pools:** create a pool with vendor `rocm` and try split mode `layer` first. `tensor` mode is experimental; rebuild with `GGML_HIP_RCCL=ON` if you want to test it. PCIe bandwidth (e.g. PCIe 3.0) still limits cross-GPU performance.
+**Multi-GPU AMD pools (ROCm only):** if you run the ROCm profile, create a pool with vendor `rocm` and try split mode `layer` first. `tensor` mode is experimental; rebuild with `GGML_HIP_RCCL=ON` if you want to test it. PCIe bandwidth (e.g. PCIe 3.0) still limits cross-GPU performance. For most AMD setups, Vulkan is the more reliable path.
 
 If you see garbled/random output only on ROCm pools (while single-GPU ROCm is fine), keep `ROCM_POOL_PARALLEL=1` and `ROCM_POOL_CACHE_RAM_MB=0` (the defaults), keep `ROCM_POOL_FLASH_ATTN_ENABLED=false`, and keep `ROCM_POOL_ALLOW_TENSOR_SPLIT=false` unless you have validated your exact stack.
 
@@ -255,7 +257,7 @@ Certificates are stored in `./certs` and renewed automatically when they are wit
 
 - **Device not detected**:
   - Check vendor tooling is installed on the host system:
-    - Ubuntu 26.04: `nvidia-smi` (NVIDIA), `rocm-smi` (AMD with ROCm profile), or `vulkaninfo` (Intel Arc / AMD without ROCm)
+    - Ubuntu 26.04: `nvidia-smi` (NVIDIA), `vulkaninfo` (Intel Arc / AMD — recommended), or `rocm-smi` (AMD with ROCm profile, experimental)
   - Ensure the appropriate GPU Docker runtime is configured and accessible to the environment.
   - Restart the application after installing drivers on the host.
 
