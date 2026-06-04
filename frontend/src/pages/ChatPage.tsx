@@ -1221,7 +1221,7 @@ export default function ChatPage() {
                 setUseWebSearch((current) => !current);
               }}
               disabled={isSending || isModelsUnavailable || !selectedModelSupportsWebSearch}
-              className={`flex h-12 w-12 items-center justify-center rounded-xl border text-black transition disabled:opacity-50 ${!selectedModelSupportsWebSearch ? "border-black/20 bg-white" : useWebSearch ? "border-amber/70 bg-amber/15 text-black" : "border-black/20 bg-white hover:bg-black/5"}`}
+              className={`flex h-12 w-12 items-center justify-center rounded-xl border text-black transition disabled:opacity-50 ${!selectedModelSupportsWebSearch ? "border-black/20 bg-white" : useWebSearch ? "border-purple-700/70 bg-purple-700/15 text-black" : "border-black/20 bg-white hover:bg-black/5"}`}
               title={selectedModelSupportsWebSearch ? (useWebSearch ? "Disable Web Search" : "Enable Web Search") : "Web Search not available for this model"}
               aria-label={selectedModelSupportsWebSearch ? (useWebSearch ? "Disable Web Search" : "Enable Web Search") : "Web Search not available for this model"}
               aria-pressed={useWebSearch}
@@ -1238,13 +1238,13 @@ export default function ChatPage() {
                 }
               }}
               disabled={isSending || isModelsUnavailable || (!selectedModelAllowsThinkingPreference && !selectedModelAlwaysThinks)}
-              className={`flex h-12 w-12 items-center justify-center rounded-xl border text-black transition disabled:opacity-50 ${!selectedModelAllowsThinkingPreference && !selectedModelAlwaysThinks ? "border-black/20 bg-white" : useThinking ? "border-amber/70 bg-amber/15 text-black" : "border-black/20 bg-white hover:bg-black/5"}`}
+              className={`flex h-12 w-12 items-center justify-center rounded-xl border text-black transition disabled:opacity-50 ${!selectedModelAllowsThinkingPreference && !selectedModelAlwaysThinks ? "border-black/20 bg-white" : useThinking ? "border-purple-700/70 bg-purple-700/15 text-black" : "border-black/20 bg-white hover:bg-black/5"}`}
               title={!selectedModelAllowsThinkingPreference && !selectedModelAlwaysThinks ? "Thinking not available for this model" : selectedModelAlwaysThinks ? "Thinking enabled by default" : (useThinking ? "Disable Thinking" : "Enable Thinking")}
               aria-label={!selectedModelAllowsThinkingPreference && !selectedModelAlwaysThinks ? "Thinking not available for this model" : selectedModelAlwaysThinks ? "Thinking enabled by default" : (useThinking ? "Disable Thinking" : "Enable Thinking")}
               aria-pressed={useThinking || selectedModelAlwaysThinks}
               aria-disabled={!selectedModelAllowsThinkingPreference && !selectedModelAlwaysThinks}
             >
-              <i className={`text-[18px] leading-none ${useThinking || selectedModelAlwaysThinks ? "bi bi-stars-fill text-[18px] leading-none" : "bi bi-stars text-[18px] leading-none"}`} aria-hidden="true" />
+              <i className={`text-[18px] leading-none ${useThinking || selectedModelAlwaysThinks ? "bi bi-star-fill text-[18px] leading-none" : "bi bi-star text-[18px] leading-none"}`} aria-hidden="true" />
             </button>
             <button
               type="button"
