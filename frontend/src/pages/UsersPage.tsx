@@ -25,6 +25,7 @@ export default function UsersPage() {
   const [isCreatingUser, setIsCreatingUser] = useState(false);
   const [savingUserId, setSavingUserId] = useState<number | null>(null);
   const [isGeneratingPassword, setIsGeneratingPassword] = useState(false);
+  const [isPasswordVisible, setIsPasswordVisible] = useState(false);
 
   useEffect(() => {
     if (!token) {
@@ -296,15 +297,24 @@ export default function UsersPage() {
               <div className="md:col-span-2">
                 <label className="grid gap-1 text-sm text-black/70">
                   Password
-                  <input className="rounded-xl border border-black/15 bg-white px-3 py-2 text-sm" type="password" value={newUser.password} onChange={(event) => setNewUser((current) => ({ ...current, password: event.target.value }))} />
+                  <input className="rounded-xl border border-black/15 bg-white px-3 py-2 text-sm" type={isPasswordVisible ? "text" : "password"} value={newUser.password} onChange={(event) => setNewUser((current) => ({ ...current, password: event.target.value }))} />
                 </label>
-                <button className="mt-1 rounded-lg border border-black/15 bg-white px-2 py-1 text-sm text-black/70 transition hover:bg-black/5" type="button" onClick={handleGeneratePassword} disabled={isGeneratingPassword}>
-                  {isGeneratingPassword ? (
-                    <span className="inline-block h-4 w-4 animate-spin rounded-full border-2 border-black/30 border-t-black" />
-                  ) : (
-                    <span className="bi bi-shuffle inline-block text-sm" />
-                  )}
-                </button>
+                <div className="mt-1 flex gap-1">
+                  <button className="rounded-lg border border-black/15 bg-white px-2 py-1 text-sm text-black/70 transition hover:bg-black/5" type="button" onClick={handleGeneratePassword} disabled={isGeneratingPassword}>
+                    {isGeneratingPassword ? (
+                      <span className="inline-block h-4 w-4 animate-spin rounded-full border-2 border-black/30 border-t-black" />
+                    ) : (
+                      <span className="bi bi-shuffle inline-block text-sm" />
+                    )}
+                  </button>
+                  <button className="rounded-lg border border-black/15 bg-white px-2 py-1 text-sm text-black/70 transition hover:bg-black/5" type="button" onClick={() => setIsPasswordVisible((current) => !current)}>
+                    {isPasswordVisible ? (
+                      <span className="bi bi-eye-slash inline-block text-sm" />
+                    ) : (
+                      <span className="bi bi-eye inline-block text-sm" />
+                    )}
+                  </button>
+                </div>
               </div>
               <div className="flex flex-wrap gap-3 rounded-xl border border-black/10 bg-white px-3 py-2 text-sm text-black/70 md:col-span-2">
                 <label className="flex items-center gap-2">
