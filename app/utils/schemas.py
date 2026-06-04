@@ -170,6 +170,8 @@ class LoginRequest(BaseModel):
 class LoginResponse(BaseModel):
     access_token: str
     token_type: str = "bearer"
+    terms_accepted: bool = False
+    terms_enabled: bool = False
 
 
 class UserResponse(BaseModel):
@@ -178,6 +180,7 @@ class UserResponse(BaseModel):
     email: str
     is_admin: bool
     is_active: bool
+    terms_accepted: bool = False
 
 
 class ProfileUpdateRequest(BaseModel):

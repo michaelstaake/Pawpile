@@ -13,6 +13,7 @@ import ModelsPage from "./pages/ModelsPage";
 import NotFoundPage from "./pages/NotFoundPage";
 import ForbiddenPage from "./pages/ForbiddenPage";
 import KnowledgeBasePage from "./pages/KnowledgeBasePage";
+import TermsAcceptancePage from "./pages/TermsAcceptancePage";
 import { useAuth } from "./context/AuthContext";
 import { MobileNavProvider, type MobileNavSection } from "./context/MobileNavContext";
 import { useToast } from "./context/ToastContext";
@@ -137,7 +138,7 @@ function RequireSetup({ children }: { children: ReactNode }) {
 }
 
 function HomeRoute() {
-  const { isBootstrapping, requiresSetup, user } = useAuth();
+  const { isBootstrapping, requiresSetup, user, termsSettings } = useAuth();
 
   if (isBootstrapping) {
     return <section className="rounded-2xl border border-black/10 bg-white/80 p-5 text-sm text-black/60 shadow-sm">Loading...</section>;
@@ -147,6 +148,9 @@ function HomeRoute() {
   }
   if (!user) {
     return <Navigate to="/login" replace />;
+  }
+  if (termsSettings.terms_enabled && !user.terms_accepted) {
+    return <Navigate to="/terms" replace />;
   }
   return <ChatPage />;
 }
@@ -196,6 +200,7 @@ export default function App() {
     if (path === "/register") return "Register";
     if (path === "/setup") return "Setup";
     if (path === "/kb") return "Knowledge Base";
+    if (path === "/terms") return "Terms and Policies";
     if (path === "/403") return "Forbidden";
     if (path === "/404") return "Not Found";
     return "";
@@ -303,6 +308,7 @@ export default function App() {
               <Route path="/api" element={<Navigate to="/apikeys" replace />} />
               <Route path="/apikeys" element={<RequireUser><ApiPage /></RequireUser>} />
               <Route path="/kb" element={<RequireAdmin><KnowledgeBasePage /></RequireAdmin>} />
+              <Route path="/terms" element={<TermsAcceptancePage />} />
               <Route path="/setup" element={<SetupRoute />} />
               <Route path="/403" element={<ForbiddenPage />} />
               <Route path="/404" element={<NotFoundPage />} />

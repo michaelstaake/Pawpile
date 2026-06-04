@@ -8,8 +8,9 @@ import SslPage from "./SslPage";
 import WebSearchPage from "./WebSearchPage";
 import SecurityPage from "./SecurityPage";
 import UsageLimitsPage from "./UsageLimitsPage";
+import TermsAndPoliciesPage from "./TermsAndPoliciesPage";
 
-type SettingsTab = "general" | "security" | "usage_limits" | "running_tasks" | "users" | "web_search" | "kb_settings" | "ssl" | "logs";
+type SettingsTab = "general" | "security" | "usage_limits" | "running_tasks" | "users" | "web_search" | "kb_settings" | "ssl" | "terms" | "logs";
 
 const tabs: { id: SettingsTab; label: string }[] = [
   { id: "general", label: "Configuration" },
@@ -20,6 +21,7 @@ const tabs: { id: SettingsTab; label: string }[] = [
   { id: "web_search", label: "Web Search" },
   { id: "kb_settings", label: "Knowledge Base" },
   { id: "ssl", label: "SSL" },
+  { id: "terms", label: "Terms and Policies" },
   { id: "logs", label: "Logs" },
 ];
 
@@ -49,6 +51,7 @@ export default function SettingsPage() {
       {activeTab === "web_search" && <WebSearchPage />}
       {activeTab === "kb_settings" && <KnowledgeBaseSettings />}
       {activeTab === "ssl" && <SslPage />}
+      {activeTab === "terms" && <TermsAndPoliciesPage />}
       {activeTab === "logs" && <LogsPage />}
     </div>
   );

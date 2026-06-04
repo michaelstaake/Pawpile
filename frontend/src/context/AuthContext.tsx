@@ -2,6 +2,11 @@ import { createContext, ReactNode, useContext, useEffect, useState } from "react
 import { apiGet, apiPatch, apiPost } from "../lib/api";
 import { BackgroundImageMode, BootstrapStatus, clearStoredToken, CurrentUser, getStoredToken, LoginResponse, storeToken } from "../lib/session";
 
+type TermsSettings = {
+  terms_enabled: boolean;
+  terms_content: string;
+};
+
 type AuthContextValue = {
   token: string;
   user: CurrentUser | null;
@@ -18,6 +23,7 @@ type AuthContextValue = {
   knowledgeBaseEnabled: boolean;
   cloudflareTurnstileEnabled: boolean;
   cloudflareTurnstileSiteKey: string | null;
+  termsSettings: TermsSettings;
   refreshAuthState: () => Promise<void>;
   refreshPublicSettings: () => Promise<void>;
   updateProfile: (payload: { email?: string; password?: string }) => Promise<CurrentUser>;
@@ -25,6 +31,8 @@ type AuthContextValue = {
   register: (username: string, email: string, password: string, turnstileResponse?: string) => Promise<void>;
   bootstrapAdmin: (username: string, email: string, password: string) => Promise<void>;
   logout: () => void;
+  acceptTerms: () => Promise<void>;
+  declineTerms: () => Promise<void>;
 };
 
 const AuthContext = createContext<AuthContextValue | null>(null);
@@ -48,6 +56,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [knowledgeBaseEnabled, setKnowledgeBaseEnabled] = useState(false);
   const [cloudflareTurnstileEnabled, setCloudflareTurnstileEnabled] = useState(false);
   const [cloudflareTurnstileSiteKey, setCloudflareTurnstileSiteKey] = useState<string | null>(null);
+  const [termsSettings, setTermsSettings] = useState<TermsSettings>({
+    terms_enabled: false,
+    terms_content: "",
+  });
 
   useEffect(() => {
     const onStorage = (event: StorageEvent) => {
@@ -136,6 +148,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       const currentUser = await apiGet<CurrentUser>("/api/auth/me", response.access_token);
       setBootstrapError(null);
       setUser(currentUser);
+      if (response.terms_enabled) {
+        const termsSettings = await apiGet<TermsSettings>("/api/terms/content");
+        setTermsSettings(termsSettings);
+      }
     } finally {
       setIsAuthenticating(false);
     }
@@ -188,6 +204,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       setCloudflareTurnstileSiteKey(bootstrap.cloudflare_turnstile_site_key || null);
       setBootstrapError(null);
       setUser(currentUser);
+      if (response.terms_enabled) {
+        const termsSettings = await apiGet<TermsSettings>("/api/terms/content");
+        setTermsSettings(termsSettings);
+      }
     } finally {
       setIsAuthenticating(false);
     }
@@ -209,6 +229,24 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setUser(null);
   }
 
+  async function acceptTerms() {
+    if (!token) {
+      throw new Error("You must be signed in to accept terms");
+    }
+    await apiPost<{ terms_enabled: boolean }, { status: string }>("/api/terms/accept", { terms_enabled: true }, token);
+    if (user) {
+      setUser({ ...user, terms_accepted: true });
+    }
+  }
+
+  async function declineTerms() {
+    if (!token) {
+      throw new Error("You must be signed in to decline terms");
+    }
+    await apiPost<{ terms_enabled: boolean }, { status: string }>("/api/terms/decline", { terms_enabled: true }, token);
+    logout();
+  }
+
   return (
     <AuthContext.Provider
       value={{
@@ -227,6 +265,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         knowledgeBaseEnabled,
         cloudflareTurnstileEnabled,
         cloudflareTurnstileSiteKey,
+        termsSettings,
         refreshAuthState,
         refreshPublicSettings,
         updateProfile,
@@ -234,6 +273,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         register,
         bootstrapAdmin,
         logout,
+        acceptTerms,
+        declineTerms,
       }}
     >
       {children}

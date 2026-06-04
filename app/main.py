@@ -7,7 +7,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 
-from app.api import admin, auth, chat, devices, knowledge_base, logs, models, openai_compat, ssl as ssl_api, status, web_search as web_search_api
+from app.api import admin, auth, chat, devices, knowledge_base, logs, models, openai_compat, ssl as ssl_api, status, terms as terms_api, web_search as web_search_api
 from app.core.activity_logger import log_event, prune_old_logs, schedule_daily_pruning
 from app.core.letsencrypt import schedule_daily_ssl_renewal
 from app.core.app_settings import get_or_create_app_settings
@@ -145,6 +145,7 @@ app.include_router(devices.router)
 app.include_router(models.router)
 app.include_router(chat.router)
 app.include_router(admin.router)
+app.include_router(terms_api.router)
 app.include_router(ssl_api.router)
 app.include_router(web_search_api.router)
 app.include_router(knowledge_base.router)

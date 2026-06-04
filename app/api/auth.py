@@ -122,7 +122,11 @@ async def login(payload: LoginRequest, request: Request, db: Session = Depends(g
         raise HTTPException(status_code=401, detail="Invalid username or password")
     log_event(db, "auth.login", user_id=user.id, username=user.username, ip_address=ip)
     token = create_access_token(user.username)
-    return LoginResponse(access_token=token)
+    return LoginResponse(
+        access_token=token,
+        terms_accepted=user.terms_accepted_at is not None,
+        terms_enabled=app_settings.terms_enabled,
+    )
 
 
 @router.post("/register", response_model=LoginResponse)
@@ -161,7 +165,11 @@ async def register(payload: UserRegistrationRequest, request: Request, db: Sessi
     db.refresh(user)
     log_event(db, "auth.register", user_id=user.id, username=user.username, ip_address=request.client.host if request.client else None)
     token = create_access_token(user.username)
-    return LoginResponse(access_token=token)
+    return LoginResponse(
+        access_token=token,
+        terms_accepted=False,
+        terms_enabled=app_settings.terms_enabled,
+    )
 
 
 @router.get("/me", response_model=UserResponse)
@@ -172,6 +180,7 @@ def current_user(current_user: User = Depends(get_current_user)) -> UserResponse
         email=current_user.email,
         is_admin=current_user.is_admin,
         is_active=current_user.is_active,
+        terms_accepted=current_user.terms_accepted_at is not None,
     )
 
 

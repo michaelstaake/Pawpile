@@ -24,11 +24,14 @@ export type CurrentUser = {
   email: string;
   is_admin: boolean;
   is_active: boolean;
+  terms_accepted: boolean;
 };
 
 export type LoginResponse = {
   access_token: string;
   token_type: string;
+  terms_accepted: boolean;
+  terms_enabled: boolean;
 };
 
 export function getStoredToken(): string {
