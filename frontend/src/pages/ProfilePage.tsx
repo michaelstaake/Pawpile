@@ -1,6 +1,6 @@
 import { FormEvent, useEffect, useState } from "react";
 import { apiGet } from "../lib/api";
-import { AccountUsageStatusRecord } from "../lib/records";
+import { AccountToolUsageStatusRecord, AccountUsageStatusRecord } from "../lib/records";
 import { useAuth } from "../context/AuthContext";
 import { useToast } from "../context/ToastContext";
 
@@ -13,6 +13,7 @@ export default function ProfilePage() {
   const [isSavingEmail, setIsSavingEmail] = useState(false);
   const [isSavingPassword, setIsSavingPassword] = useState(false);
   const [accountUsage, setAccountUsage] = useState<AccountUsageStatusRecord | null>(null);
+  const [accountToolUsage, setAccountToolUsage] = useState<AccountToolUsageStatusRecord | null>(null);
 
   useEffect(() => {
     setEmail(user?.email ?? "");
@@ -23,7 +24,12 @@ export default function ProfilePage() {
       return;
     }
     apiGet<unknown>("/api/status", token).then((response) => {
-      setAccountUsage((response as { account_usage: AccountUsageStatusRecord | null }).account_usage ?? null);
+      const status = response as {
+        account_usage: AccountUsageStatusRecord | null;
+        account_tool_usage: AccountToolUsageStatusRecord | null;
+      };
+      setAccountUsage(status.account_usage ?? null);
+      setAccountToolUsage(status.account_tool_usage ?? null);
     }).catch(() => {});
   }, [token]);
 
@@ -89,9 +95,13 @@ export default function ProfilePage() {
 
   const roleLabel = user?.is_admin ? "Admin" : "Standard";
   const showAccountUsage = !user?.is_admin && accountUsage?.enabled;
+  const showAccountToolUsage = !user?.is_admin && accountToolUsage?.enabled;
   const numberFormatter = new Intl.NumberFormat();
   const enabledPeriods = accountUsage?.periods.filter((p) => p.limit_tokens > 0) ?? [];
+  const enabledToolPeriods = accountToolUsage?.periods.filter((p) => p.limit_tokens > 0) ?? [];
   const enabledColumnCount = enabledPeriods.length;
+  const enabledToolColumnCount = enabledToolPeriods.length;
+  const atAnyLimit = Boolean(accountUsage?.at_limit || accountToolUsage?.at_limit);
 
   function clampPercent(value: number | null | undefined) {
     if (value === null || value === undefined || Number.isNaN(value)) {
@@ -150,33 +160,66 @@ export default function ProfilePage() {
         </div>
       </article>
 
-      {showAccountUsage && (
+      {(showAccountUsage || showAccountToolUsage) && (
         <article className="rounded-3xl border border-black/10 bg-white/85 p-5 shadow-sm backdrop-blur">
           <p className="text-xs font-semibold uppercase tracking-[0.18em] text-black/45">Your Usage</p>
           <p className="mt-1 text-sm text-black/60">
-            {accountUsage.at_limit
-              ? "You have reached a usage limit. Chat and API access are unavailable until your usage resets."
-              : "Token usage against your account limits."}
+            {atAnyLimit
+              ? accountToolUsage?.at_limit && !accountUsage?.at_limit
+                ? "You have reached a web search usage limit. Web search is unavailable until your usage resets."
+                : accountUsage?.at_limit && accountToolUsage?.at_limit
+                  ? "You have reached token and web search usage limits. Chat, API, and web search are unavailable until your usage resets."
+                  : "You have reached a usage limit. Chat and API access are unavailable until your usage resets."
+              : "Token and web search usage against your account limits."}
           </p>
 
-          <div className="mt-4 grid gap-3" style={{ gridTemplateColumns: enabledColumnCount > 0 ? `repeat(${enabledColumnCount}, minmax(0, 1fr))` : "1fr" }}>
-            {enabledPeriods.map((period) => (
-              <div key={period.id} className="rounded-2xl border border-black/10 bg-white/80 p-4">
-                <p className="text-xs font-semibold uppercase tracking-[0.24em] text-black/45">{period.label}</p>
-                <p className="mt-2 font-display text-3xl text-ink">{formatWholePercent(period.percent)}</p>
-                <p className="mt-1 text-sm text-black/55">
-                  {numberFormatter.format(period.used_tokens)} / {numberFormatter.format(period.limit_tokens)} tokens
-                </p>
-                {(() => { const reset = formatResetIn(period.resets_in_seconds); return reset ? <p className="mt-1 text-xs text-black/40">Resets in {reset}</p> : null; })()}
-                <div className="mt-3 h-2 overflow-hidden rounded-full bg-black/10">
-                  <div
-                    className={`h-full rounded-full ${period.percent >= 100 ? "bg-[#c63f3f]" : period.percent >= 80 ? "bg-[#c98a13]" : "bg-[#2f8f4e]"}`}
-                    style={{ width: `${clampPercent(period.percent)}%` }}
-                  />
-                </div>
+          {showAccountUsage && (
+            <>
+              <p className="mt-4 text-xs font-semibold uppercase tracking-[0.18em] text-black/45">Token Usage</p>
+              <div className="mt-3 grid gap-3" style={{ gridTemplateColumns: enabledColumnCount > 0 ? `repeat(${enabledColumnCount}, minmax(0, 1fr))` : "1fr" }}>
+                {enabledPeriods.map((period) => (
+                  <div key={period.id} className="rounded-2xl border border-black/10 bg-white/80 p-4">
+                    <p className="text-xs font-semibold uppercase tracking-[0.24em] text-black/45">{period.label}</p>
+                    <p className="mt-2 font-display text-3xl text-ink">{formatWholePercent(period.percent)}</p>
+                    <p className="mt-1 text-sm text-black/55">
+                      {numberFormatter.format(period.used_tokens)} / {numberFormatter.format(period.limit_tokens)} tokens
+                    </p>
+                    {(() => { const reset = formatResetIn(period.resets_in_seconds); return reset ? <p className="mt-1 text-xs text-black/40">Resets in {reset}</p> : null; })()}
+                    <div className="mt-3 h-2 overflow-hidden rounded-full bg-black/10">
+                      <div
+                        className={`h-full rounded-full ${period.percent >= 100 ? "bg-[#c63f3f]" : period.percent >= 80 ? "bg-[#c98a13]" : "bg-[#2f8f4e]"}`}
+                        style={{ width: `${clampPercent(period.percent)}%` }}
+                      />
+                    </div>
+                  </div>
+                ))}
               </div>
-            ))}
-          </div>
+            </>
+          )}
+
+          {showAccountToolUsage && (
+            <>
+              <p className={`text-xs font-semibold uppercase tracking-[0.18em] text-black/45 ${showAccountUsage ? "mt-6" : "mt-4"}`}>Web Search Usage</p>
+              <div className="mt-3 grid gap-3" style={{ gridTemplateColumns: enabledToolColumnCount > 0 ? `repeat(${enabledToolColumnCount}, minmax(0, 1fr))` : "1fr" }}>
+                {enabledToolPeriods.map((period) => (
+                  <div key={period.id} className="rounded-2xl border border-black/10 bg-white/80 p-4">
+                    <p className="text-xs font-semibold uppercase tracking-[0.24em] text-black/45">{period.label}</p>
+                    <p className="mt-2 font-display text-3xl text-ink">{formatWholePercent(period.percent)}</p>
+                    <p className="mt-1 text-sm text-black/55">
+                      {numberFormatter.format(period.used_tokens)} / {numberFormatter.format(period.limit_tokens)} searches
+                    </p>
+                    {(() => { const reset = formatResetIn(period.resets_in_seconds); return reset ? <p className="mt-1 text-xs text-black/40">Resets in {reset}</p> : null; })()}
+                    <div className="mt-3 h-2 overflow-hidden rounded-full bg-black/10">
+                      <div
+                        className={`h-full rounded-full ${period.percent >= 100 ? "bg-[#c63f3f]" : period.percent >= 80 ? "bg-[#c98a13]" : "bg-[#2f8f4e]"}`}
+                        style={{ width: `${clampPercent(period.percent)}%` }}
+                      />
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </>
+          )}
         </article>
       )}
 

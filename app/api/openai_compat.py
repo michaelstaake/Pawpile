@@ -433,6 +433,8 @@ async def v1_chat_completions(payload: OpenAIChatRequest, current_user: User = D
             detail="Web search requires tool calling to be enabled for this model. Enable tool calling in the model settings.",
         )
 
+    active_web_search_provider = _get_active_web_search_provider(db) if web_search_requested else None
+
     if active_web_search_provider is not None:
         tool_usage_limit_result = check_tool_usage_limit_for_request(
             db,
@@ -507,7 +509,6 @@ async def v1_chat_completions(payload: OpenAIChatRequest, current_user: User = D
         request_payload["messages"] = _prepend_rag_context(request_payload["messages"], rag_context)
 
     # Web search: inject the web_search tool and run the agentic loop if enabled
-    active_web_search_provider = _get_active_web_search_provider(db) if web_search_requested else None
     if payload.use_web_search and active_web_search_provider is None:
         raise HTTPException(
             status_code=400,
