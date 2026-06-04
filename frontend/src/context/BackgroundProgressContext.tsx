@@ -9,6 +9,7 @@ import {
 } from "react";
 import { useAuth } from "./AuthContext";
 import { apiGet } from "../lib/api";
+import { clearModelsCatalogCache } from "../lib/modelsCatalog";
 import { useToast } from "./ToastContext";
 import { type FetchProgressRecord } from "../lib/records";
 
@@ -117,6 +118,7 @@ export function BackgroundProgressProvider({ children }: { children: ReactNode }
         "/api/models?_t=" + Date.now(),
         activeToken,
       );
+      clearModelsCatalogCache();
       window.location.reload();
     } catch {
       // Silently fail - data will refresh on next page visit

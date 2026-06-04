@@ -26,6 +26,7 @@ from app.models.gpu_pool import GpuPool, GpuPoolDevice
 from app.models.model_config import ModelConfig
 from app.models.user import User
 from app.core.task_manager import task_manager
+from app.core.v1_models_cache import invalidate_v1_models_cache
 from app.utils.schemas import ModelReorderRequest, ModelUpdateRequest
 
 router = APIRouter(prefix="/api/models", tags=["models"])
@@ -694,6 +695,7 @@ async def update_model(model_id: int, payload: ModelUpdateRequest, _: User = Dep
         model.activated = False
         db.add(model)
         db.commit()
+        invalidate_v1_models_cache()
 
         _ensure_model_vision_assets(model)
 
@@ -714,6 +716,7 @@ async def update_model(model_id: int, payload: ModelUpdateRequest, _: User = Dep
         db.add(model)
         db.commit()
         db.refresh(model)
+        invalidate_v1_models_cache()
 
     log_event(db, "model.updated", details={"alias": model.alias, "model_id": model_id})
     return {"status": "ok", "model": _serialize_model(model)}
@@ -739,6 +742,7 @@ async def activate_model(model_id: int, _: User = Depends(get_admin_user), db: S
             model.activated = True
             db.add(model)
             db.commit()
+            invalidate_v1_models_cache()
             log_event(db, "model.activated", details={"alias": model.alias, "pool_id": resolution.pool_id, "pool_name": resolution.pool_name})
             return {
                 "status": "ok",
@@ -751,6 +755,7 @@ async def activate_model(model_id: int, _: User = Depends(get_admin_user), db: S
             model.activated = True
             db.add(model)
             db.commit()
+            invalidate_v1_models_cache()
             log_event(db, "model.activated", details={"alias": model.alias, "device_id": resolution.id, "device_name": resolution.name})
             return {
                 "status": "ok",
@@ -773,6 +778,7 @@ def deactivate_model(model_id: int, _: User = Depends(get_admin_user), db: Sessi
     model.activated = False
     db.add(model)
     db.commit()
+    invalidate_v1_models_cache()
     log_event(db, "model.deactivated", details={"alias": model.alias})
     return {"status": "ok"}
 

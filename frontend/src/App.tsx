@@ -18,6 +18,7 @@ import { useAuth } from "./context/AuthContext";
 import { MobileNavProvider, type MobileNavSection } from "./context/MobileNavContext";
 import { useToast } from "./context/ToastContext";
 import { BackgroundProgressProvider } from "./context/BackgroundProgressContext";
+import { ModelsCatalogProvider } from "./context/ModelsCatalogContext";
 import MobileNavDrawer, { type MobileNavItem } from "./components/ui/MobileNavDrawer";
 import ToastViewport from "./components/ui/ToastViewport";
 import {
@@ -263,6 +264,7 @@ export default function App() {
 
  return (
     <BackgroundProgressProvider>
+      <ModelsCatalogProvider>
       <div className="app-background min-h-screen text-ink font-body" style={appBackgroundStyle}>
         <ToastViewport />
         <MobileNavProvider value={{ closeMobileNav: () => setIsMobileNavOpen(false), setMobileNavSection }}>
@@ -325,6 +327,7 @@ export default function App() {
           </div>
         </MobileNavProvider>
       </div>
+      </ModelsCatalogProvider>
     </BackgroundProgressProvider>
   );
 }

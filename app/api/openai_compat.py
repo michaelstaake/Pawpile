@@ -11,7 +11,8 @@ from sqlalchemy.orm import Session
 
 from app.api.deps import require_api_access, require_models_api_access
 from app.core.activity_logger import log_event
-from app.core.db import get_db
+from app.core.db import SessionLocal, get_db
+from app.core.v1_models_cache import get_cached_v1_models
 from app.core.inference_manager import InferenceManager
 from app.core.knowledge_base import build_rag_context, retrieve_relevant_documents
 from app.core.app_settings import get_or_create_app_settings
@@ -63,7 +64,7 @@ def _coerce_usage_count(value: Any) -> int | None:
     return None
 
 
-def _record_usage(usage: Any, *, db: Session, user_id: int | None, tool_calls: int = 0) -> bool:
+def _record_usage(usage: Any, *, user_id: int | None, tool_calls: int = 0) -> bool:
     if not isinstance(usage, dict):
         return False
 
@@ -80,14 +81,18 @@ def _record_usage(usage: Any, *, db: Session, user_id: int | None, tool_calls: i
     if total_tokens is None and input_tokens is None and output_tokens is None and tool_calls <= 0:
         return False
 
-    return record_token_usage(
-        db,
-        user_id=user_id,
-        total_tokens=total_tokens,
-        input_tokens=input_tokens,
-        output_tokens=output_tokens,
-        tool_calls=tool_calls,
-    )
+    db = SessionLocal()
+    try:
+        return record_token_usage(
+            db,
+            user_id=user_id,
+            total_tokens=total_tokens,
+            input_tokens=input_tokens,
+            output_tokens=output_tokens,
+            tool_calls=tool_calls,
+        )
+    finally:
+        db.close()
 
 
 def _usage_counts_from_raw(usage: Any) -> dict[str, int] | None:
@@ -154,12 +159,12 @@ def _extract_usage_from_sse_chunk(chunk: bytes | str) -> dict[str, int] | None:
     return accumulated
 
 
-def _record_usage_from_sse_chunk(chunk: bytes | str, *, db: Session, user_id: int | None, tool_calls: int = 0) -> bool:
+def _record_usage_from_sse_chunk(chunk: bytes | str, *, user_id: int | None, tool_calls: int = 0) -> bool:
     usage_counts = _extract_usage_from_sse_chunk(chunk)
     if usage_counts is None:
         return False
 
-    return _record_usage(usage_counts, db=db, user_id=user_id, tool_calls=tool_calls)
+    return _record_usage(usage_counts, user_id=user_id, tool_calls=tool_calls)
 
 
 def _count_tool_calls(messages: list[dict]) -> int:
@@ -335,8 +340,7 @@ async def _stream_with_web_search(
         yield filter_thinking_from_sse_chunk(chunk, thinking_enabled)
 
 
-@router.get("/models")
-def v1_models(_: User = Depends(require_models_api_access), db: Session = Depends(get_db)) -> dict:
+def _build_v1_models_payload(db: Session) -> dict:
     active_web_search_provider = _get_active_web_search_provider(db)
     app_settings = db.query(AppSettings).filter(AppSettings.id == 1).first()
     models = (
@@ -368,131 +372,140 @@ def v1_models(_: User = Depends(require_models_api_access), db: Session = Depend
     }
 
 
+@router.get("/models")
+def v1_models(_: User = Depends(require_models_api_access), db: Session = Depends(get_db)) -> dict:
+    return get_cached_v1_models(lambda: _build_v1_models_payload(db))
+
+
 @router.post("/chat/completions")
-async def v1_chat_completions(payload: OpenAIChatRequest, current_user: User = Depends(require_api_access), db: Session = Depends(get_db)):
+async def v1_chat_completions(payload: OpenAIChatRequest, current_user: User = Depends(require_api_access)):
     inference: InferenceManager = router.inference_manager  # type: ignore[attr-defined]
     current_user_id = current_user.id if getattr(current_user, "id", None) else None
-    model = (
-        db.query(ModelConfig)
-        .filter(ModelConfig.alias == payload.model, ModelConfig.activated.is_(True))
-        .first()
-    )
-    if not model:
-        raise HTTPException(status_code=404, detail="Model not found or not active")
 
-    app_settings = get_or_create_app_settings(db)
-    usage_limit_result = check_usage_limit_for_request(
-        db,
-        user=current_user,
-        app_settings=app_settings,
-    )
-    if not usage_limit_result.allowed:
-        raise HTTPException(status_code=429, detail=usage_limit_result.detail or "Token usage limit reached")
-
-    if payload.requests_tooling():
-        if not model.tool_calling_enabled:
-            raise HTTPException(
-                status_code=400,
-                detail="Tool calling is disabled for this model. Enable tool calling in the model settings before sending tool requests.",
-            )
-
-    web_search_requested = payload.use_web_search if payload.use_web_search is not None else model.web_search_enabled
-
-    if web_search_requested and not model.web_search_enabled:
-        raise HTTPException(
-            status_code=400,
-            detail="Web search is disabled for this model. Enable it in the model settings before requesting search.",
+    db = SessionLocal()
+    try:
+        model = (
+            db.query(ModelConfig)
+            .filter(ModelConfig.alias == payload.model, ModelConfig.activated.is_(True))
+            .first()
         )
+        if not model:
+            raise HTTPException(status_code=404, detail="Model not found or not active")
 
-    if web_search_requested and not model.tool_calling_enabled:
-        raise HTTPException(
-            status_code=400,
-            detail="Web search requires tool calling to be enabled for this model. Enable tool calling in the model settings.",
-        )
-
-    active_web_search_provider = _get_active_web_search_provider(db) if web_search_requested else None
-
-    if active_web_search_provider is not None:
-        tool_usage_limit_result = check_tool_usage_limit_for_request(
+        app_settings = get_or_create_app_settings(db)
+        usage_limit_result = check_usage_limit_for_request(
             db,
             user=current_user,
             app_settings=app_settings,
         )
-        if not tool_usage_limit_result.allowed:
-            raise HTTPException(status_code=429, detail=tool_usage_limit_result.detail or "Tool usage limit reached")
+        if not usage_limit_result.allowed:
+            raise HTTPException(status_code=429, detail=usage_limit_result.detail or "Token usage limit reached")
 
-    if payload.requests_vision() and not model.vision_enabled:
-        raise HTTPException(
-            status_code=400,
-            detail="Vision is disabled for this model. Enable vision in the model settings before sending image requests.",
+        if payload.requests_tooling():
+            if not model.tool_calling_enabled:
+                raise HTTPException(
+                    status_code=400,
+                    detail="Tool calling is disabled for this model. Enable tool calling in the model settings before sending tool requests.",
+                )
+
+        web_search_requested = payload.use_web_search if payload.use_web_search is not None else model.web_search_enabled
+
+        if web_search_requested and not model.web_search_enabled:
+            raise HTTPException(
+                status_code=400,
+                detail="Web search is disabled for this model. Enable it in the model settings before requesting search.",
+            )
+
+        if web_search_requested and not model.tool_calling_enabled:
+            raise HTTPException(
+                status_code=400,
+                detail="Web search requires tool calling to be enabled for this model. Enable tool calling in the model settings.",
+            )
+
+        active_web_search_provider = _get_active_web_search_provider(db) if web_search_requested else None
+
+        if active_web_search_provider is not None:
+            tool_usage_limit_result = check_tool_usage_limit_for_request(
+                db,
+                user=current_user,
+                app_settings=app_settings,
+            )
+            if not tool_usage_limit_result.allowed:
+                raise HTTPException(status_code=429, detail=tool_usage_limit_result.detail or "Tool usage limit reached")
+
+        if payload.requests_vision() and not model.vision_enabled:
+            raise HTTPException(
+                status_code=400,
+                detail="Vision is disabled for this model. Enable vision in the model settings before sending image requests.",
+            )
+
+        log_event(
+            db,
+            "chat.completion",
+            user_id=current_user_id,
+            username=current_user.username,
+            details={"model": model.alias, "stream": payload.stream},
         )
 
-    log_event(
-        db,
-        "chat.completion",
-        user_id=current_user_id,
-        username=current_user.username,
-        details={"model": model.alias, "stream": payload.stream},
-    )
+        request_payload = payload.model_dump(exclude_none=True)
+        if "temperature" not in request_payload:
+            request_payload["temperature"] = model.temperature
+        if "top_p" not in request_payload:
+            request_payload["top_p"] = model.top_p
+        if "top_k" not in request_payload:
+            request_payload["top_k"] = model.top_k
+        if "presence_penalty" not in request_payload:
+            request_payload["presence_penalty"] = model.presence_penalty
+        if "repetition_penalty" not in request_payload:
+            request_payload["repetition_penalty"] = model.repetition_penalty
+        request_payload["enable_thinking"] = resolve_thinking_enabled(model, payload.enable_thinking)
+        thinking_enabled = bool(request_payload["enable_thinking"])
+        request_payload["tool_calls"] = _count_tool_calls(request_payload["messages"])
+        request_payload["messages"] = [
+            {
+                key: value
+                for key, value in message.model_dump(exclude_none=True).items()
+                if key != "content" or value != ""
+            }
+            for message in payload.messages
+        ]
 
-    request_payload = payload.model_dump(exclude_none=True)
-    if "temperature" not in request_payload:
-        request_payload["temperature"] = model.temperature
-    if "top_p" not in request_payload:
-        request_payload["top_p"] = model.top_p
-    if "top_k" not in request_payload:
-        request_payload["top_k"] = model.top_k
-    if "presence_penalty" not in request_payload:
-        request_payload["presence_penalty"] = model.presence_penalty
-    if "repetition_penalty" not in request_payload:
-        request_payload["repetition_penalty"] = model.repetition_penalty
-    request_payload["enable_thinking"] = resolve_thinking_enabled(model, payload.enable_thinking)
-    thinking_enabled = bool(request_payload["enable_thinking"])
-    request_payload["tool_calls"] = _count_tool_calls(request_payload["messages"])
-    request_payload["messages"] = [
-        {
-            key: value
-            for key, value in message.model_dump(exclude_none=True).items()
-            if key != "content" or value != ""
-        }
-        for message in payload.messages
-    ]
+        request_payload = apply_thinking_to_request(request_payload, model, thinking_enabled)
 
-    request_payload = apply_thinking_to_request(request_payload, model, thinking_enabled)
+        rag_context = ""
+        rag_enabled = payload.model_extra.get("rag_enabled", False) if payload.model_extra else False
+        rag_enabled = rag_enabled or model.rag_enabled
+        if rag_enabled and app_settings.knowledge_base_enabled:
+            last_user_message = ""
+            for msg in reversed(payload.messages):
+                if msg.role == "user":
+                    last_user_message = msg.content if isinstance(msg.content, str) else ""
+                    break
+            if last_user_message:
+                docs = retrieve_relevant_documents(db, current_user.id, last_user_message)
+                rag_context = build_rag_context(docs, last_user_message)
 
-    # RAG: retrieve relevant documents and inject as context if enabled
-    rag_context = ""
-    rag_enabled = payload.model_extra.get("rag_enabled", False) if payload.model_extra else False
-    rag_enabled = rag_enabled or model.rag_enabled
-    if rag_enabled and app_settings.knowledge_base_enabled:
-        # Get the last user message as the query
-        last_user_message = ""
-        for msg in reversed(payload.messages):
-            if msg.role == "user":
-                last_user_message = msg.content if isinstance(msg.content, str) else ""
-                break
-        if last_user_message:
-            docs = retrieve_relevant_documents(db, current_user.id, last_user_message)
-            rag_context = build_rag_context(docs, last_user_message)
+        if rag_context:
+            request_payload["messages"] = _prepend_rag_context(request_payload["messages"], rag_context)
 
-    # Inject RAG context into system prompt if available
-    if rag_context:
-        request_payload["messages"] = _prepend_rag_context(request_payload["messages"], rag_context)
+        if payload.use_web_search and active_web_search_provider is None:
+            raise HTTPException(
+                status_code=400,
+                detail="No active web search provider is configured. Select one in Settings > Web Search before requesting search.",
+            )
 
-    # Web search: inject the web_search tool and run the agentic loop if enabled
-    if payload.use_web_search and active_web_search_provider is None:
-        raise HTTPException(
-            status_code=400,
-            detail="No active web search provider is configured. Select one in Settings > Web Search before requesting search.",
-        )
+        model_id = model.id
+        model_alias = model.alias
+    finally:
+        db.close()
 
     task_id = str(uuid.uuid4())
     task_manager.add_task(
         task_id=task_id,
         task_type="chat",
-        description=f"Chat request: {model.alias}",
+        description=f"Chat request: {model_alias}",
         metadata={
-            "model": model.alias,
+            "model": model_alias,
             "user_id": current_user_id,
             "username": current_user.username,
             "stream": payload.stream,
@@ -520,7 +533,7 @@ async def v1_chat_completions(payload: OpenAIChatRequest, current_user: User = D
                 try:
                     async for chunk in _stream_with_web_search(
                         inference,
-                        model.id,
+                        model_id,
                         request_payload,
                         active_web_search_provider,
                         thinking_enabled=thinking_enabled,
@@ -534,7 +547,6 @@ async def v1_chat_completions(payload: OpenAIChatRequest, current_user: User = D
                     if accumulated_usage is not None or total_web_search_calls > 0:
                         _record_usage(
                             accumulated_usage or {},
-                            db=db,
                             user_id=current_user_id,
                             tool_calls=total_web_search_calls,
                         )
@@ -552,7 +564,7 @@ async def v1_chat_completions(payload: OpenAIChatRequest, current_user: User = D
 
         task_manager.attach_async_task(task_id, asyncio.current_task())
         try:
-            result, total_tool_calls = await _run_web_search_non_streaming(inference, model.id, request_payload, active_web_search_provider)
+            result, total_tool_calls = await _run_web_search_non_streaming(inference, model_id, request_payload, active_web_search_provider)
         except asyncio.CancelledError:
             task_manager.mark_cancelled(task_id)
             raise
@@ -560,12 +572,12 @@ async def v1_chat_completions(payload: OpenAIChatRequest, current_user: User = D
             task_manager.fail_task(task_id, str(exc))
             raise
         task_manager.complete_task(task_id)
-        _record_usage(result.get("usage"), db=db, user_id=current_user_id, tool_calls=total_tool_calls)
+        _record_usage(result.get("usage"), user_id=current_user_id, tool_calls=total_tool_calls)
         return {
             "id": f"chatcmpl-{uuid.uuid4().hex}",
             "object": "chat.completion",
             "created": int(time.time()),
-            "model": model.alias,
+            "model": model_alias,
             "choices": result.get("choices", []),
             "usage": result.get("usage", {}),
         }
@@ -577,12 +589,16 @@ async def v1_chat_completions(payload: OpenAIChatRequest, current_user: User = D
             if current_task is not None:
                 task_manager.attach_async_task(task_id, current_task)
             try:
-                async for chunk in inference.stream_chat_completion(model.id, {
+                async for chunk in inference.stream_chat_completion(model_id, {
                     **request_payload,
                     "stream_options": {"include_usage": True},
                 }):
                     if not usage_recorded:
-                        usage_recorded = _record_usage_from_sse_chunk(chunk, db=db, user_id=current_user_id, tool_calls=request_payload.get("tool_calls", 0))
+                        usage_recorded = _record_usage_from_sse_chunk(
+                            chunk,
+                            user_id=current_user_id,
+                            tool_calls=request_payload.get("tool_calls", 0),
+                        )
                     yield filter_thinking_from_sse_chunk(chunk, thinking_enabled)
                 task_manager.complete_task(task_id)
             except asyncio.CancelledError:
@@ -598,7 +614,7 @@ async def v1_chat_completions(payload: OpenAIChatRequest, current_user: User = D
 
     task_manager.attach_async_task(task_id, asyncio.current_task())
     try:
-        result = await inference.chat_completion(model.id, request_payload)
+        result = await inference.chat_completion(model_id, request_payload)
     except asyncio.CancelledError:
         task_manager.mark_cancelled(task_id)
         raise
@@ -606,12 +622,12 @@ async def v1_chat_completions(payload: OpenAIChatRequest, current_user: User = D
         task_manager.fail_task(task_id, str(exc))
         raise
     task_manager.complete_task(task_id)
-    _record_usage(result.get("usage"), db=db, user_id=current_user_id, tool_calls=request_payload.get("tool_calls", 0))
+    _record_usage(result.get("usage"), user_id=current_user_id, tool_calls=request_payload.get("tool_calls", 0))
     return {
         "id": f"chatcmpl-{uuid.uuid4().hex}",
         "object": "chat.completion",
         "created": int(time.time()),
-        "model": model.alias,
+        "model": model_alias,
         "choices": result.get("choices", []),
         "usage": result.get("usage", {}),
     }

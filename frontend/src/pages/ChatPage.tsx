@@ -1,6 +1,7 @@
 import { type ChangeEvent, type FormEvent, useEffect, useRef, useState } from "react";
 import { apiDelete, apiGet, apiPost, apiPostForm, handleBackendUnavailableError, isBackendUnavailableResponse } from "../lib/api";
 import { useAuth } from "../context/AuthContext";
+import { useModelsCatalog } from "../context/ModelsCatalogContext";
 import { useMobileNav } from "../context/MobileNavContext";
 import { useToast } from "../context/ToastContext";
 import { getStoredToken } from "../lib/session";
@@ -33,36 +34,6 @@ type ChatCompletionStats = {
   completionTokens: number | null;
   totalTokens: number | null;
   tokensPerSecond: number | null;
-};
-
-type ModelListResponse = {
-  object: string;
-  data: {
-    id: string;
-    object: string;
-    created: number;
-    owned_by: string;
-    description?: string;
-    context_length?: number;
-    tool_calling_enabled?: boolean;
-    discourage_thinking?: boolean;
-    default_thinking_enabled?: boolean;
-    thinking_capability?: string;
-    thinking_controllable?: boolean;
-    vision_enabled?: boolean;
-    web_search_enabled?: boolean;
-    web_search_available?: boolean;
-    rag_enabled?: boolean;
-  }[];
-};
-
-type ModelCardDetails = {
-  description: string;
-  contextLength: number | null;
-  toolCallingEnabled: boolean;
-  webSearchEnabled: boolean;
-  visionEnabled: boolean;
-  ragEnabled: boolean;
 };
 
 type ChatSummary = {
@@ -312,24 +283,43 @@ function getModelThinkingTagLabel(discourageThinking: boolean, capability: strin
   return null;
 }
 
+function ModelCardSkeleton() {
+  return (
+    <div
+      className="flex min-h-[172px] animate-pulse flex-col rounded-[24px] border border-black/10 bg-[#fffdf7] p-5 shadow-sm"
+      aria-hidden="true"
+    >
+      <div className="h-6 w-2/3 rounded-lg bg-black/10" />
+      <div className="mt-4 h-4 w-full rounded bg-black/5" />
+      <div className="mt-2 h-4 w-4/5 rounded bg-black/5" />
+      <div className="mt-6 flex gap-2">
+        <div className="h-8 w-24 rounded-full bg-black/5" />
+        <div className="h-8 w-28 rounded-full bg-black/5" />
+      </div>
+    </div>
+  );
+}
+
 export default function ChatPage() {
   const { token, user } = useAuth();
   const { closeMobileNav, setMobileNavSection } = useMobileNav();
   const { showError } = useToast();
-  const [models, setModels] = useState<string[]>([]);
-  const [modelCardDetails, setModelCardDetails] = useState<Record<string, ModelCardDetails>>({});
-  const [modelVisionDefaults, setModelVisionDefaults] = useState<Record<string, boolean>>({});
-  const [modelSearchAvailability, setModelSearchAvailability] = useState<Record<string, boolean>>({});
-  const [modelThinkingDisabledDefaults, setModelThinkingDisabledDefaults] = useState<Record<string, boolean>>({});
-  const [modelThinkingDefaults, setModelThinkingDefaults] = useState<Record<string, boolean>>({});
-  const [modelThinkingControllable, setModelThinkingControllable] = useState<Record<string, boolean>>({});
-  const [modelThinkingCapabilities, setModelThinkingCapabilities] = useState<Record<string, string>>({});
+  const {
+    models,
+    modelCardDetails,
+    modelVisionDefaults,
+    modelSearchAvailability,
+    modelThinkingDisabledDefaults,
+    modelThinkingDefaults,
+    modelThinkingControllable,
+    modelThinkingCapabilities,
+    isLoadingModels,
+  } = useModelsCatalog();
   const [selectedModel, setSelectedModel] = useState<string>("");
   const [thinkingExpandedByIndex, setThinkingExpandedByIndex] = useState<Record<number, boolean>>({});
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [input, setInput] = useState("");
   const [isSending, setIsSending] = useState(false);
-  const [isLoadingModels, setIsLoadingModels] = useState(true);
   const [savedChats, setSavedChats] = useState<ChatSummary[]>([]);
   const [activeChatId, setActiveChatId] = useState<number | null>(null);
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
@@ -357,10 +347,27 @@ export default function ChatPage() {
   const shouldShowTranscript = activeChatId !== null || messages.length > 0;
   const isNewChatEmptyState = activeChatId === null && messages.length === 0;
   const shouldShowNoModelsEmptyState = isNewChatEmptyState && !isLoadingModels && models.length === 0;
-  const newChatModelGridClassName = models.length >= 3 ? "grid gap-3 sm:grid-cols-2 xl:grid-cols-3" : models.length === 2 ? "grid gap-3 sm:grid-cols-2" : "mx-auto grid max-w-xl place-items-center gap-3";
+  const isModelsUnavailable = isLoadingModels || models.length === 0;
+  const newChatSubtitle =
+    isLoadingModels && models.length === 0
+      ? "Loading models..."
+      : models.length <= 1
+        ? "New chat"
+        : "New chat - choose a model";
+  const inputPlaceholder = isLoadingModels
+    ? "Loading models..."
+    : models.length === 0
+      ? "No active models available"
+      : "Ask AI...";
+  const skeletonCardCount = 3;
+  const newChatModelGridClassName =
+    models.length >= 3 || (isLoadingModels && models.length === 0)
+      ? "grid gap-3 sm:grid-cols-2 xl:grid-cols-3"
+      : models.length === 2
+        ? "grid gap-3 sm:grid-cols-2"
+        : "mx-auto grid max-w-xl place-items-center gap-3";
 
   useEffect(() => {
-    void loadModels();
     if (token) {
       void refreshChats(token);
     } else {
@@ -368,6 +375,13 @@ export default function ChatPage() {
       setActiveChatId(null);
     }
   }, [token]);
+
+  useEffect(() => {
+    if (models.length === 0) {
+      return;
+    }
+    setSelectedModel((current) => (current && models.includes(current) ? current : models[0]));
+  }, [models]);
 
   useEffect(() => {
     if (shouldAutoScrollRef.current && transcriptRef.current) {
@@ -471,50 +485,6 @@ export default function ChatPage() {
       setMobileNavSection(null);
     };
   }, [activeChatId, closeMobileNav, isLoadingChats, savedChats, setMobileNavSection, token]);
-
-  async function loadModels() {
-    setIsLoadingModels(true);
-    try {
-      const response = await apiGet<ModelListResponse>("/v1/models", token || undefined);
-      const aliases = response.data.map((entry) => entry.id);
-      const cardDetails: Record<string, ModelCardDetails> = {};
-      const visionDefaults: Record<string, boolean> = {};
-      const searchAvailability: Record<string, boolean> = {};
-      const thinkingDisabledDefaults: Record<string, boolean> = {};
-      const thinkingDefaults: Record<string, boolean> = {};
-      const thinkingControllable: Record<string, boolean> = {};
-      const thinkingCapabilities: Record<string, string> = {};
-      for (const entry of response.data) {
-        cardDetails[entry.id] = {
-          description: entry.description?.trim() ?? "",
-          contextLength: entry.context_length ?? null,
-          toolCallingEnabled: entry.tool_calling_enabled ?? false,
-          webSearchEnabled: entry.web_search_enabled ?? false,
-          visionEnabled: entry.vision_enabled ?? false,
-          ragEnabled: entry.rag_enabled ?? false,
-        };
-        visionDefaults[entry.id] = entry.vision_enabled ?? false;
-        searchAvailability[entry.id] = entry.web_search_available ?? false;
-        thinkingDisabledDefaults[entry.id] = entry.discourage_thinking ?? false;
-        thinkingDefaults[entry.id] = entry.default_thinking_enabled ?? true;
-        thinkingControllable[entry.id] = entry.thinking_controllable ?? false;
-        thinkingCapabilities[entry.id] = entry.thinking_capability ?? "none";
-      }
-      setModelCardDetails(cardDetails);
-      setModelVisionDefaults(visionDefaults);
-      setModelSearchAvailability(searchAvailability);
-      setModelThinkingDisabledDefaults(thinkingDisabledDefaults);
-      setModelThinkingDefaults(thinkingDefaults);
-      setModelThinkingControllable(thinkingControllable);
-      setModelThinkingCapabilities(thinkingCapabilities);
-      setModels(aliases);
-      setSelectedModel((current: string) => current || aliases[0] || "");
-    } catch (error) {
-      showError(error instanceof Error ? error.message : "Failed to load models");
-    } finally {
-      setIsLoadingModels(false);
-    }
-  }
 
   async function refreshChats(activeToken: string) {
     setIsLoadingChats(true);
@@ -1016,9 +986,12 @@ export default function ChatPage() {
         ) : isNewChatEmptyState ? (
           <div className="mx-auto mb-6 w-full max-w-5xl">
             <div className="mb-4 text-center">
-              <p className="mt-2 text-sm text-black/60 md:text-[15px]">{models.length === 1 ? "New chat" : "New chat - choose a model"}</p>
+              <p className="mt-2 text-sm text-black/60 md:text-[15px]">{newChatSubtitle}</p>
             </div>
             <div className={newChatModelGridClassName}>
+              {isLoadingModels && models.length === 0
+                ? Array.from({ length: skeletonCardCount }, (_, index) => <ModelCardSkeleton key={`skeleton-${index}`} />)
+                : null}
               {models.map((alias) => {
                 const details = modelCardDetails[alias];
                 const isSelected = selectedModel === alias;
@@ -1341,7 +1314,7 @@ export default function ChatPage() {
             <button
               type="button"
               onClick={() => fileInputRef.current?.click()}
-              disabled={isSending || models.length === 0}
+              disabled={isSending || isModelsUnavailable}
               className="flex h-12 w-12 items-center justify-center rounded-xl border border-black/20 bg-white hover:bg-black/5 text-black disabled:opacity-50"
               title="Attach files"
             >
@@ -1358,9 +1331,9 @@ export default function ChatPage() {
               ref={inputRef}
               value={input}
               onChange={(event) => setInput(event.target.value)}
-              disabled={isSending || models.length === 0}
+              disabled={isSending || isModelsUnavailable}
               className="flex-1 rounded-xl border border-black/20 bg-white px-4 py-3 text-sm h-12 disabled:opacity-50"
-              placeholder={models.length === 0 ? "No active models available" : "Ask AI..."}
+              placeholder={inputPlaceholder}
             />
             {isSending ? (
               <button
