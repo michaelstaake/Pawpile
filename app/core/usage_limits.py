@@ -308,7 +308,8 @@ def build_account_usage_status(db: Session, *, user: User, app_settings: AppSett
     periods = []
     for period_id, limit in limits.items():
         used = usage[period_id]
-        percent = min(100.0, (used / limit) * 100) if limit > 0 else 0.0
+        effective_limit = 0 if user.is_admin else limit
+        percent = min(100.0, (used / effective_limit) * 100) if effective_limit > 0 else 0.0
         _, _, window = next(s for s in USAGE_PERIOD_SPECS if s[0] == period_id)
         oldest_ts = _as_utc_aware(oldest[period_id])
         if oldest_ts is not None:
@@ -320,7 +321,7 @@ def build_account_usage_status(db: Session, *, user: User, app_settings: AppSett
             {
                 "id": period_id,
                 "label": period_labels[period_id],
-                "limit_tokens": limit,
+                "limit_tokens": effective_limit,
                 "used_tokens": used,
                 "percent": round(percent, 1),
                 "resets_in_seconds": resets_in,
@@ -353,7 +354,8 @@ def build_account_tool_usage_status(db: Session, *, user: User, app_settings: Ap
     periods = []
     for period_id, limit in limits.items():
         used = usage[period_id]
-        percent = min(100.0, (used / limit) * 100) if limit > 0 else 0.0
+        effective_limit = 0 if user.is_admin else limit
+        percent = min(100.0, (used / effective_limit) * 100) if effective_limit > 0 else 0.0
         _, _, window = next(s for s in TOOL_USAGE_PERIOD_SPECS if s[0] == period_id)
         oldest_ts = _as_utc_aware(oldest[period_id])
         if oldest_ts is not None:
@@ -365,7 +367,7 @@ def build_account_tool_usage_status(db: Session, *, user: User, app_settings: Ap
             {
                 "id": period_id,
                 "label": period_labels[period_id],
-                "limit_tokens": limit,
+                "limit_tokens": effective_limit,
                 "used_tokens": used,
                 "percent": round(percent, 1),
                 "resets_in_seconds": resets_in,

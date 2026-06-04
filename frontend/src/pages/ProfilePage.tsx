@@ -97,8 +97,12 @@ export default function ProfilePage() {
   const showAccountUsage = accountUsage?.enabled;
   const showAccountToolUsage = accountToolUsage?.enabled;
   const numberFormatter = new Intl.NumberFormat();
-  const adminUsage = user?.is_admin;
-  const atAnyLimit = Boolean(accountUsage?.at_limit || accountToolUsage?.at_limit);
+  const adminUsage = Boolean(user?.is_admin || accountUsage?.is_admin || accountToolUsage?.is_admin);
+  const atAnyLimit = !adminUsage && Boolean(accountUsage?.at_limit || accountToolUsage?.at_limit);
+
+  function isUnlimitedPeriod(limitTokens: number) {
+    return limitTokens === 0 || adminUsage;
+  }
 
   function clampPercent(value: number | null | undefined) {
     if (value === null || value === undefined || Number.isNaN(value)) {
@@ -179,7 +183,7 @@ export default function ProfilePage() {
                 {accountUsage.periods.map((period) => (
                   <div key={period.id} className="rounded-2xl border border-black/10 bg-white/80 p-4">
                     <p className="text-xs font-semibold uppercase tracking-[0.24em] text-black/45">{period.label}</p>
-                    {period.limit_tokens === 0 ? (
+                    {isUnlimitedPeriod(period.limit_tokens) ? (
                       <>
                         <p className="mt-2 font-display text-3xl text-ink">{numberFormatter.format(period.used_tokens)}</p>
                         <p className="mt-1 text-sm text-black/55">Tokens</p>
@@ -213,7 +217,7 @@ export default function ProfilePage() {
                 {accountToolUsage.periods.map((period) => (
                   <div key={period.id} className="rounded-2xl border border-black/10 bg-white/80 p-4">
                     <p className="text-xs font-semibold uppercase tracking-[0.24em] text-black/45">{period.label}</p>
-                    {period.limit_tokens === 0 ? (
+                    {isUnlimitedPeriod(period.limit_tokens) ? (
                       <>
                         <p className="mt-2 font-display text-3xl text-ink">{numberFormatter.format(period.used_tokens)}</p>
                         <p className="mt-1 text-sm text-black/55">Searches</p>
