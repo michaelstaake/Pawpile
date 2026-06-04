@@ -4,7 +4,7 @@ import CodeEditor from "../components/ui/CodeEditor";
 import { apiDelete, apiGet, apiPost, fetchV1Models, type V1ModelEntry } from "../lib/api";
 import { useAuth } from "../context/AuthContext";
 import { useToast } from "../context/ToastContext";
-import { ApiKeyCreateResponse, ApiKeyRecord, AppSettingsRecord, ModelRecord } from "../lib/records";
+import { ApiKeyCreateResponse, ApiKeyRecord } from "../lib/records";
 
 const MINUTE_IN_MS = 60 * 1000;
 const HOUR_IN_MS = 60 * MINUTE_IN_MS;
@@ -32,9 +32,22 @@ function formatLastUsed(value: string | null): string {
   return "Last used more than 24 hours ago";
 }
 
+function isDefaultThinkingDisabled(model: V1ModelEntry): boolean {
+  if (model.discourage_thinking) {
+    return true;
+  }
+  const capability = model.thinking_capability ?? "none";
+  if (capability === "always") {
+    return false;
+  }
+  if (capability === "none") {
+    return true;
+  }
+  return model.default_thinking_enabled === false;
+}
 
 export default function ApiPage() {
-  const { token, user } = useAuth();
+  const { token, user, setupStatus } = useAuth();
   const { showError, showSuccess } = useToast();
   const [apiKeys, setApiKeys] = useState<ApiKeyRecord[]>([]);
   const [newKeyName, setNewKeyName] = useState("");
@@ -43,26 +56,19 @@ export default function ApiPage() {
   const [isLoadingKeys, setIsLoadingKeys] = useState(false);
   const [isCreatingKey, setIsCreatingKey] = useState(false);
   const [revokingKeyId, setRevokingKeyId] = useState<number | null>(null);
-  const [enabledModels, setEnabledModels] = useState<ModelRecord[]>([]);
-  const [isLoadingModels, setIsLoadingModels] = useState(false);
   const [v1Models, setV1Models] = useState<V1ModelEntry[]>([]);
   const [isLoadingV1Models, setIsLoadingV1Models] = useState(false);
   const [opencodeConfig, setOpencodeConfig] = useState("");
-  const [publicUrl, setPublicUrl] = useState("");
 
   useEffect(() => {
     if (!token || !user) {
       setApiKeys([]);
-      setEnabledModels([]);
       setV1Models([]);
       setOpencodeConfig("");
-      setPublicUrl("");
       return;
     }
     void refreshApiKeys(token);
-    void refreshEnabledModels(token);
     void refreshV1Models(token);
-    void refreshPublicUrl(token);
   }, [token, user]);
 
   async function refreshApiKeys(activeToken: string) {
@@ -79,28 +85,7 @@ export default function ApiPage() {
 
   const DEFAULT_API_BASE_URL = "https://EXAMPLE.PUP:8443";
 
-  async function refreshPublicUrl(activeToken: string) {
-    try {
-      const response = await apiGet<AppSettingsRecord>("/api/admin/settings", activeToken);
-      setPublicUrl(response.public_url || "");
-    } catch {
-      // Ignore errors loading public_url
-    }
-  }
-
-  const BASE_URL = publicUrl || import.meta.env.VITE_API_BASE_URL || DEFAULT_API_BASE_URL;
-
-  async function refreshEnabledModels(activeToken: string) {
-    setIsLoadingModels(true);
-    try {
-      const response = await apiGet<ModelRecord[]>("/api/models", activeToken);
-      setEnabledModels(response.filter((m) => m.activated));
-    } catch (error) {
-      showError(error instanceof Error ? error.message : "Failed to load models");
-    } finally {
-      setIsLoadingModels(false);
-    }
-  }
+  const BASE_URL = setupStatus?.public_url || import.meta.env.VITE_API_BASE_URL || DEFAULT_API_BASE_URL;
 
   async function refreshV1Models(activeToken: string) {
     setIsLoadingV1Models(true);
@@ -120,6 +105,9 @@ export default function ApiPage() {
       const entry: Record<string, unknown> = { name: model.id };
       if (model.vision_enabled) {
         entry.capabilities = { vision: true, image_input: true };
+      }
+      if (isDefaultThinkingDisabled(model)) {
+        entry.options = { reasoning: { enabled: false } };
       }
       models[model.id] = entry;
     }
@@ -145,7 +133,7 @@ export default function ApiPage() {
 
   useEffect(() => {
     setOpencodeConfig(buildOpencodeConfig());
-  }, [v1Models, publicUrl, BASE_URL]);
+  }, [v1Models, BASE_URL]);
 
   async function handleCreateApiKey(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -331,15 +319,15 @@ export default function ApiPage() {
           </div>
           <div>
             <h3 className="font-display text-lg text-black">Enabled models</h3>
-            {isLoadingModels ? (
+            {isLoadingV1Models ? (
               <p className="mt-2 text-sm text-black/60">Loading models...</p>
-            ) : enabledModels.length === 0 ? (
+            ) : v1Models.length === 0 ? (
               <p className="mt-2 text-sm text-black/60">No models are currently enabled.</p>
             ) : (
               <ul className="mt-2 space-y-2">
-                {enabledModels.map((model) => (
+                {v1Models.map((model) => (
                   <li key={model.id} className="rounded-xl border border-black/10 bg-[#fffdf7] px-3 py-2">
-                    <span className="text-sm font-mono text-black">{model.alias}</span>
+                    <span className="text-sm font-mono text-black">{model.id}</span>
                     {model.description && (
                       <span className="ml-2 text-xs text-black/45">- {model.description}</span>
                     )}

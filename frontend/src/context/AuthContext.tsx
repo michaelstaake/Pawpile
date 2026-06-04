@@ -78,6 +78,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   async function refreshPublicSettings() {
     try {
       const bootstrap = await apiGet<BootstrapStatus>("/api/auth/bootstrap-status");
+      setSetupStatus(bootstrap);
       setUsersCanRegister(bootstrap.users_can_register);
       setSitename(bootstrap.sitename || "Pawpile");
       setBackgroundColor(bootstrap.background_color || DEFAULT_BACKGROUND_COLOR);

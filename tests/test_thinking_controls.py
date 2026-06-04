@@ -188,3 +188,24 @@ def test_filter_thinking_from_sse_chunk() -> None:
 def test_filter_thinking_passthrough_when_enabled() -> None:
     chunk = b'data: {"choices":[{"delta":{"reasoning_content":"secret"}}]}\n\n'
     assert filter_thinking_from_sse_chunk(chunk, True) == chunk
+
+
+def test_strip_markup_preserves_leading_space_in_delta() -> None:
+    from app.core.thinking_controls import strip_thinking_markup_from_text
+
+    assert strip_thinking_markup_from_text(" there") == " there"
+    assert strip_thinking_markup_from_text(" ") == " "
+
+
+def test_filter_preserves_leading_space_in_sse_chunk() -> None:
+    chunk = 'data: {"choices":[{"delta":{"content":" there"}}]}\n\n'
+    filtered = filter_thinking_from_sse_chunk(chunk, False)
+    assert isinstance(filtered, str)
+    assert '" there"' in filtered
+
+
+def test_filter_preserves_whitespace_only_delta() -> None:
+    chunk = 'data: {"choices":[{"delta":{"content":" "}}]}\n\n'
+    filtered = filter_thinking_from_sse_chunk(chunk, False)
+    assert isinstance(filtered, str)
+    assert '" "' in filtered or "content" in filtered

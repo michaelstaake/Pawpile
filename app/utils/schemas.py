@@ -223,6 +223,7 @@ class BootstrapStatusResponse(BaseModel):
     knowledge_base_enabled: bool = False
     cloudflare_turnstile_enabled: bool = False
     cloudflare_turnstile_site_key: str | None = None
+    public_url: str = ""
 
     @field_validator("background_color", mode="before")
     @classmethod

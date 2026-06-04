@@ -16,6 +16,7 @@ export type BootstrapStatus = {
   knowledge_base_enabled: boolean;
   cloudflare_turnstile_enabled: boolean;
   cloudflare_turnstile_site_key: string | null;
+  public_url: string;
 };
 
 export type CurrentUser = {

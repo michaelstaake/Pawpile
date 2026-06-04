@@ -55,7 +55,7 @@ _THINKING_BLOCK_RE = re.compile(
     re.DOTALL | re.IGNORECASE,
 )
 _EMPTY_THINKING_PAIR_RE = re.compile(
-    r"<\|?(?:think|thinking|redacted_thinking)\|?>\s*</\|?(?:think|thinking|redacted_thinking)\|?>",
+    r"<\|?(?:think|thinking|redacted_thinking)\|?>\s*</\|?(?:think|thinking|redacted_thinking)\|?>\n?",
     re.IGNORECASE,
 )
 
@@ -131,9 +131,8 @@ def strip_thinking_markup_from_text(text: str) -> str:
     if not text:
         return text
 
-    cleaned = _THINKING_BLOCK_RE.sub("", text)
-    cleaned = _EMPTY_THINKING_PAIR_RE.sub("", cleaned)
-    return cleaned.strip()
+    cleaned = _EMPTY_THINKING_PAIR_RE.sub("", text)
+    return _THINKING_BLOCK_RE.sub("", cleaned)
 
 
 def strip_legacy_thinking_control_lines(text: str) -> str:
@@ -313,6 +312,8 @@ def filter_thinking_from_sse_chunk(chunk: bytes | str, enabled: bool) -> bytes |
                     changed = True
                     if stripped_content:
                         filtered_delta = {**filtered_delta, "content": stripped_content}
+                    elif content.isspace():
+                        filtered_delta = {**filtered_delta, "content": content}
                     else:
                         filtered_delta = {key: value for key, value in filtered_delta.items() if key != "content"}
 
