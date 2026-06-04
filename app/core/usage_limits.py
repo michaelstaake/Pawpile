@@ -194,9 +194,16 @@ def get_user_oldest_tool_timestamp_by_period(db: Session, *, user_id: int) -> di
     return oldest
 
 
-def is_user_over_usage_limit(db: Session, *, user_id: int, app_settings: AppSettings) -> bool:
+def is_user_over_usage_limit(db: Session, *, user: User, app_settings: AppSettings) -> bool:
+    if user.is_admin:
+        return False
+
     limits = get_usage_limit_values(app_settings)
     if not any(limit > 0 for limit in limits.values()):
+        return False
+
+    user_id = getattr(user, "id", None)
+    if not user_id or user_id <= 0:
         return False
 
     usage = get_user_token_usage_by_period(db, user_id=user_id)
@@ -206,9 +213,16 @@ def is_user_over_usage_limit(db: Session, *, user_id: int, app_settings: AppSett
     return False
 
 
-def is_user_over_tool_usage_limit(db: Session, *, user_id: int, app_settings: AppSettings) -> bool:
+def is_user_over_tool_usage_limit(db: Session, *, user: User, app_settings: AppSettings) -> bool:
+    if user.is_admin:
+        return False
+
     limits = get_tool_usage_limit_values(app_settings)
     if not any(limit > 0 for limit in limits.values()):
+        return False
+
+    user_id = getattr(user, "id", None)
+    if not user_id or user_id <= 0:
         return False
 
     usage = get_user_tool_usage_by_period(db, user_id=user_id)
@@ -316,7 +330,7 @@ def build_account_usage_status(db: Session, *, user: User, app_settings: AppSett
     return {
         "enabled": True,
         "is_admin": user.is_admin,
-        "at_limit": is_user_over_usage_limit(db, user_id=user_id, app_settings=app_settings),
+        "at_limit": is_user_over_usage_limit(db, user=user, app_settings=app_settings),
         "periods": periods,
     }
 
@@ -361,6 +375,6 @@ def build_account_tool_usage_status(db: Session, *, user: User, app_settings: Ap
     return {
         "enabled": True,
         "is_admin": user.is_admin,
-        "at_limit": is_user_over_tool_usage_limit(db, user_id=user_id, app_settings=app_settings),
+        "at_limit": is_user_over_tool_usage_limit(db, user=user, app_settings=app_settings),
         "periods": periods,
     }

@@ -161,14 +161,14 @@ export default function ProfilePage() {
         <article className="rounded-3xl border border-black/10 bg-white/85 p-5 shadow-sm backdrop-blur">
           <p className="text-xs font-semibold uppercase tracking-[0.18em] text-black/45">Your Usage</p>
           <p className="mt-1 text-sm text-black/60">
-            {atAnyLimit
-              ? accountToolUsage?.at_limit && !accountUsage?.at_limit
-                ? "You have reached a web search usage limit. Web search is unavailable until your usage resets."
-                : accountUsage?.at_limit && accountToolUsage?.at_limit
-                  ? "You have reached token and web search usage limits. Chat, API, and web search are unavailable until your usage resets."
-                  : "You have reached a usage limit. Chat and API access are unavailable until your usage resets."
-              : adminUsage
-                ? "Token and web search usage."
+            {adminUsage
+              ? "Token and web search usage."
+              : atAnyLimit
+                ? accountToolUsage?.at_limit && !accountUsage?.at_limit
+                  ? "You have reached a web search usage limit. Web search is unavailable until your usage resets."
+                  : accountUsage?.at_limit && accountToolUsage?.at_limit
+                    ? "You have reached token and web search usage limits. Chat, API, and web search are unavailable until your usage resets."
+                    : "You have reached a usage limit. Chat and API access are unavailable until your usage resets."
                 : "Token and web search usage against your account limits."}
           </p>
 
