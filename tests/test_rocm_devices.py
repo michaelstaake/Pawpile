@@ -13,15 +13,7 @@ for _env_key in (
 ):
     os.environ.pop(_env_key, None)
 
-from app.core.device_manager import (
-    AMD_VENDOR_ID,
-    DeviceManager,
-    _format_rocm_display_name,
-    _rocm_product_name_from_entry,
-    build_device_display_suffix,
-    get_supported_vendors,
-    is_supported_vendor,
-)
+from app.core.device_manager import AMD_VENDOR_ID, DeviceManager, get_supported_vendors, is_supported_vendor
 from app.inference_service import (
     ActivateModelRequest,
     InferenceRuntime,
@@ -56,40 +48,6 @@ class SupportedVendorTests(unittest.TestCase):
                 self.assertTrue(is_supported_vendor("rocm"))
             finally:
                 config.get_settings.cache_clear()
-
-
-class RocmDisplayNameTests(unittest.TestCase):
-    def test_format_generic_rocm_name_uses_gpu_index_and_vram(self) -> None:
-        name = _format_rocm_display_name(
-            "AMD Radeon Graphics",
-            memory_mb=32_768,
-            hardware_id="rocm:0",
-        )
-        self.assertEqual(name, "AMD GPU 0 (32 GB)")
-
-    def test_format_hex_rocm_name_is_replaced(self) -> None:
-        name = _format_rocm_display_name(
-            "0x7551",
-            memory_mb=32_768,
-            hardware_id="rocm:1",
-        )
-        self.assertEqual(name, "AMD GPU 1 (32 GB)")
-
-    def test_build_device_display_suffix_uses_pci_slot(self) -> None:
-        self.assertEqual(
-            build_device_display_suffix("0000:69:00.0", "rocm:0"),
-            "69:00.0",
-        )
-
-    def test_rocm_product_name_skips_hex_and_generic_series(self) -> None:
-        entry = {
-            "Card series": "AMD Radeon Graphics",
-            "Card model": "0x7551",
-        }
-        self.assertIsNone(_rocm_product_name_from_entry(entry))
-
-        good_entry = {"Card series": "AMD Radeon Graphics", "Card model": "Radeon AI PRO R9700"}
-        self.assertEqual(_rocm_product_name_from_entry(good_entry), "Radeon AI PRO R9700")
 
 
 class RocmDetectionTests(unittest.TestCase):
