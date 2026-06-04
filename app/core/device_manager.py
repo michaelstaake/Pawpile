@@ -17,6 +17,7 @@ from app.models.device import Device
 logger = logging.getLogger(__name__)
 
 AMD_VENDOR_ID = 0x1002
+INTEL_VENDOR_ID = 0x8086
 
 
 def get_supported_vendors() -> set[str]:
@@ -557,17 +558,33 @@ def _read_amdgpu_pci_bdfs() -> list[str]:
     return bdfs
 
 
-def _parse_vulkaninfo_device_local_heap_mb(output: str) -> dict[int, int]:
-    """Parse device-local heap total size (MiB) per GPU index from full vulkaninfo text output.
+def _is_vulkan_device_local_heap(heap_block: str) -> bool:
+    """True when the heap block is device-local (modern and legacy vulkaninfo flag names)."""
+    return "MEMORY_HEAP_DEVICE_LOCAL_BIT" in heap_block
 
-    Returns a dict mapping Vulkan device index to total device-local memory in MiB.
-    Parses the ``memoryHeaps[N]:`` blocks for ``VK_MEMORY_HEAP_DEVICE_LOCAL_BIT`` and
-    extracts the ``size`` field.  Units handled: ``MiB``, ``GiB``, plain bytes.
-    """
-    memory_by_idx: dict[int, int] = {}
-    # Split by "GPU<N>:" headers (same pattern used in --summary parsing)
+
+def _parse_vulkaninfo_heap_field_mb(heap_block: str, field: str) -> int | None:
+    """Parse a vulkaninfo ``size`` or ``usage`` line from a memory heap block into MiB."""
+    match = re.search(rf"\b{field}\s*=\s*([^\n]+)", heap_block, re.IGNORECASE)
+    if not match:
+        return None
+
+    line = match.group(1)
+    human_units = re.findall(r"\(([\d.]+)\s*(GiB|MiB|KiB|bytes|B)\)", line, re.IGNORECASE)
+    if human_units:
+        value, unit = human_units[-1]
+        return _vulkan_size_to_mb(float(value), unit)
+
+    simple = re.match(r"([\d.]+)\s*(MiB|GiB|KiB|bytes|B)?", line.strip(), re.IGNORECASE)
+    if not simple:
+        return None
+    return _vulkan_size_to_mb(float(simple.group(1)), simple.group(2))
+
+
+def _parse_vulkaninfo_gpu_memory_metrics(output: str) -> dict[int, dict[str, int]]:
+    """Parse device-local heap total and usage (MiB) per GPU index from full vulkaninfo text."""
+    memory_by_idx: dict[int, dict[str, int]] = {}
     blocks = re.split(r"GPU(\d+):", output)
-    # blocks layout: [preamble, idx0, block0, idx1, block1, ...]
     i = 1
     while i + 1 < len(blocks):
         try:
@@ -578,21 +595,31 @@ def _parse_vulkaninfo_device_local_heap_mb(output: str) -> dict[int, int]:
         block = blocks[i + 1]
         i += 2
 
-        heap_blocks = re.split(r"memoryHeaps\[\d+\]:", block)
-        device_local_mb = 0
-        for heap_block in heap_blocks[1:]:
-            if "VK_MEMORY_HEAP_DEVICE_LOCAL_BIT" not in heap_block:
+        total_mb = 0
+        used_mb = 0
+        for heap_block in re.split(r"memoryHeaps\[\d+\]:", block)[1:]:
+            if not _is_vulkan_device_local_heap(heap_block):
                 continue
-            size_match = re.search(r"\bsize\s*=\s*([\d.]+)\s*(MiB|GiB|bytes|B)?", heap_block, re.IGNORECASE)
-            if not size_match:
-                continue
-            size_mb = _vulkan_size_to_mb(float(size_match.group(1)), size_match.group(2))
-            device_local_mb = max(device_local_mb, size_mb)
+            size_mb = _parse_vulkaninfo_heap_field_mb(heap_block, "size")
+            if size_mb is not None:
+                total_mb = max(total_mb, size_mb)
+            usage_mb = _parse_vulkaninfo_heap_field_mb(heap_block, "usage")
+            if usage_mb is not None:
+                used_mb = max(used_mb, usage_mb)
 
-        if device_local_mb > 0:
-            memory_by_idx[idx] = device_local_mb
+        if total_mb > 0:
+            memory_by_idx[idx] = {"total_mb": total_mb, "used_mb": used_mb}
 
     return memory_by_idx
+
+
+def _parse_vulkaninfo_device_local_heap_mb(output: str) -> dict[int, int]:
+    """Parse device-local heap total size (MiB) per GPU index from full vulkaninfo text output."""
+    return {
+        idx: metrics["total_mb"]
+        for idx, metrics in _parse_vulkaninfo_gpu_memory_metrics(output).items()
+        if metrics["total_mb"] > 0
+    }
 
 
 def _parse_vulkan_vendor_id(block: str) -> int | None:
@@ -613,6 +640,8 @@ def _vulkan_size_to_mb(value: float, unit: str | None) -> int:
         return int(value)
     if unit == "gib":
         return int(value * 1024)
+    if unit == "kib":
+        return int(value / 1024)
     if unit in ("bytes", "b"):
         return int(value / (1024 * 1024))
     # Unknown unit — if the value looks like it's already in MiB (< 1 million) keep it,

@@ -268,6 +268,15 @@ Certificates are stored in `./certs` and renewed automatically when they are wit
   - Ensure the appropriate GPU Docker runtime is configured and accessible to the environment.
   - Restart the application after installing drivers on the host.
 
+- **Intel Arc (Vulkan) shows on the status page but memory is N/A or missing from AI Memory**:
+  - VRAM totals come from `vulkaninfo` inside the `pawpile-inference-vulkan` container (not the backend container).
+  - Verify the inference container sees device-local heaps:
+    ```bash
+    docker exec pawpile-inference-vulkan vulkaninfo 2>/dev/null | grep -E 'GPU[0-9]+:|memoryHeaps|DEVICE_LOCAL|size =|usage =' | head -80
+    docker exec pawpile-inference-vulkan curl -s http://localhost:8100/runtime/status | jq '.devices[] | select(.hardware_id|startswith("vulkan")) | {hardware_id, memory_total_mb, memory_used_mb, memory_source}'
+    ```
+  - `memory_total_mb` should be roughly your card's VRAM (e.g. ~6144 for a 6 GB Arc A380). If it is 0, check that `/dev/dri` is passed through and the host has a working Intel GPU driver.
+
 ## Need Help?
 
 [Documentation on GitHub Wiki](https://github.com/michaelstaake/Pawpile/wiki)

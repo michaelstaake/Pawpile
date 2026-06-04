@@ -19,7 +19,14 @@ from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
 
 from app.core.config import get_settings
-from app.core.device_manager import AMD_VENDOR_ID, DeviceManager, get_supported_vendors, is_supported_vendor, _parse_vulkan_vendor_id
+from app.core.device_manager import (
+    AMD_VENDOR_ID,
+    DeviceManager,
+    get_supported_vendors,
+    is_supported_vendor,
+    _parse_vulkan_vendor_id,
+    _parse_vulkaninfo_gpu_memory_metrics,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -730,9 +737,9 @@ class InferenceRuntime:
         output = self._run_command(["vulkaninfo"])
         metrics: dict[str, dict] = {}
         amd_vulkan_indices: list[int] = []
+        memory_by_idx = _parse_vulkaninfo_gpu_memory_metrics(output) if output else {}
         if output:
             blocks = re.split(r"GPU(\d+):", output)
-            # blocks layout: [preamble, idx0, block0, idx1, block1, ...]
             i = 1
             while i + 1 < len(blocks):
                 try:
@@ -743,33 +750,22 @@ class InferenceRuntime:
                 block = blocks[i + 1]
                 i += 2
 
-                memory_total_mb = 0
-                memory_used_mb = 0
                 vendor_id = _parse_vulkan_vendor_id(block)
                 if vendor_id == AMD_VENDOR_ID:
                     amd_vulkan_indices.append(idx)
                     if device_manager._should_hide_vulkan_amd():
                         continue
-                heap_blocks = re.split(r"memoryHeaps\[\d+\]:", block)
-                for heap_block in heap_blocks[1:]:
-                    if "VK_MEMORY_HEAP_DEVICE_LOCAL_BIT" not in heap_block:
-                        continue
-                    size_match = re.search(r"\bsize\s*=\s*([\d.]+)\s*(MiB|GiB|bytes|B)?", heap_block, re.IGNORECASE)
-                    usage_match = re.search(r"\busage\s*=\s*([\d.]+)\s*(MiB|GiB|bytes|B)?", heap_block, re.IGNORECASE)
-                    if size_match:
-                        memory_total_mb = max(memory_total_mb, _vulkan_size_to_mb(float(size_match.group(1)), size_match.group(2)))
-                    if usage_match:
-                        memory_used_mb = max(memory_used_mb, _vulkan_size_to_mb(float(usage_match.group(1)), usage_match.group(2)))
 
-                if memory_total_mb <= 0:
+                heap_metrics = memory_by_idx.get(idx)
+                if not heap_metrics or heap_metrics["total_mb"] <= 0:
                     continue
 
                 hardware_id = f"vulkan:{idx}"
                 metrics[hardware_id] = {
                     "usage_percent": None,
                     "usage_source": "unavailable",
-                    "memory_used_mb": memory_used_mb,
-                    "memory_total_mb": memory_total_mb,
+                    "memory_used_mb": heap_metrics["used_mb"],
+                    "memory_total_mb": heap_metrics["total_mb"],
                     "memory_source": "vulkaninfo",
                     "process_memory_by_pid": {},
                 }
@@ -992,21 +988,6 @@ class InferenceRuntime:
         if value is None:
             return None
         return round(float(value), 1)
-
-
-def _vulkan_size_to_mb(value: float, unit: str | None) -> int:
-    """Convert a vulkaninfo heap size value + unit string to MiB."""
-    unit = (unit or "bytes").lower()
-    if unit == "mib":
-        return int(value)
-    if unit == "gib":
-        return int(value * 1024)
-    if unit in ("bytes", "b"):
-        return int(value / (1024 * 1024))
-    # Unknown unit — if the value is small it is likely already in MiB, otherwise bytes.
-    if value < 1_000_000:
-        return int(value)
-    return int(value / (1024 * 1024))
 
 
 app = FastAPI(title="Pawpile Inference Service")
