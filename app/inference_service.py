@@ -51,6 +51,19 @@ def _apply_rocm_runtime_env(env: dict[str, str]) -> None:
         env["HSA_OVERRIDE_GFX_VERSION"] = override
 
 
+def _rocm_pool_stability_args() -> list[str]:
+    settings = get_settings()
+    args: list[str] = []
+
+    parallel = max(1, settings.rocm_pool_parallel)
+    args.extend(["--parallel", str(parallel)])
+
+    cache_ram_mb = max(0, settings.rocm_pool_cache_ram_mb)
+    args.extend(["--cache-ram", str(cache_ram_mb)])
+
+    return args
+
+
 def _validate_gpu_offload_from_log(log_path: str, vendor: str, gpu_layers: int) -> None:
     effective_vendor = vendor.removesuffix("_pool")
     if effective_vendor not in _GPU_OFFLOAD_VENDORS or gpu_layers == 0:
@@ -339,6 +352,8 @@ class InferenceRuntime:
     def _build_vendor_args(self, vendor: str, vram_ratios: list[int] | None = None, split_mode: str = "layer") -> list[str]:
         if vendor.endswith("_pool"):
             args: list[str] = []
+            if vendor == "rocm_pool":
+                args.extend(_rocm_pool_stability_args())
             if vram_ratios and len(vram_ratios) >= 2:
                 args.extend(["--tensor-split", ",".join(str(r) for r in vram_ratios)])
             args.extend(["--split-mode", split_mode])

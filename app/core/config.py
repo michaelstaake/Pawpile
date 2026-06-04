@@ -40,6 +40,11 @@ class Settings(BaseSettings):
     llama_fit_to_vram: bool = False
     # RDNA4 (gfx1200/gfx1201): helps HIP find the GPU when ROCm mis-detects the arch.
     rocm_hsa_override_gfx_version: str = "12.0.1"
+    # ROCm multi-GPU pools can produce unstable output when slot cache state is reused.
+    # Keep this at 1 unless you have validated multi-slot stability on your stack.
+    rocm_pool_parallel: int = 1
+    # Disable prompt cache in ROCm pools by default to avoid kv-cache restore corruption.
+    rocm_pool_cache_ram_mb: int = 0
 
     default_context_length: int = 32768
     default_threads: int = 8

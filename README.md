@@ -124,6 +124,8 @@ docker compose --profile nvidia --profile vulkan --profile rocm down
 
 **Multi-GPU AMD pools:** create a pool with vendor `rocm` and try split mode `layer` first. `tensor` mode is experimental; rebuild with `GGML_HIP_RCCL=ON` if you want to test it. PCIe bandwidth (e.g. PCIe 3.0) still limits cross-GPU performance.
 
+If you see garbled/random output only on ROCm pools (while single-GPU ROCm is fine), keep `ROCM_POOL_PARALLEL=1` and `ROCM_POOL_CACHE_RAM_MB=0` (the defaults) to avoid unstable multi-slot KV/prompt-cache state reuse.
+
 ## Interacting with the AI Models
 
 ### Web Interface Chat
