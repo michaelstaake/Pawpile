@@ -265,7 +265,7 @@ export default function ProfilePage() {
         </article>
       )}
 
-      <Modal open={emailModalOpen} onClose={() => setEmailModalOpen(false)} labelledBy="update-email-title">
+      <Modal open={emailModalOpen} onClose={() => setEmailModalOpen(false)} labelledBy="update-email-title" panelClassName="max-w-md">
         <div className="p-5">
           <div className="flex items-start justify-between">
             <h2 id="update-email-title" className="font-display text-xl">Update email</h2>
@@ -301,7 +301,7 @@ export default function ProfilePage() {
         </div>
       </Modal>
 
-      <Modal open={passwordModalOpen} onClose={() => setPasswordModalOpen(false)} labelledBy="update-password-title">
+      <Modal open={passwordModalOpen} onClose={() => setPasswordModalOpen(false)} labelledBy="update-password-title" panelClassName="max-w-md">
         <div className="p-5">
           <div className="flex items-start justify-between">
             <h2 id="update-password-title" className="font-display text-xl">Update password</h2>

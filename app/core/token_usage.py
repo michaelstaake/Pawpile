@@ -190,3 +190,57 @@ def get_user_token_usage(db: Session, *, user_ids: list[int], input_price_per_1m
         result.append(user_data)
 
     return result
+
+
+def get_user_tool_usage(db: Session, *, user_ids: list[int]) -> list[dict]:
+    now = datetime.now(timezone.utc)
+    periods = {
+        "last_60_minutes": now - timedelta(hours=1),
+        "last_24_hours": now - timedelta(hours=24),
+        "last_7_days": now - timedelta(days=7),
+        "last_30_days": now - timedelta(days=30),
+        "forever": None,
+    }
+
+    users = db.query(User).filter(User.id.in_(user_ids)).all()
+    user_map = {u.id: u for u in users}
+
+    user_ids_with_usage = [uid for uid in user_ids if uid in user_map]
+
+    if not user_ids_with_usage:
+        return []
+
+    result = []
+    for uid in user_ids:
+        user = user_map.get(uid)
+        if not user:
+            continue
+
+        user_data = {
+            "user_id": uid,
+            "username": user.username,
+            "last_60_minutes": {"web_searches": 0},
+            "last_24_hours": {"web_searches": 0},
+            "last_7_days": {"web_searches": 0},
+            "last_30_days": {"web_searches": 0},
+            "forever": {"web_searches": 0},
+        }
+
+        for period_name, since in periods.items():
+            query = (
+                db.query(
+                    func.coalesce(func.sum(TokenUsage.tool_calls), 0),
+                )
+                .filter(TokenUsage.user_id == uid)
+            )
+            if since is not None:
+                query = query.filter(TokenUsage.created_at >= since)
+
+            tool_calls = query.one()
+            user_data[period_name] = {
+                "web_searches": int(tool_calls[0] or 0),
+            }
+
+        result.append(user_data)
+
+    return result

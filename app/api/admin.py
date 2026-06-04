@@ -10,7 +10,7 @@ from app.core.app_settings import get_or_create_app_settings
 from app.core.config import get_settings
 from app.core.db import get_db
 from app.core.security import generate_api_key, hash_api_key, hash_password
-from app.core.token_usage import get_user_token_usage
+from app.core.token_usage import get_user_token_usage, get_user_tool_usage
 from app.core.usage_limits import are_tool_usage_limits_enabled, are_usage_limits_enabled, validate_tool_usage_limit_values, validate_usage_limit_values
 from app.models.api_key import ApiKey
 from app.models.user import User
@@ -167,7 +167,17 @@ def get_users_token_usage(_: User = Depends(get_admin_user), db: Session = Depen
     app_settings = get_or_create_app_settings(db)
     users = db.query(User).order_by(User.username.asc()).all()
     user_ids = [u.id for u in users]
-    return get_user_token_usage(db, user_ids=user_ids, input_price_per_1m=app_settings.input_price_per_1m or 0.0, output_price_per_1m=app_settings.output_price_per_1m or 0.0)
+    token_usage = get_user_token_usage(db, user_ids=user_ids, input_price_per_1m=app_settings.input_price_per_1m or 0.0, output_price_per_1m=app_settings.output_price_per_1m or 0.0)
+    tool_usage = get_user_tool_usage(db, user_ids=user_ids)
+    tool_map = {t["user_id"]: t for t in tool_usage}
+    for item in token_usage:
+        if item["user_id"] in tool_map:
+            item["last_60_minutes"] = {**item["last_60_minutes"], **tool_map[item["user_id"]]["last_60_minutes"]}
+            item["last_24_hours"] = {**item["last_24_hours"], **tool_map[item["user_id"]]["last_24_hours"]}
+            item["last_7_days"] = {**item["last_7_days"], **tool_map[item["user_id"]]["last_7_days"]}
+            item["last_30_days"] = {**item["last_30_days"], **tool_map[item["user_id"]]["last_30_days"]}
+            item["forever"] = {**item["forever"], **tool_map[item["user_id"]]["forever"]}
+    return token_usage
 
 
 @router.get("/users/{user_id}/token-usage")
@@ -176,7 +186,15 @@ def get_single_user_token_usage(user_id: int, _: User = Depends(get_admin_user),
     user = db.query(User).filter(User.id == user_id).first()
     if not user:
         raise HTTPException(status_code=404, detail="User not found")
-    return get_user_token_usage(db, user_ids=[user.id], input_price_per_1m=app_settings.input_price_per_1m or 0.0, output_price_per_1m=app_settings.output_price_per_1m or 0.0)
+    token_usage = get_user_token_usage(db, user_ids=[user.id], input_price_per_1m=app_settings.input_price_per_1m or 0.0, output_price_per_1m=app_settings.output_price_per_1m or 0.0)
+    tool_usage = get_user_tool_usage(db, user_ids=[user.id])
+    if token_usage and tool_usage:
+        token_usage[0]["last_60_minutes"] = {**token_usage[0]["last_60_minutes"], **tool_usage[0]["last_60_minutes"]}
+        token_usage[0]["last_24_hours"] = {**token_usage[0]["last_24_hours"], **tool_usage[0]["last_24_hours"]}
+        token_usage[0]["last_7_days"] = {**token_usage[0]["last_7_days"], **tool_usage[0]["last_7_days"]}
+        token_usage[0]["last_30_days"] = {**token_usage[0]["last_30_days"], **tool_usage[0]["last_30_days"]}
+        token_usage[0]["forever"] = {**token_usage[0]["forever"], **tool_usage[0]["forever"]}
+    return token_usage
 
 
 @router.post("/users")

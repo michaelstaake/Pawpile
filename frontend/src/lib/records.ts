@@ -55,11 +55,11 @@ export type UserRecord = {
 export type UserTokenUsageRecord = {
   user_id: number;
   username: string;
-  last_60_minutes: TokenUsageMetricRecord;
-  last_24_hours: TokenUsageMetricRecord;
-  last_7_days: TokenUsageMetricRecord;
-  last_30_days: TokenUsageMetricRecord;
-  forever: TokenUsageMetricRecord;
+  last_60_minutes: TokenUsageMetricRecord & { web_searches: number };
+  last_24_hours: TokenUsageMetricRecord & { web_searches: number };
+  last_7_days: TokenUsageMetricRecord & { web_searches: number };
+  last_30_days: TokenUsageMetricRecord & { web_searches: number };
+  forever: TokenUsageMetricRecord & { web_searches: number };
   estimated_cost: number;
 };
 

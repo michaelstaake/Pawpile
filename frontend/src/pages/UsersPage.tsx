@@ -415,47 +415,74 @@ export default function UsersPage() {
             (() => {
               const usage = userTokenUsages[selectedUsageUser?.id ?? -1];
               return (
-                <div className="mt-5 rounded-xl border border-black/10 bg-white/70 p-4">
-                  <div className="flex items-center justify-between">
-                    <span className="text-xs font-semibold text-black/50 uppercase tracking-wide">Token Usage &amp; Estimated Cost</span>
-                    <span className="text-sm font-semibold text-black">
-                      ${usage.estimated_cost.toFixed(4)}
-                    </span>
+                <div className="mt-5 space-y-4">
+                  <div className="rounded-xl border border-black/10 bg-white/70 p-4">
+                    <div className="flex items-center justify-between">
+                      <span className="text-xs font-semibold text-black/50 uppercase tracking-wide">Token Usage &amp; Estimated Cost</span>
+                      <span className="text-sm font-semibold text-black">
+                        ${usage.estimated_cost.toFixed(4)}
+                      </span>
+                    </div>
+                    <div className="mt-3 grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-5">
+                      <div className="rounded-lg bg-sand/60 px-2 py-1.5 text-center">
+                        <div className="text-[10px] uppercase tracking-wide text-black/50">60 min</div>
+                        <div className="text-sm font-semibold text-black">{formatTokens(usage.last_60_minutes.total_tokens)}</div>
+                        <div className="text-[10px] text-black/50">
+                          {formatTokens(usage.last_60_minutes.input_tokens)} / {formatTokens(usage.last_60_minutes.output_tokens)}
+                        </div>
+                      </div>
+                      <div className="rounded-lg bg-sand/60 px-2 py-1.5 text-center">
+                        <div className="text-[10px] uppercase tracking-wide text-black/50">24 hrs</div>
+                        <div className="text-sm font-semibold text-black">{formatTokens(usage.last_24_hours.total_tokens)}</div>
+                        <div className="text-[10px] text-black/50">
+                          {formatTokens(usage.last_24_hours.input_tokens)} / {formatTokens(usage.last_24_hours.output_tokens)}
+                        </div>
+                      </div>
+                      <div className="rounded-lg bg-sand/60 px-2 py-1.5 text-center">
+                        <div className="text-[10px] uppercase tracking-wide text-black/50">7 days</div>
+                        <div className="text-sm font-semibold text-black">{formatTokens(usage.last_7_days.total_tokens)}</div>
+                        <div className="text-[10px] text-black/50">
+                          {formatTokens(usage.last_7_days.input_tokens)} / {formatTokens(usage.last_7_days.output_tokens)}
+                        </div>
+                      </div>
+                      <div className="rounded-lg bg-sand/60 px-2 py-1.5 text-center">
+                        <div className="text-[10px] uppercase tracking-wide text-black/50">30 days</div>
+                        <div className="text-sm font-semibold text-black">{formatTokens(usage.last_30_days.total_tokens)}</div>
+                        <div className="text-[10px] text-black/50">
+                          {formatTokens(usage.last_30_days.input_tokens)} / {formatTokens(usage.last_30_days.output_tokens)}
+                        </div>
+                      </div>
+                      <div className="rounded-lg bg-sand/60 px-2 py-1.5 text-center">
+                        <div className="text-[10px] uppercase tracking-wide text-black/50">Forever</div>
+                        <div className="text-sm font-semibold text-black">{formatTokens(usage.forever.total_tokens)}</div>
+                        <div className="text-[10px] text-black/50">
+                          {formatTokens(usage.forever.input_tokens)} / {formatTokens(usage.forever.output_tokens)}
+                        </div>
+                      </div>
+                    </div>
                   </div>
-                  <div className="mt-3 grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-5">
-                    <div className="rounded-lg bg-sand/60 px-2 py-1.5 text-center">
-                      <div className="text-[10px] uppercase tracking-wide text-black/50">60 min</div>
-                      <div className="text-sm font-semibold text-black">{formatTokens(usage.last_60_minutes.total_tokens)}</div>
-                      <div className="text-[10px] text-black/50">
-                        {formatTokens(usage.last_60_minutes.input_tokens)} / {formatTokens(usage.last_60_minutes.output_tokens)}
+                  <div className="rounded-xl border border-black/10 bg-white/70 p-4">
+                    <span className="text-xs font-semibold text-black/50 uppercase tracking-wide">Web Search Usage</span>
+                    <div className="mt-3 grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-5">
+                      <div className="rounded-lg bg-sand/60 px-2 py-1.5 text-center">
+                        <div className="text-[10px] uppercase tracking-wide text-black/50">60 min</div>
+                        <div className="text-sm font-semibold text-black">{usage.last_60_minutes.web_searches}</div>
                       </div>
-                    </div>
-                    <div className="rounded-lg bg-sand/60 px-2 py-1.5 text-center">
-                      <div className="text-[10px] uppercase tracking-wide text-black/50">24 hrs</div>
-                      <div className="text-sm font-semibold text-black">{formatTokens(usage.last_24_hours.total_tokens)}</div>
-                      <div className="text-[10px] text-black/50">
-                        {formatTokens(usage.last_24_hours.input_tokens)} / {formatTokens(usage.last_24_hours.output_tokens)}
+                      <div className="rounded-lg bg-sand/60 px-2 py-1.5 text-center">
+                        <div className="text-[10px] uppercase tracking-wide text-black/50">24 hrs</div>
+                        <div className="text-sm font-semibold text-black">{usage.last_24_hours.web_searches}</div>
                       </div>
-                    </div>
-                    <div className="rounded-lg bg-sand/60 px-2 py-1.5 text-center">
-                      <div className="text-[10px] uppercase tracking-wide text-black/50">7 days</div>
-                      <div className="text-sm font-semibold text-black">{formatTokens(usage.last_7_days.total_tokens)}</div>
-                      <div className="text-[10px] text-black/50">
-                        {formatTokens(usage.last_7_days.input_tokens)} / {formatTokens(usage.last_7_days.output_tokens)}
+                      <div className="rounded-lg bg-sand/60 px-2 py-1.5 text-center">
+                        <div className="text-[10px] uppercase tracking-wide text-black/50">7 days</div>
+                        <div className="text-sm font-semibold text-black">{usage.last_7_days.web_searches}</div>
                       </div>
-                    </div>
-                    <div className="rounded-lg bg-sand/60 px-2 py-1.5 text-center">
-                      <div className="text-[10px] uppercase tracking-wide text-black/50">30 days</div>
-                      <div className="text-sm font-semibold text-black">{formatTokens(usage.last_30_days.total_tokens)}</div>
-                      <div className="text-[10px] text-black/50">
-                        {formatTokens(usage.last_30_days.input_tokens)} / {formatTokens(usage.last_30_days.output_tokens)}
+                      <div className="rounded-lg bg-sand/60 px-2 py-1.5 text-center">
+                        <div className="text-[10px] uppercase tracking-wide text-black/50">30 days</div>
+                        <div className="text-sm font-semibold text-black">{usage.last_30_days.web_searches}</div>
                       </div>
-                    </div>
-                    <div className="rounded-lg bg-sand/60 px-2 py-1.5 text-center">
-                      <div className="text-[10px] uppercase tracking-wide text-black/50">Forever</div>
-                      <div className="text-sm font-semibold text-black">{formatTokens(usage.forever.total_tokens)}</div>
-                      <div className="text-[10px] text-black/50">
-                        {formatTokens(usage.forever.input_tokens)} / {formatTokens(usage.forever.output_tokens)}
+                      <div className="rounded-lg bg-sand/60 px-2 py-1.5 text-center">
+                        <div className="text-[10px] uppercase tracking-wide text-black/50">Forever</div>
+                        <div className="text-sm font-semibold text-black">{usage.forever.web_searches}</div>
                       </div>
                     </div>
                   </div>
@@ -469,7 +496,7 @@ export default function UsersPage() {
       </Modal>
 
       {/* Update email modal */}
-      <Modal open={isEmailModalOpen} onClose={() => setIsEmailModalOpen(false)} labelledBy="update-email-title">
+      <Modal open={isEmailModalOpen} onClose={() => setIsEmailModalOpen(false)} labelledBy="update-email-title" panelClassName="max-w-md">
         <div className="p-5">
           <div className="flex items-start justify-between">
             <h2 id="update-email-title" className="font-display text-xl">Update email for {selectedEmailUser?.username}</h2>
@@ -506,7 +533,7 @@ export default function UsersPage() {
       </Modal>
 
       {/* Update password modal */}
-      <Modal open={isPasswordModalOpen} onClose={() => setIsPasswordModalOpen(false)} labelledBy="update-password-title">
+      <Modal open={isPasswordModalOpen} onClose={() => setIsPasswordModalOpen(false)} labelledBy="update-password-title" panelClassName="max-w-md">
         <div className="p-5">
           <div className="flex items-start justify-between">
             <h2 id="update-password-title" className="font-display text-xl">Update password for {selectedPasswordUser?.username}</h2>
