@@ -11,7 +11,7 @@ from app.core.config import get_settings
 from app.core.db import get_db
 from app.core.security import generate_api_key, hash_api_key, hash_password
 from app.core.token_usage import get_user_token_usage
-from app.core.usage_limits import validate_usage_limit_values
+from app.core.usage_limits import are_tool_usage_limits_enabled, are_usage_limits_enabled, validate_tool_usage_limit_values, validate_usage_limit_values
 from app.models.api_key import ApiKey
 from app.models.user import User
 from app.utils.schemas import ApiKeyCreateRequest, AppSettingsResponse, AppSettingsUpdateRequest, UserCreateRequest, UserUpdateRequest
@@ -77,6 +77,29 @@ def update_settings(payload: AppSettingsUpdateRequest, admin_user: User = Depend
         except ValueError as exc:
             raise HTTPException(status_code=400, detail=str(exc)) from exc
         for field_name, value in usage_limit_updates.items():
+            if value is not None:
+                setattr(app_settings, field_name, value)
+
+    tool_usage_limit_updates = {
+        "usage_limit_tools_60_minutes": payload.usage_limit_tools_60_minutes,
+        "usage_limit_tools_24_hours": payload.usage_limit_tools_24_hours,
+        "usage_limit_tools_7_days": payload.usage_limit_tools_7_days,
+        "usage_limit_tools_30_days": payload.usage_limit_tools_30_days,
+    }
+    if any(value is not None for value in tool_usage_limit_updates.values()):
+        merged_tool_limits = {
+            field_name: (
+                getattr(payload, field_name)
+                if getattr(payload, field_name) is not None
+                else getattr(app_settings, field_name)
+            )
+            for field_name in tool_usage_limit_updates
+        }
+        try:
+            validate_tool_usage_limit_values(**merged_tool_limits)
+        except ValueError as exc:
+            raise HTTPException(status_code=400, detail=str(exc)) from exc
+        for field_name, value in tool_usage_limit_updates.items():
             if value is not None:
                 setattr(app_settings, field_name, value)
 
@@ -286,6 +309,10 @@ def _serialize_app_settings(app_settings) -> AppSettingsResponse:
         usage_limit_tokens_24_hours=app_settings.usage_limit_tokens_24_hours,
         usage_limit_tokens_7_days=app_settings.usage_limit_tokens_7_days,
         usage_limit_tokens_30_days=app_settings.usage_limit_tokens_30_days,
+        usage_limit_tools_60_minutes=app_settings.usage_limit_tools_60_minutes,
+        usage_limit_tools_24_hours=app_settings.usage_limit_tools_24_hours,
+        usage_limit_tools_7_days=app_settings.usage_limit_tools_7_days,
+        usage_limit_tools_30_days=app_settings.usage_limit_tools_30_days,
     )
 
 

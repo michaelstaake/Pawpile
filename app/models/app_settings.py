@@ -29,3 +29,7 @@ class AppSettings(Base):
     usage_limit_tokens_24_hours: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
     usage_limit_tokens_7_days: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
     usage_limit_tokens_30_days: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
+    usage_limit_tools_60_minutes: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
+    usage_limit_tools_24_hours: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
+    usage_limit_tools_7_days: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
+    usage_limit_tools_30_days: Mapped[int] = mapped_column(Integer, default=0, nullable=False)

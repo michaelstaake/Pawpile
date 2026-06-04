@@ -4,11 +4,18 @@ import { useAuth } from "../context/AuthContext";
 import { useToast } from "../context/ToastContext";
 import { AppSettingsRecord } from "../lib/records";
 
-const PERIOD_FIELDS = [
+const TOKEN_PERIOD_FIELDS = [
   { key: "usage_limit_tokens_60_minutes" as const, label: "60 Minutes" },
   { key: "usage_limit_tokens_24_hours" as const, label: "24 Hours" },
   { key: "usage_limit_tokens_7_days" as const, label: "7 Days" },
   { key: "usage_limit_tokens_30_days" as const, label: "30 Days" },
+];
+
+const TOOL_PERIOD_FIELDS = [
+  { key: "usage_limit_tools_60_minutes" as const, label: "60 Minutes" },
+  { key: "usage_limit_tools_24_hours" as const, label: "24 Hours" },
+  { key: "usage_limit_tools_7_days" as const, label: "7 Days" },
+  { key: "usage_limit_tools_30_days" as const, label: "30 Days" },
 ];
 
 const DEFAULT_SETTINGS: AppSettingsRecord = {
@@ -28,6 +35,10 @@ const DEFAULT_SETTINGS: AppSettingsRecord = {
   usage_limit_tokens_24_hours: 0,
   usage_limit_tokens_7_days: 0,
   usage_limit_tokens_30_days: 0,
+  usage_limit_tools_60_minutes: 0,
+  usage_limit_tools_24_hours: 0,
+  usage_limit_tools_7_days: 0,
+  usage_limit_tools_30_days: 0,
 };
 
 function parseLimitValue(rawValue: string): number | null {
@@ -44,7 +55,7 @@ function parseLimitValue(rawValue: string): number | null {
   return parsed;
 }
 
-function validateUsageLimits(values: {
+function validateTokenUsageLimits(values: {
   usage_limit_tokens_60_minutes: number;
   usage_limit_tokens_24_hours: number;
   usage_limit_tokens_7_days: number;
@@ -69,6 +80,31 @@ function validateUsageLimits(values: {
   return null;
 }
 
+function validateToolUsageLimits(values: {
+  usage_limit_tools_60_minutes: number;
+  usage_limit_tools_24_hours: number;
+  usage_limit_tools_7_days: number;
+  usage_limit_tools_30_days: number;
+}): string | null {
+  const ordered = [
+    { label: "60 Minutes", value: values.usage_limit_tools_60_minutes },
+    { label: "24 Hours", value: values.usage_limit_tools_24_hours },
+    { label: "7 Days", value: values.usage_limit_tools_7_days },
+    { label: "30 Days", value: values.usage_limit_tools_30_days },
+  ];
+
+  const enabled = ordered.filter((period) => period.value > 0);
+  for (let shorterIndex = 0; shorterIndex < enabled.length; shorterIndex += 1) {
+    for (let longerIndex = shorterIndex + 1; longerIndex < enabled.length; longerIndex += 1) {
+      if (enabled[longerIndex].value < enabled[shorterIndex].value) {
+        return `The ${enabled[longerIndex].label} tool usage limit cannot be lower than the ${enabled[shorterIndex].label} limit when both are enabled.`;
+      }
+    }
+  }
+
+  return null;
+}
+
 export default function UsageLimitsPage() {
   const { token } = useAuth();
   const { showError, showSuccess } = useToast();
@@ -77,6 +113,10 @@ export default function UsageLimitsPage() {
     usage_limit_tokens_24_hours: "0",
     usage_limit_tokens_7_days: "0",
     usage_limit_tokens_30_days: "0",
+    usage_limit_tools_60_minutes: "0",
+    usage_limit_tools_24_hours: "0",
+    usage_limit_tools_7_days: "0",
+    usage_limit_tools_30_days: "0",
   });
   const [isLoading, setIsLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
@@ -98,6 +138,10 @@ export default function UsageLimitsPage() {
         usage_limit_tokens_24_hours: String(settingsResponse.usage_limit_tokens_24_hours ?? 0),
         usage_limit_tokens_7_days: String(settingsResponse.usage_limit_tokens_7_days ?? 0),
         usage_limit_tokens_30_days: String(settingsResponse.usage_limit_tokens_30_days ?? 0),
+        usage_limit_tools_60_minutes: String(settingsResponse.usage_limit_tools_60_minutes ?? 0),
+        usage_limit_tools_24_hours: String(settingsResponse.usage_limit_tools_24_hours ?? 0),
+        usage_limit_tools_7_days: String(settingsResponse.usage_limit_tools_7_days ?? 0),
+        usage_limit_tools_30_days: String(settingsResponse.usage_limit_tools_30_days ?? 0),
       });
     } catch (error) {
       showError(error instanceof Error ? error.message : "Failed to load usage limits");
@@ -106,7 +150,7 @@ export default function UsageLimitsPage() {
     }
   }
 
-  const parsedLimits = useMemo((): { valid: false; message: string } | { valid: true; values: {
+  const parsedTokenLimits = useMemo((): { valid: false; message: string } | { valid: true; values: {
     usage_limit_tokens_60_minutes: number;
     usage_limit_tokens_24_hours: number;
     usage_limit_tokens_7_days: number;
@@ -133,7 +177,7 @@ export default function UsageLimitsPage() {
       usage_limit_tokens_30_days,
     };
 
-    const validationMessage = validateUsageLimits(values);
+    const validationMessage = validateTokenUsageLimits(values);
     if (validationMessage) {
       return { valid: false, message: validationMessage };
     }
@@ -141,11 +185,51 @@ export default function UsageLimitsPage() {
     return { valid: true, values };
   }, [draft]);
 
+  const parsedToolLimits = useMemo((): { valid: false; message: string } | { valid: true; values: {
+    usage_limit_tools_60_minutes: number;
+    usage_limit_tools_24_hours: number;
+    usage_limit_tools_7_days: number;
+    usage_limit_tools_30_days: number;
+  } } => {
+    const usage_limit_tools_60_minutes = parseLimitValue(draft.usage_limit_tools_60_minutes);
+    const usage_limit_tools_24_hours = parseLimitValue(draft.usage_limit_tools_24_hours);
+    const usage_limit_tools_7_days = parseLimitValue(draft.usage_limit_tools_7_days);
+    const usage_limit_tools_30_days = parseLimitValue(draft.usage_limit_tools_30_days);
+
+    if (
+      usage_limit_tools_60_minutes === null
+      || usage_limit_tools_24_hours === null
+      || usage_limit_tools_7_days === null
+      || usage_limit_tools_30_days === null
+    ) {
+      return { valid: false, message: "Tool usage limits must be whole numbers of zero or greater." };
+    }
+
+    const values = {
+      usage_limit_tools_60_minutes,
+      usage_limit_tools_24_hours,
+      usage_limit_tools_7_days,
+      usage_limit_tools_30_days,
+    };
+
+    const validationMessage = validateToolUsageLimits(values);
+    if (validationMessage) {
+      return { valid: false, message: validationMessage };
+    }
+
+    return { valid: true, values };
+  }, [draft]);
+
+  const allValid = parsedTokenLimits.valid && parsedToolLimits.valid;
+
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    if (!token || !parsedLimits.valid) {
-      if (!parsedLimits.valid) {
-        showError(parsedLimits.message);
+    if (!token || !allValid) {
+      if (!parsedTokenLimits.valid) {
+        showError(parsedTokenLimits.message);
+      }
+      if (!parsedToolLimits.valid) {
+        showError(parsedToolLimits.message);
       }
       return;
     }
@@ -159,14 +243,25 @@ export default function UsageLimitsPage() {
           | "usage_limit_tokens_24_hours"
           | "usage_limit_tokens_7_days"
           | "usage_limit_tokens_30_days"
+          | "usage_limit_tools_60_minutes"
+          | "usage_limit_tools_24_hours"
+          | "usage_limit_tools_7_days"
+          | "usage_limit_tools_30_days"
         >,
         AppSettingsRecord
-      >("/api/admin/settings", parsedLimits.values, token);
+      >("/api/admin/settings", {
+        ...parsedTokenLimits.values,
+        ...parsedToolLimits.values,
+      }, token);
       setDraft({
         usage_limit_tokens_60_minutes: String(response.usage_limit_tokens_60_minutes ?? 0),
         usage_limit_tokens_24_hours: String(response.usage_limit_tokens_24_hours ?? 0),
         usage_limit_tokens_7_days: String(response.usage_limit_tokens_7_days ?? 0),
         usage_limit_tokens_30_days: String(response.usage_limit_tokens_30_days ?? 0),
+        usage_limit_tools_60_minutes: String(response.usage_limit_tools_60_minutes ?? 0),
+        usage_limit_tools_24_hours: String(response.usage_limit_tools_24_hours ?? 0),
+        usage_limit_tools_7_days: String(response.usage_limit_tools_7_days ?? 0),
+        usage_limit_tools_30_days: String(response.usage_limit_tools_30_days ?? 0),
       });
       showSuccess("Usage limits updated.");
     } catch (error) {
@@ -176,11 +271,18 @@ export default function UsageLimitsPage() {
     }
   }
 
-  const limitsEnabled = parsedLimits.valid && (
-    parsedLimits.values.usage_limit_tokens_60_minutes > 0
-    || parsedLimits.values.usage_limit_tokens_24_hours > 0
-    || parsedLimits.values.usage_limit_tokens_7_days > 0
-    || parsedLimits.values.usage_limit_tokens_30_days > 0
+  const tokenLimitsEnabled = parsedTokenLimits.valid && (
+    parsedTokenLimits.values.usage_limit_tokens_60_minutes > 0
+    || parsedTokenLimits.values.usage_limit_tokens_24_hours > 0
+    || parsedTokenLimits.values.usage_limit_tokens_7_days > 0
+    || parsedTokenLimits.values.usage_limit_tokens_30_days > 0
+  );
+
+  const toolLimitsEnabled = parsedToolLimits.valid && (
+    parsedToolLimits.values.usage_limit_tools_60_minutes > 0
+    || parsedToolLimits.values.usage_limit_tools_24_hours > 0
+    || parsedToolLimits.values.usage_limit_tools_7_days > 0
+    || parsedToolLimits.values.usage_limit_tools_30_days > 0
   );
 
   if (isLoading) {
@@ -192,12 +294,12 @@ export default function UsageLimitsPage() {
       <section className="rounded-[28px] border border-black/10 bg-white/80 p-6 shadow-sm backdrop-blur">
         <h2 className="font-display text-2xl text-ink">Usage Limits</h2>
         <p className="mt-2 max-w-3xl text-sm text-black/60">
-          Set per-account token limits for standard users. Admin users are not limited. Use zero to disable a time window.
-          When every limit is zero, usage is unlimited for everyone. Users who hit a limit cannot use chat or the API until usage resets.
+          Set per-account limits for standard users. Admin users are not limited. Use zero to disable a time window.
+          When every limit is zero, usage is unlimited for everyone.
         </p>
 
         <div className="mt-6 grid gap-4 sm:grid-cols-2">
-          {PERIOD_FIELDS.map((period) => (
+          {TOKEN_PERIOD_FIELDS.map((period) => (
             <div key={period.key}>
               <label htmlFor={period.key} className="block text-sm font-medium text-black/70">
                 {period.label}
@@ -216,19 +318,55 @@ export default function UsageLimitsPage() {
           ))}
         </div>
 
-        {!parsedLimits.valid ? (
-          <p className="mt-4 text-sm text-[#b42318]">{parsedLimits.message}</p>
+        <div className="mt-8">
+          <h3 className="font-display text-xl text-ink">Tool Usage Limits</h3>
+          <p className="mt-2 max-w-3xl text-sm text-black/60">
+            Set per-account web search tool call limits for standard users. Admin users are not limited.
+            Use zero to disable a time window. When every tool limit is zero, web search usage is unlimited.
+            Users who hit a tool limit cannot use web search but can still use other tools, chat, and the API (assuming within token limits).
+          </p>
+
+          <div className="mt-4 grid gap-4 sm:grid-cols-2">
+            {TOOL_PERIOD_FIELDS.map((period) => (
+              <div key={period.key}>
+                <label htmlFor={period.key} className="block text-sm font-medium text-black/70">
+                  {period.label}
+                </label>
+                <input
+                  id={period.key}
+                  type="number"
+                  min={0}
+                  step={1}
+                  value={draft[period.key]}
+                  onChange={(event) => setDraft((current) => ({ ...current, [period.key]: event.target.value }))}
+                  className="mt-1 w-full rounded-lg border border-black/10 bg-white px-3 py-2.5 text-ink outline-none focus:border-black/30"
+                />
+                <p className="mt-1 text-xs text-black/50">0 = unlimited for this window</p>
+              </div>
+            ))}
+          </div>
+        </div>
+
+        {!parsedTokenLimits.valid ? (
+          <p className="mt-4 text-sm text-[#b42318]">{parsedTokenLimits.message}</p>
+        ) : null}
+        {!parsedToolLimits.valid ? (
+          <p className="mt-4 text-sm text-[#b42318]">{parsedToolLimits.message}</p>
         ) : null}
 
         <div className="mt-6 flex flex-wrap items-center justify-between gap-3">
           <p className="text-sm text-black/55">
-            {limitsEnabled
-              ? "Limits are active for standard users."
-              : "All limits are currently disabled (unlimited usage)."}
+            {tokenLimitsEnabled && toolLimitsEnabled
+              ? "Token and tool limits are active for standard users."
+              : tokenLimitsEnabled
+                ? "Token limits are active for standard users."
+                : toolLimitsEnabled
+                  ? "Tool usage limits are active for standard users."
+                  : "All limits are currently disabled (unlimited usage)."}
           </p>
           <button
             type="submit"
-            disabled={isSaving || !parsedLimits.valid}
+            disabled={isSaving || !allValid}
             className="rounded-lg bg-ink px-4 py-2 text-sm font-semibold text-white hover:bg-black/85 disabled:opacity-50"
           >
             {isSaving ? "Saving..." : "Save usage limits"}

@@ -16,7 +16,7 @@ from app.core.inference_manager import InferenceManager
 from app.core.knowledge_base import build_rag_context, retrieve_relevant_documents
 from app.core.app_settings import get_or_create_app_settings
 from app.core.token_usage import record_token_usage
-from app.core.usage_limits import check_usage_limit_for_request
+from app.core.usage_limits import check_tool_usage_limit_for_request, check_usage_limit_for_request
 from app.core.task_manager import task_manager
 from app.core.web_search import WEB_SEARCH_TOOL_DEFINITION, get_search_provider, parse_sse_chunks
 from app.models.app_settings import AppSettings
@@ -78,7 +78,7 @@ def _coerce_usage_count(value: Any) -> int | None:
     return None
 
 
-def _record_usage(usage: Any, *, db: Session, user_id: int | None) -> bool:
+def _record_usage(usage: Any, *, db: Session, user_id: int | None, tool_calls: int = 0) -> bool:
     if not isinstance(usage, dict):
         return False
 
@@ -101,10 +101,11 @@ def _record_usage(usage: Any, *, db: Session, user_id: int | None) -> bool:
         total_tokens=total_tokens,
         input_tokens=input_tokens,
         output_tokens=output_tokens,
+        tool_calls=tool_calls,
     )
 
 
-def _record_usage_from_sse_chunk(chunk: bytes | str, *, db: Session, user_id: int | None) -> bool:
+def _record_usage_from_sse_chunk(chunk: bytes | str, *, db: Session, user_id: int | None, tool_calls: int = 0) -> bool:
     if isinstance(chunk, bytes):
         chunk = chunk.decode("utf-8", errors="replace")
 
@@ -125,10 +126,19 @@ def _record_usage_from_sse_chunk(chunk: bytes | str, *, db: Session, user_id: in
             except (json.JSONDecodeError, ValueError):
                 continue
 
-            if _record_usage(payload.get("usage"), db=db, user_id=user_id):
+            if _record_usage(payload.get("usage"), db=db, user_id=user_id, tool_calls=tool_calls):
                 return True
 
     return False
+
+
+def _count_tool_calls(messages: list[dict]) -> int:
+    count = 0
+    for message in messages:
+        tool_calls = message.get("tool_calls")
+        if isinstance(tool_calls, list):
+            count += len(tool_calls)
+    return count
 
 
 def _model_family(model: ModelConfig) -> str | None:
@@ -423,6 +433,15 @@ async def v1_chat_completions(payload: OpenAIChatRequest, current_user: User = D
             detail="Web search requires tool calling to be enabled for this model. Enable tool calling in the model settings.",
         )
 
+    if active_web_search_provider is not None:
+        tool_usage_limit_result = check_tool_usage_limit_for_request(
+            db,
+            user=current_user,
+            app_settings=app_settings,
+        )
+        if not tool_usage_limit_result.allowed:
+            raise HTTPException(status_code=429, detail=tool_usage_limit_result.detail or "Tool usage limit reached")
+
     if payload.requests_vision() and not model.vision_enabled:
         raise HTTPException(
             status_code=400,
@@ -449,6 +468,7 @@ async def v1_chat_completions(payload: OpenAIChatRequest, current_user: User = D
     if "repetition_penalty" not in request_payload:
         request_payload["repetition_penalty"] = model.repetition_penalty
     request_payload["enable_thinking"] = _resolve_enable_thinking(payload, model)
+    request_payload["tool_calls"] = _count_tool_calls(request_payload["messages"])
     request_payload["messages"] = [
         {
             key: value
@@ -526,7 +546,7 @@ async def v1_chat_completions(payload: OpenAIChatRequest, current_user: User = D
                 try:
                     async for chunk in _stream_with_web_search(inference, model.id, request_payload, active_web_search_provider):
                         if not usage_recorded:
-                            usage_recorded = _record_usage_from_sse_chunk(chunk, db=db, user_id=current_user_id)
+                            usage_recorded = _record_usage_from_sse_chunk(chunk, db=db, user_id=current_user_id, tool_calls=request_payload.get("tool_calls", 0))
                         yield chunk
                     task_manager.complete_task(task_id)
                 except asyncio.CancelledError:
@@ -550,7 +570,7 @@ async def v1_chat_completions(payload: OpenAIChatRequest, current_user: User = D
             task_manager.fail_task(task_id, str(exc))
             raise
         task_manager.complete_task(task_id)
-        _record_usage(result.get("usage"), db=db, user_id=current_user_id)
+        _record_usage(result.get("usage"), db=db, user_id=current_user_id, tool_calls=request_payload.get("tool_calls", 0))
         return {
             "id": f"chatcmpl-{uuid.uuid4().hex}",
             "object": "chat.completion",
@@ -572,7 +592,7 @@ async def v1_chat_completions(payload: OpenAIChatRequest, current_user: User = D
                     "stream_options": {"include_usage": True},
                 }):
                     if not usage_recorded:
-                        usage_recorded = _record_usage_from_sse_chunk(chunk, db=db, user_id=current_user_id)
+                        usage_recorded = _record_usage_from_sse_chunk(chunk, db=db, user_id=current_user_id, tool_calls=request_payload.get("tool_calls", 0))
                     yield chunk
                 task_manager.complete_task(task_id)
             except asyncio.CancelledError:
@@ -596,7 +616,7 @@ async def v1_chat_completions(payload: OpenAIChatRequest, current_user: User = D
         task_manager.fail_task(task_id, str(exc))
         raise
     task_manager.complete_task(task_id)
-    _record_usage(result.get("usage"), db=db, user_id=current_user_id)
+    _record_usage(result.get("usage"), db=db, user_id=current_user_id, tool_calls=request_payload.get("tool_calls", 0))
     return {
         "id": f"chatcmpl-{uuid.uuid4().hex}",
         "object": "chat.completion",

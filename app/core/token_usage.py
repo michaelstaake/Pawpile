@@ -43,6 +43,7 @@ def record_token_usage(
     total_tokens: int | None,
     input_tokens: int | None = None,
     output_tokens: int | None = None,
+    tool_calls: int = 0,
 ) -> bool:
     normalized_usage = normalize_token_usage(
         total_tokens,
@@ -59,6 +60,7 @@ def record_token_usage(
             total_tokens=normalized_total_tokens,
             input_tokens=normalized_input_tokens,
             output_tokens=normalized_output_tokens,
+            tool_calls=max(0, int(tool_calls or 0)),
         )
     )
     db.commit()

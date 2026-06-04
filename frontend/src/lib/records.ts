@@ -199,6 +199,12 @@ export type AccountUsageStatusRecord = {
   periods: AccountUsagePeriodRecord[];
 };
 
+export type AccountToolUsageStatusRecord = {
+  enabled: boolean;
+  at_limit: boolean;
+  periods: AccountUsagePeriodRecord[];
+};
+
 export type StatusResponse = {
   status: string;
   refreshed_at: string;
@@ -209,6 +215,7 @@ export type StatusResponse = {
   tokens_processed: number;
   token_usage: TokenUsageSummaryRecord;
   account_usage: AccountUsageStatusRecord | null;
+  account_tool_usage: AccountToolUsageStatusRecord | null;
   devices: DeviceStatusRecord[];
   runtime_errors: {
     vendor: string;
@@ -274,6 +281,10 @@ export type AppSettingsRecord = {
   usage_limit_tokens_24_hours: number;
   usage_limit_tokens_7_days: number;
   usage_limit_tokens_30_days: number;
+  usage_limit_tools_60_minutes: number;
+  usage_limit_tools_24_hours: number;
+  usage_limit_tools_7_days: number;
+  usage_limit_tools_30_days: number;
 };
 
 export type SslCertificateStatus = {
