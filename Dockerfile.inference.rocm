@@ -29,7 +29,7 @@ ENV ROCM_PATH=/opt/rocm
 
 ARG LLAMA_CPP_TAG="b9297"
 # Docker builds cannot auto-detect GPU arch; override AMDGPU_TARGETS in .env for other AMD GPUs.
-ARG AMDGPU_TARGETS="gfx1201"
+ARG AMDGPU_TARGETS="gfx1200;gfx1201"
 ARG GGML_HIP_RCCL="OFF"
 
 RUN git clone --depth 1 --branch "${LLAMA_CPP_TAG}" https://github.com/ggml-org/llama.cpp.git /opt/llama.cpp \
