@@ -1214,33 +1214,38 @@ export default function ChatPage() {
           )}
 
           <div className="flex gap-2">
-            {selectedModelSupportsWebSearch ? (
-              <button
-                type="button"
-                onClick={() => setUseWebSearch((current) => !current)}
-                disabled={isSending || isModelsUnavailable}
-                className={`flex h-12 w-12 items-center justify-center rounded-xl border border-black/20 bg-white text-black transition disabled:opacity-50 ${useWebSearch ? "border-amber/70 bg-amber/15 text-black" : "hover:bg-black/5"}`}
-                title="Web Search"
-                aria-label="Toggle Web Search"
-                aria-pressed={useWebSearch}
-              >
-                <i className="bi bi-globe2 text-[18px] leading-none" aria-hidden="true" />
-              </button>
-            ) : null}
-            {selectedModelAllowsThinkingPreference || selectedModelAlwaysThinks ? (
-              <button
-                type="button"
-                onClick={() => setUseThinking((current) => !current)}
-                disabled={isSending || isModelsUnavailable || !selectedModelAllowsThinkingPreference}
-                className={`flex h-12 w-12 items-center justify-center rounded-xl border border-black/20 bg-white text-black transition disabled:opacity-50 ${selectedModelAllowsThinkingPreference ? (useThinking ? "border-amber/70 bg-amber/15 text-black" : "hover:bg-black/5") : "border-amber/70 bg-amber/15 text-black"}`}
-                title={selectedModelAllowsThinkingPreference ? (useThinking ? "Disable Thinking" : "Enable Thinking") : "Thinking enabled by default"}
-                aria-label={selectedModelAllowsThinkingPreference ? (useThinking ? "Toggle Thinking off" : "Toggle Thinking on") : "Thinking enabled by default"}
-                aria-pressed={useThinking}
-                aria-disabled={!selectedModelAllowsThinkingPreference}
-              >
-                <i className="bi bi-stars text-[18px] leading-none" aria-hidden="true" />
-              </button>
-            ) : null}
+            <button
+              type="button"
+              onClick={() => {
+                if (!selectedModelSupportsWebSearch) return;
+                setUseWebSearch((current) => !current);
+              }}
+              disabled={isSending || isModelsUnavailable || !selectedModelSupportsWebSearch}
+              className={`flex h-12 w-12 items-center justify-center rounded-xl border text-black transition disabled:opacity-50 ${!selectedModelSupportsWebSearch ? "border-black/20 bg-white" : useWebSearch ? "border-amber/70 bg-amber/15 text-black" : "border-black/20 bg-white hover:bg-black/5"}`}
+              title={selectedModelSupportsWebSearch ? (useWebSearch ? "Disable Web Search" : "Enable Web Search") : "Web Search not available for this model"}
+              aria-label={selectedModelSupportsWebSearch ? (useWebSearch ? "Disable Web Search" : "Enable Web Search") : "Web Search not available for this model"}
+              aria-pressed={useWebSearch}
+              aria-disabled={!selectedModelSupportsWebSearch}
+            >
+              <i className={`text-[18px] leading-none ${useWebSearch ? "bi bi-globe text-[18px] leading-none" : "bi bi-globe2 text-[18px] leading-none"}`} aria-hidden="true" />
+            </button>
+            <button
+              type="button"
+              onClick={() => {
+                if (!selectedModelAllowsThinkingPreference && !selectedModelAlwaysThinks) return;
+                if (selectedModelAllowsThinkingPreference) {
+                  setUseThinking((current) => !current);
+                }
+              }}
+              disabled={isSending || isModelsUnavailable || (!selectedModelAllowsThinkingPreference && !selectedModelAlwaysThinks)}
+              className={`flex h-12 w-12 items-center justify-center rounded-xl border text-black transition disabled:opacity-50 ${!selectedModelAllowsThinkingPreference && !selectedModelAlwaysThinks ? "border-black/20 bg-white" : useThinking ? "border-amber/70 bg-amber/15 text-black" : "border-black/20 bg-white hover:bg-black/5"}`}
+              title={!selectedModelAllowsThinkingPreference && !selectedModelAlwaysThinks ? "Thinking not available for this model" : selectedModelAlwaysThinks ? "Thinking enabled by default" : (useThinking ? "Disable Thinking" : "Enable Thinking")}
+              aria-label={!selectedModelAllowsThinkingPreference && !selectedModelAlwaysThinks ? "Thinking not available for this model" : selectedModelAlwaysThinks ? "Thinking enabled by default" : (useThinking ? "Disable Thinking" : "Enable Thinking")}
+              aria-pressed={useThinking || selectedModelAlwaysThinks}
+              aria-disabled={!selectedModelAllowsThinkingPreference && !selectedModelAlwaysThinks}
+            >
+              <i className={`text-[18px] leading-none ${useThinking || selectedModelAlwaysThinks ? "bi bi-stars-fill text-[18px] leading-none" : "bi bi-stars text-[18px] leading-none"}`} aria-hidden="true" />
+            </button>
             <button
               type="button"
               onClick={() => fileInputRef.current?.click()}
